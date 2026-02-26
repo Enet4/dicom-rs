@@ -970,15 +970,6 @@ where S: CloseSocket + std::io::Read + std::io::Write,
     peer_ae_title: String,
 }
 
-impl<S> ClientAssociation<S>
-where
-    S: CloseSocket + std::io::Read + std::io::Write,
-{
-    pub fn release(self) -> Result<()> {
-        SyncAssociation::release(self)
-    }
-}
-
 impl<S> Association for ClientAssociation<S>
 where S: CloseSocket + std::io::Read + std::io::Write,
 {
@@ -1058,31 +1049,16 @@ where S: CloseSocket + std::io::Read + std::io::Write,
 }
 
 /// Trait with the behavior to synchronously release an association
-#[deprecated(since = "0.9.1", note = "Call `release` on ClientAssociation instead")]
+#[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
 pub trait Release {
-    #[deprecated(since = "0.9.1", note = "Call `release` on ClientAssociation instead")]
+    #[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
     fn release(&mut self) -> Result<()>;
 }
 
 #[allow(deprecated)]
 impl Release for ClientAssociation<std::net::TcpStream> {
     fn release(&mut self) -> Result<()> {
-        let pdu = Pdu::ReleaseRQ;
-        SyncAssociation::send(self, &pdu)?;
-        let pdu = SyncAssociation::receive(self)?;
-
-        match pdu {
-            Pdu::ReleaseRP => {}
-            pdu @ Pdu::AbortRQ { .. }
-            | pdu @ Pdu::AssociationAC { .. }
-            | pdu @ Pdu::AssociationRJ { .. }
-            | pdu @ Pdu::AssociationRQ { .. }
-            | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRQ => return super::UnexpectedPduSnafu { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => return super::UnknownPduSnafu { pdu }.fail(),
-        }
-        self.close().context(super::CloseSnafu)?;
-        Ok(())
+        SyncAssociationSealed::release(self)
     }
 }
 
