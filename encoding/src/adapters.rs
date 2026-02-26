@@ -182,6 +182,70 @@ pub trait PixelDataObject {
     ///
     /// Returns `None` if no pixel data is found.
     fn raw_pixel_data(&self) -> Option<RawPixelData>;
+
+    /// Return the pixel data of a specific frame as a byte slice/vector,
+    ///
+    /// Returns `None` if there is no such frame or there is no pixeldata at all.
+    fn frame_pixel_data(&self, frame: u32) -> Option<Cow<'_, [u8]>> {
+        match self.number_of_fragments() {
+            Some(number_of_fragments) => {
+                if number_of_fragments == self.number_of_frames()? {
+                    self.fragment(frame as usize)
+                } else {
+                    // In this case we look up the basic offset table
+                    // and gather all of the frame's fragments in a single vector.
+                    // Note: not the most efficient way to do this,
+                    // consider optimizing later with byte chunk readers
+                    let offset_table = self.offset_table()?;
+                    let base_offset = offset_table.get(frame as usize).copied();
+                    let base_offset = if frame == 0 {
+                        base_offset.unwrap_or(0) as usize
+                    } else {
+                        base_offset? as usize
+                    };
+                    let next_offset = offset_table.get(frame as usize + 1);
+
+                    let mut offset = 0;
+                    let mut frame_data = Vec::new();
+                    for idx in 0..number_of_fragments as usize {
+                        let fragment = self.fragment(idx)?;
+                        // include it
+                        if offset >= base_offset {
+                            frame_data.extend_from_slice(&fragment);
+                        }
+                        offset += fragment.len() + 8;
+                        if let Some(&next_offset) = next_offset {
+                            if offset >= next_offset as usize {
+                                // next fragment is for the next frame
+                                break;
+                            }
+                        }
+                    }
+
+                    Some(Cow::Owned(frame_data))
+                }
+            }
+            // In the case of native pixel data, the whole data is considered as a single fragment.
+            None => {
+                let rows = self.rows()?;
+                let columns = self.cols()?;
+                let samples_per_pixel = self.samples_per_pixel()?;
+                let bits_allocated = self.bits_allocated()?;
+                let frame_size = rows * columns * samples_per_pixel * ((bits_allocated + 7) / 8);
+                let pixel_data = self.fragment(0)?;
+                let start = frame as usize * frame_size as usize;
+                let end = start + frame_size as usize;
+                if end <= pixel_data.len() {
+                    match pixel_data {
+                        Cow::Borrowed(slice) => Some(Cow::Borrowed(&slice[start..end])),
+                        Cow::Owned(vec) => Some(Cow::Owned(vec[start..end].to_vec())),
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
 
 /// Custom options when encoding pixel data into an encapsulated form.
