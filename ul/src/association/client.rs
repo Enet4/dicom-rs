@@ -154,11 +154,12 @@ fn tls_connection<T>(
 /// ### Example
 ///
 /// ```no_run
-/// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
 /// # #[cfg(feature = "sync-tls")]
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// use dicom_dictionary_std::uids;
+/// use dicom_ul::{ClientAssociation, ClientAssociationOptions};
 /// use rustls::{
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
@@ -186,15 +187,22 @@ fn tls_connection<T>(
 ///     .with_client_auth_cert(vec![client_cert, ca_cert], client_private_key)
 ///     .expect("Failed to create client TLS config");
 ///
-/// let association = ClientAssociationOptions::new()
-///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
+/// let association: ClientAssociation<_> = ClientAssociationOptions::new()
+///    .with_presentation_context(
+///         uids::VERIFICATION,
+///         vec![uids::EXPLICIT_VR_LITTLE_ENDIAN, uids::IMPLICIT_VR_LITTLE_ENDIAN]
+///    )
 ///    .tls_config(config)
 ///    .read_timeout(Duration::from_secs(60))
 ///    .write_timeout(Duration::from_secs(60))
-///    .establish("129.168.0.5:104")?;
+///    .establish_with_tls("REMOTE_DCM@129.168.0.5:104")?;
 /// # Ok(())
 /// # }
 /// ```
+///
+/// For an association with the async API,
+/// call `establish_tls_async` or `establish_with_async_tls`
+/// instead of `establish_tls` or `establish_with_tls`.
 ///
 /// ## Presentation contexts
 ///
