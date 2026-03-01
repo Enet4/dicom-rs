@@ -224,11 +224,11 @@ impl AccessControl for AcceptCalledAeTitle {
 /// ### Example
 ///
 /// ```no_run
-/// # use dicom_ul::association::server::ServerAssociationOptions;
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
 /// # #[cfg(feature = "sync-tls")]
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// use dicom_ul::{ServerAssociation, ServerAssociationOptions};
 /// use std::net::TcpListener;
 /// use rustls::{
 ///     ServerConfig, RootCertStore,
@@ -265,15 +265,18 @@ impl AccessControl for AcceptCalledAeTitle {
 /// 
 /// let (stream, _address) = tcp_listener.accept()?;
 ///
-/// let association = ServerAssociationOptions::new()
+/// let association: ServerAssociation<_> = ServerAssociationOptions::new()
 ///     .accept_called_ae_title()
 ///     .ae_title("TLS-SCP")
 ///     .with_abstract_syntax(dicom_dictionary_std::uids::VERIFICATION)
 ///     .tls_config(server_config)
-///     .establish_tls(stream);
+///     .establish_tls(stream)?;
 /// # Ok(())
 /// # }
 /// ```
+///
+/// For an association with the async API,
+/// call `establish_tls_async` instead of `establish_tls`.
 #[derive(Debug, Clone)]
 pub struct ServerAssociationOptions<'a, A> {
     /// the application entity access control policy
