@@ -101,7 +101,7 @@ fn tls_connection<T>(
 ///
 /// ## Basic usage
 ///
-/// ### Sync
+/// ### Synchronous API
 ///
 /// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
@@ -116,16 +116,16 @@ fn tls_connection<T>(
 /// # }
 /// ```
 ///
-/// ### Async
+/// ### Asynchronous API
 /// 
-/// * Make sure you include the `async` feature in your `Cargo.toml`
+/// Include the `async` feature in your `Cargo.toml`
 ///
-/// ```ignore
+/// ```no_run
 /// # use dicom_ul::association::client::ClientAssociationOptions;
 /// # use std::time::Duration;
 /// # #[cfg(feature = "async")]
 /// # #[tokio::main]
-/// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let association = ClientAssociationOptions::new()
 ///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
 ///    .read_timeout(Duration::from_secs(60))
@@ -138,37 +138,44 @@ fn tls_connection<T>(
 /// 
 /// ## TLS Support
 /// 
-/// ### Sync TLS
+/// Enabling one of the Cargo features `sync-tls` or `async-tls`
+/// unlocks the methods for configuring TLS.
+/// Call `tls_config` and `server_name`
+/// to establish the association over a secure transport connection.
+///
+/// ### TLS in synchronous API
 /// 
-/// * Make sure you include the `sync-tls` feature in your `Cargo.toml`
+/// Include the `sync-tls` feature in your `Cargo.toml`.
 /// 
-/// ### Async TLS
+/// ### TLS in asynchronous API
 /// 
-/// * Make sure you include the `async-tls` feature in your `Cargo.toml`
+/// Include the `async-tls` feature in your `Cargo.toml`.
 /// 
 /// ### Example
-/// ```no_compile
-/// # use dicom_ul::association::client::ClientAssociationOptions;
+///
+/// ```no_run
 /// # use std::time::Duration;
 /// # use std::sync::Arc;
 /// # #[cfg(feature = "sync-tls")]
 /// # fn run() -> Result<(), Box<dyn std::error::Error>> {
+/// use dicom_dictionary_std::uids;
+/// use dicom_ul::{ClientAssociation, ClientAssociationOptions};
 /// use rustls::{
 ///     ClientConfig, RootCertStore,
 ///     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
 /// };
-/// // Using a self-signed certificate for demonstration purposes only.
-/// let ca_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/ca.crt").as_ref())
+/// // Loading certificates and keys for demonstration purposes
+/// let ca_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/ca.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
 /// 
 /// // Server certificate -- signed by CA
-/// let server_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/server.crt").as_ref())
+/// let server_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/server.crt")?.as_ref())
 ///     .expect("Failed to load server cert");
 ///
 /// // Client cert and private key -- signed by CA
-/// let client_cert = CertificateDer::from_pem_slice(include_bytes!("../../assets/client.crt").as_ref())
+/// let client_cert = CertificateDer::from_pem_slice(std::fs::read("ssl/client.crt")?.as_ref())
 ///     .expect("Failed to load client cert");
-/// let client_private_key = PrivateKeyDer::from_pem_slice(include_bytes!("../../assets/client.key").as_ref())
+/// let client_private_key = PrivateKeyDer::from_pem_slice(std::fs::read("ssl/client.key")?.as_ref())
 ///     .expect("Failed to load client private key");
 /// 
 /// // Create a root cert store for the client which includes the server certificate
@@ -180,15 +187,22 @@ fn tls_connection<T>(
 ///     .with_client_auth_cert(vec![client_cert, ca_cert], client_private_key)
 ///     .expect("Failed to create client TLS config");
 ///
-/// let association = ClientAssociationOptions::new()
-///    .with_presentation_context("1.2.840.10008.1.1", vec!["1.2.840.10008.1.2.1", "1.2.840.10008.1.2"])
+/// let association: ClientAssociation<_> = ClientAssociationOptions::new()
+///    .with_presentation_context(
+///         uids::VERIFICATION,
+///         vec![uids::EXPLICIT_VR_LITTLE_ENDIAN, uids::IMPLICIT_VR_LITTLE_ENDIAN]
+///    )
 ///    .tls_config(config)
 ///    .read_timeout(Duration::from_secs(60))
 ///    .write_timeout(Duration::from_secs(60))
-///    .establish("129.168.0.5:104")?;
+///    .establish_with_tls("REMOTE_DCM@129.168.0.5:104")?;
 /// # Ok(())
 /// # }
 /// ```
+///
+/// For an association with the async API,
+/// call `establish_tls_async` or `establish_with_async_tls`
+/// instead of `establish_tls` or `establish_with_tls`.
 ///
 /// ## Presentation contexts
 ///
