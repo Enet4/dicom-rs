@@ -301,7 +301,7 @@ mod successive_pdus_during_client_association {
                 .accept_any()
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
-                
+
             let association = server_options.establish_with_extra_pdus(stream, vec![echo_pdu]).unwrap();
             association
         });
@@ -319,7 +319,7 @@ mod successive_pdus_during_client_association {
         let mut association = scu_options.broken_establish(server_addr.into()).unwrap();
 
         // Initiate abort server side
-        server_handle.join().unwrap();
+        server_handle.join().unwrap().abort().unwrap();
         
         // Client should not have anything to receive, only receives abort Rq
         let received_pdu = association.receive().unwrap();
@@ -359,7 +359,7 @@ mod successive_pdus_during_client_association {
                 .accept_any()
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
-                
+
             let association = server_options.establish_with_extra_pdus_async(stream, vec![echo_pdu]).await.unwrap();
             association
         });
@@ -379,12 +379,12 @@ mod successive_pdus_during_client_association {
             server_addr.into()
         ).await.unwrap();
         // Initiate abort server-side
-        server_handle.await.unwrap();
+        server_handle.await.unwrap().abort().await.unwrap();
 
         // Client should be able to receive the release request that was sent consecutively
         let received_pdu = association.receive().await.expect("Could not receive abort PDU");
         assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
-        
+
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);
@@ -552,6 +552,7 @@ mod successive_pdus_during_server_association {
             // Server misses the echo request entirely
             let received_pdu = association.receive().unwrap();
             assert_eq!(received_pdu, Pdu::ReleaseRQ);
+            association.send(&Pdu::ReleaseRP).unwrap();
         });
 
         // Give server time to start
@@ -570,7 +571,7 @@ mod successive_pdus_during_server_association {
             .unwrap();
 
         // Clean shutdown
-        drop(association);
+        association.release().unwrap();
         server_handle.join().unwrap();
     }
 
@@ -729,6 +730,7 @@ mod successive_pdus_during_server_association {
             // Server misses the echo request entirely
             let received_pdu = association.receive().await.unwrap();
             assert_eq!(received_pdu, Pdu::ReleaseRQ);
+            association.send(&Pdu::ReleaseRP).await.unwrap();
         });
 
         // Give server time to start
@@ -748,7 +750,7 @@ mod successive_pdus_during_server_association {
             .unwrap();
 
         // Clean shutdown
-        drop(association);
+        association.release().await.unwrap();
         server_handle.await.unwrap();
     }
 }
