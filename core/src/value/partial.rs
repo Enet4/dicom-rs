@@ -309,15 +309,6 @@ impl DicomDate {
         Ok(DicomDate(DicomDateImpl::Day(year, month, day)))
     }
 
-    // Constructs a new `DicomDate` now from the local timezone
-    pub fn now_local() -> Result<DicomDate> {
-        DicomDate::try_from(&Local::now().date_naive())
-    }
-    // Constructs a new `DicomDate` now from the utc timezone
-    pub fn now_utc() -> Result<DicomDate> {
-        DicomDate::try_from(&Utc::now().date_naive())
-    }
-
     /// Retrieves the year from a date as a reference
     pub fn year(&self) -> &u16 {
         match self {
@@ -460,15 +451,6 @@ impl DicomTime {
             microsecond,
             6,
         )))
-    }
-
-    // Constructs a new `DicomTime` now from the local timezone
-    pub fn now_local() -> Result<DicomTime> {
-        DicomTime::try_from(&Local::now().naive_local().time())
-    }
-    // Constructs a new `DicomTime` now from the utc timezone
-    pub fn now_utc() -> Result<DicomTime> {
-        DicomTime::try_from(&Utc::now().naive_utc().time())
     }
 
     /** Retrieves the hour from a time as a reference */
@@ -813,13 +795,27 @@ impl DicomDateTime {
         }
     }
 
-    // Constructs a new `DicomDateTime` now from the local timezone
+    /**
+     * Returns a DicomDateTime object corresponding to the
+     * current date and time in the system's local time zone
+     */
     pub fn now_local() -> Result<DicomDateTime> {
-        DicomDateTime::from_date_and_time(DicomDate::now_local()?, DicomTime::now_local()?)
+        DicomDateTime::try_from(&Local::now().naive_local())
     }
-    // Constructs a new `DicomDateTime` now from the utc timezone
+
+    /**
+     * Returns a DicomDateTime object corresponding to the
+     * current date and time in the UTC time zone
+     */
     pub fn now_utc() -> Result<DicomDateTime> {
-        DicomDateTime::from_date_and_time(DicomDate::now_utc()?, DicomTime::now_utc()?)
+        DicomDateTime::try_from(&Utc::now().naive_utc())
+    }
+
+    /**
+     * Returns the components stored in a DicomDateTime, consuming it.
+     */
+    pub fn into_parts(self) -> (DicomDate, Option<DicomTime>, Option<FixedOffset>) {
+        (self.date, self.time, self.time_zone)
     }
 
     /** Retrieves a reference to the internal date value */
@@ -1446,66 +1442,6 @@ mod tests {
         }
         // test fraction retrieval: without a fraction, it returns None
         assert_eq!(DicomTime::from_hms(9, 1, 1).unwrap().fraction_micro(), None);
-    }
-
-    #[test]
-    fn test_dicom_time_now_local() {
-        let dicom_time = DicomTime::now_local()
-            .expect("Failed to get current local time from DicomTime::now_local()");
-        let system_time = Local::now().naive_local().time();
-        let dicom_naive_time = dicom_time
-            .to_naive_time()
-            .expect("Failed to convert DicomTime to NaiveTime");
-        let time_difference = system_time - dicom_naive_time;
-        assert!(
-            time_difference.abs() < Duration::seconds(1),
-            "Time difference between system and DICOM time exceeds 1 second: {:?}",
-            time_difference
-        );
-    }
-
-    #[test]
-    fn test_dicom_time_now_utc() {
-        let dicom_time_utc =
-            DicomTime::now_utc().expect("Failed to get current UTC time from DicomTime::now_utc()");
-        let system_time_utc = Utc::now().naive_utc().time();
-        let dicom_naive_time_utc = dicom_time_utc
-            .to_naive_time()
-            .expect("Failed to convert DicomTime (UTC) to NaiveTime");
-        let time_difference_utc = system_time_utc - dicom_naive_time_utc;
-        assert!(
-            time_difference_utc.abs() < Duration::seconds(1),
-            "Time difference between system and DICOM UTC time exceeds 1 second: {:?}",
-            time_difference_utc
-        );
-    }
-
-    #[test]
-    fn test_dicom_date_now_local() {
-        let dicom_date_local = DicomDate::now_local()
-            .expect("Failed to get current local date from DicomDate::now_local()");
-        let system_date_local = Local::now().naive_local().date();
-        let dicom_naive_date_local = dicom_date_local
-            .to_naive_date()
-            .expect("Failed to convert DicomDate (local) to NaiveDate");
-        assert_eq!(
-            dicom_naive_date_local, system_date_local,
-            "Local date mismatch between DicomDate and system"
-        );
-    }
-
-    #[test]
-    fn test_dicom_date_now_utc() {
-        let dicom_date_utc =
-            DicomDate::now_utc().expect("Failed to get current UTC date from DicomDate::now_utc()");
-        let system_date_utc = Utc::now().naive_utc().date();
-        let dicom_naive_date_utc = dicom_date_utc
-            .to_naive_date()
-            .expect("Failed to convert DicomDate (UTC) to NaiveDate");
-        assert_eq!(
-            dicom_naive_date_utc, system_date_utc,
-            "UTC date mismatch between DicomDate and system"
-        );
     }
 
     #[test]
