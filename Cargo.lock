@@ -560,7 +560,7 @@ dependencies = [
  "clap",
  "rustls",
  "rustls-native-certs",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
 ]
 
@@ -574,7 +574,7 @@ dependencies = [
  "num-traits",
  "safe-transmute",
  "smallvec",
- "snafu",
+ "snafu 0.9.0",
 ]
 
 [[package]]
@@ -612,7 +612,7 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "owo-colors",
  "serde_json",
- "snafu",
+ "snafu 0.9.0",
  "terminal_size",
 ]
 
@@ -627,7 +627,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -641,7 +641,7 @@ dependencies = [
  "dicom-dictionary-std",
  "encoding",
  "inventory",
- "snafu",
+ "snafu 0.9.0",
 ]
 
 [[package]]
@@ -656,7 +656,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -670,7 +670,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-object",
  "image",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -704,7 +704,7 @@ dependencies = [
  "dicom-transfer-syntax-registry",
  "itertools 0.14.0",
  "smallvec",
- "snafu",
+ "snafu 0.9.0",
  "tempfile",
  "tracing",
 ]
@@ -717,7 +717,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-encoding",
  "smallvec",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
 ]
 
@@ -740,7 +740,7 @@ dependencies = [
  "rayon",
  "rayon-core",
  "rstest",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -752,7 +752,7 @@ dependencies = [
  "bytes",
  "clap",
  "dicom-ul",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -769,7 +769,7 @@ dependencies = [
  "dicom-object",
  "dicom-transfer-syntax-registry",
  "dicom-ul",
- "snafu",
+ "snafu 0.9.0",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -791,7 +791,7 @@ dependencies = [
  "dicom-ul",
  "indicatif",
  "rustls",
- "snafu",
+ "snafu 0.9.0",
  "tokio",
  "tokio-rustls",
  "tracing",
@@ -820,7 +820,7 @@ dependencies = [
  "dicom-dictionary-std",
  "dicom-object",
  "dicom-pixeldata",
- "snafu",
+ "snafu 0.9.0",
  "tracing",
  "tracing-subscriber",
 ]
@@ -863,7 +863,7 @@ dependencies = [
  "rstest",
  "rustls",
  "rustls-cert-gen",
- "snafu",
+ "snafu 0.9.0",
  "time",
  "tokio",
  "tokio-rustls",
@@ -1134,7 +1134,7 @@ dependencies = [
  "cc",
  "cmake",
  "libc",
- "snafu",
+ "snafu 0.8.9",
  "strum",
  "strum_macros",
 ]
@@ -2615,7 +2615,16 @@ version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e84b3f4eacbf3a1ce05eac6763b4d629d60cbc94d632e4092c54ade71f1e1a2"
 dependencies = [
- "snafu-derive",
+ "snafu-derive 0.8.9",
+]
+
+[[package]]
+name = "snafu"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1d4bced6a69f90b2056c03dcff2c4737f98d6fb9e0853493996e1d253ca29c6"
+dependencies = [
+ "snafu-derive 0.9.0",
 ]
 
 [[package]]
@@ -2623,6 +2632,18 @@ name = "snafu-derive"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1c97747dbf44bb1ca44a561ece23508e99cb592e862f22222dcf42f51d1e451"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "snafu-derive"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54254b8531cafa275c5e096f62d48c81435d1015405a91198ddb11e967301d40"
 dependencies = [
  "heck",
  "proc-macro2",
