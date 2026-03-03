@@ -20,9 +20,7 @@ use crate::association::{
     UnknownPduSnafu, WireSendSnafu,
 };
 
-use crate::association::{NegotiatedOptions, PDataReader, PDataWriter};
-#[cfg(feature = "async")]
-use crate::association::AsyncPDataWriter;
+use crate::association::NegotiatedOptions;
 use crate::pdu::{PresentationContextNegotiated, LARGE_PDU_SIZE};
 use crate::{
     pdu::{
@@ -36,7 +34,7 @@ use crate::{
 
 use super::{
     uid::trim_uid,
-    Error, Result,
+    Error, Result
 };
 
 #[cfg(feature = "sync-tls")]
@@ -814,14 +812,26 @@ where S: std::io::Read + std::io::Write + CloseSocket{
     }
 
     /// Retrieve the maximum PDU length
-    /// admitted by this application entity.
+    /// that the association acceptor is expecting to receive.
     fn acceptor_max_pdu_length(&self) -> u32 {
         self.acceptor_max_pdu_length
     }
 
     /// Retrieve the maximum PDU length
-    /// that the requestor is expecting to receive.
+    /// that the association requestor is expecting to receive.
     fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length that this application entity
+    /// (the association acceptor) is expecting to receive.
+    fn local_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length that the peer application entity
+    /// (the association requestor) is expecting to receive.
+    fn peer_max_pdu_length(&self) -> u32 {
         self.requestor_max_pdu_length
     }
 
@@ -863,36 +873,6 @@ where S: std::io::Read + std::io::Write + CloseSocket,{
         (socket, read_buffer)
     }
 
-    /// Prepare a P-Data writer for sending one or more data
-    /// item PDUs to an association requestor (i.e. a client).
-    ///
-    /// Returns a writer which automatically splits the inner
-    /// data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S>{
-        // Use the *peer's* (requestor's) max PDU length for sending
-        let max_pdu_length = self.requestor_max_pdu_length();
-        PDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
-    }
-
-    /// Prepare a P-Data reader for receiving one or more data
-    /// item PDUs from an association requestor (i.e. a client).
-    ///
-    /// Returns a reader which automatically receives more data
-    /// PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
-        // Use *our* (acceptor's) max PDU length for receiving
-        let max_pdu_length = self.acceptor_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
-    }
 }
 
 impl<S> Drop for ServerAssociation<S> 
@@ -1108,11 +1088,27 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
 impl<S> Association for AsyncServerAssociation<S> 
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
 
+    /// Retrieve the maximum PDU length
+    /// that the association acceptor is expecting to receive.
     fn acceptor_max_pdu_length(&self) -> u32 {
         self.acceptor_max_pdu_length
     }
 
+    /// Retrieve the maximum PDU length
+    /// that the association requestor is expecting to receive.
     fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length that this application entity
+    /// (the association acceptor) is expecting to receive.
+    fn local_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length that the peer application entity
+    /// (the association requestor) is expecting to receive.
+    fn peer_max_pdu_length(&self) -> u32 {
         self.requestor_max_pdu_length
     }
 
@@ -1175,37 +1171,6 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
         let Self { socket, read_buffer, .. } = self; 
         (socket, read_buffer)
-    }
-
-    /// Prepare a P-Data writer for sending one or more data
-    /// item PDUs to an association requestor (i.e. a client).
-    ///
-    /// Returns a writer which automatically splits the inner
-    /// data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S>{
-        // Use the *peer's* (requestor's) max PDU length for sending
-        let max_pdu_length = self.requestor_max_pdu_length();
-        AsyncPDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
-    }
-
-    /// Prepare a P-Data reader for receiving one or more data
-    /// item PDUs from an association requestor (i.e. a client).
-    ///
-    /// Returns a reader which automatically receives more data
-    /// PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
-        // Use *our* (acceptor's) max PDU length for receiving
-        let max_pdu_length = self.acceptor_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
     }
 }
 
