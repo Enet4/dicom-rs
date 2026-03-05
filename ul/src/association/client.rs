@@ -30,6 +30,10 @@ use super::{
     Result,
 };
 
+// stray module from 0.9.0, remove in 0.10.0
+#[deprecated(since = "0.9.1")]
+pub mod non_blocking {}
+
 #[cfg(feature = "sync-tls")]
 pub type TlsStream = rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
