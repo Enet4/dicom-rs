@@ -17,8 +17,15 @@
 //!   between application entities,
 //!   via the upper layer protocol by TCP.
 //!
+//! DICOM Associations on top of TLS is also supported,
+//! thus offering a Secure Transport Connection.
+//! TLS capabilities are provided by one of the backends
+//! supported by [Rustls](::rustls),
+//! which includes client authentication if desired.
+//!
 //! ## Features
-//! * `async`: Enables a fully async implementation of the upper layer protocol.
+//!
+//! * `async`: Enables a fully asynchronous implementation of the upper layer protocol.
 //!   See [`ClientAssociationOptions`] and [`ServerAssociationOptions`] for details
 //! * `sync-tls`: Enables TLS support for synchronous associations.
 //! * `async-tls`: Enables TLS support for asynchronous associations.
