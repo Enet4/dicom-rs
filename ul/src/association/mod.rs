@@ -559,7 +559,7 @@ async fn timeout<T>(
 }
 
 /// Encode a PDU into the provided buffer
-pub fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u32) -> Result<()> {
+pub(crate) fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u32) -> Result<()> {
     write_pdu( buffer, pdu).context(SendPduSnafu)?;
     if buffer.len() > peer_max_pdu_length as usize {
         return SendTooLongPduSnafu {
