@@ -1131,9 +1131,7 @@ where
 
 #[cfg(feature = "async")]
 #[derive(Debug)]
-pub struct AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
+pub struct AsyncClientAssociation<S> {
     /// The presentation contexts accorded with the acceptor application entity,
     /// without the rejected ones.
     presentation_contexts: Vec<PresentationContextNegotiated>,

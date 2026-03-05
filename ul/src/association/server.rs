@@ -1070,8 +1070,7 @@ where
 /// the program will shut down the underlying TCP connection.
 #[cfg(feature = "async")]
 #[derive(Debug)]
-pub struct AsyncServerAssociation<S> 
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
+pub struct AsyncServerAssociation<S> {
     /// The accorded presentation contexts
     presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that the remote application entity accepts
