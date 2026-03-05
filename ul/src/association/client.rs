@@ -952,13 +952,11 @@ impl<'a> ClientAssociationOptions<'a> {
 /// Sending large P-Data fragments may be easier through the P-Data sender
 /// abstraction (see [`send_pdata`](Self::send_pdata)).
 ///
-/// When the value falls out of scope,
-/// the program will automatically try to gracefully release the association
-/// through a standard C-RELEASE message exchange,
-/// then shut down the underlying TCP connection.
-///
-/// This may either be sync or async depending on which method was called to
-/// establish the association.
+/// Call `release` at the end
+/// to perform a standard C-RELEASE message exchange
+/// and shut down the underlying TCP connection.
+/// Not calling this method will only close the socket
+/// without gracefully releasing the association.
 #[derive(Debug)]
 pub struct ClientAssociation<S>
 where S: CloseSocket + std::io::Read + std::io::Write,
