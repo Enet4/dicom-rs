@@ -1091,7 +1091,7 @@ impl Release for ClientAssociation<std::net::TcpStream> {
 
 #[cfg(feature = "async")]
 /// Initiate simple TCP connection to the given address
-pub async fn async_connection<T>(
+pub(crate) async fn async_connection<T>(
     ae_address: &AeAddr<T>,
     opts: &SocketOptions,
 ) -> Result<tokio::net::TcpStream> where T: tokio::net::ToSocketAddrs{
