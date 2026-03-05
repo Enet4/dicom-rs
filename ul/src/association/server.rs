@@ -37,6 +37,10 @@ use super::{
     Error, Result
 };
 
+// stray module from 0.9.0, remove in 0.10.0
+#[deprecated(since = "0.9.1")]
+pub mod non_blocking {}
+
 #[cfg(feature = "sync-tls")]
 pub type TlsStream = rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
@@ -788,8 +792,7 @@ where
 /// When the value falls out of scope,
 /// the program will shut down the underlying TCP connection.
 #[derive(Debug)]
-pub struct ServerAssociation<S> 
-where S: std::io::Read + std::io::Write + CloseSocket{
+pub struct ServerAssociation<S> {
     /// The accorded presentation contexts
     presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The maximum PDU length that the remote application entity accepts
@@ -809,6 +812,14 @@ where S: std::io::Read + std::io::Write + CloseSocket{
     read_buffer: bytes::BytesMut,
     /// User variables received from the peer
     user_variables: Vec<UserVariableItem>,
+}
+
+impl<S> ServerAssociation<S> {
+    /// Obtain the remote DICOM node's application entity title.
+    #[deprecated(since = "0.9.1", note = "Call `Association::peer_ae_title` instead")]
+    pub fn client_ae_title(&self) -> &str {
+        &self.client_ae_title
+    }
 }
 
 impl<S> Association for ServerAssociation<S>
