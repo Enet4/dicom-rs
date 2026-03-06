@@ -196,7 +196,7 @@ pub(crate) struct NegotiatedOptions{
 
 /// Socket configuration for associations
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SocketOptions {
+pub(crate) struct SocketOptions {
     /// Timeout for individual read operations
     read_timeout: Option<Duration>,
     /// Timeout for individual send operations
@@ -204,6 +204,7 @@ pub struct SocketOptions {
     /// Timeout for connection establishment
     connection_timeout: Option<Duration>,
 }
+
 /// Trait to close underlying socket
 pub trait CloseSocket {
     fn close(&mut self) -> std::io::Result<()>;
