@@ -962,9 +962,7 @@ impl<'a> ClientAssociationOptions<'a> {
 /// Not calling this method will only close the socket
 /// without gracefully releasing the association.
 #[derive(Debug)]
-pub struct ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write,
-{
+pub struct ClientAssociation<S> {
     /// The presentation contexts accorded with the acceptor application entity,
     /// without the rejected ones.
     presentation_contexts: Vec<PresentationContextNegotiated>,
