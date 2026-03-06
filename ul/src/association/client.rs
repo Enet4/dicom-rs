@@ -23,6 +23,8 @@ use crate::{
         write_pdu,
     }
 };
+#[cfg(feature = "async")]
+use crate::association::AsyncAssociation;
 use snafu::{ensure, ResultExt};
 
 use super::{
@@ -951,10 +953,10 @@ impl<'a> ClientAssociationOptions<'a> {
 /// of a requesting application entity.
 ///
 /// The most common operations of an established association are
-/// [`send`](Self::send)
-/// and [`receive`](Self::receive).
+/// [`send`](SyncAssociation::send)
+/// and [`receive`](SyncAssociation::receive).
 /// Sending large P-Data fragments may be easier through the P-Data sender
-/// abstraction (see [`send_pdata`](Self::send_pdata)).
+/// abstraction (see [`send_pdata`](SyncAssociation::send_pdata)).
 ///
 /// Call `release` at the end
 /// to perform a standard C-RELEASE message exchange
@@ -1039,6 +1041,75 @@ where S: CloseSocket + std::io::Read + std::io::Write,
     /// Retrieve write timeout for the association
     pub fn write_timeout(&self) -> Option<Duration> {
         self.write_timeout
+    }
+}
+
+// compatibility filler, remove in 0.10.0
+impl<S> ClientAssociation<S>
+where S: CloseSocket + std::io::Read + std::io::Write,
+{
+    /// Send a PDU message to the other intervenient.
+    pub fn send(&mut self, pdu: &Pdu) -> Result<()> {
+        SyncAssociation::send(self, pdu)
+    }
+
+    /// Read a PDU message from the other intervenient.
+    pub fn receive(&mut self) -> Result<Pdu> {
+        SyncAssociation::receive(self)
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data item PDUs.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(
+        &mut self,
+        presentation_context_id: u8,
+    ) -> crate::association::pdata::PDataWriter<&mut S> {
+        SyncAssociation::send_pdata(self, presentation_context_id)
+    }
+
+    /// Iniate a graceful release of the association.
+    ///
+    /// A DIMSE A-RELEASE transaction is initiated by this application entity,
+    /// and the underlying socket is closed once settled.
+    ///
+    /// Note that as of version 0.9.1,
+    /// `ClientAssociation` no longer calls this method on [`Drop`],
+    /// so remember to call `release` explicitly
+    /// at the end of all DIMSE transactions.
+    pub fn release(self) -> Result<()> {
+        SyncAssociation::release(self)
+    }
+
+    /// Send a provider initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    pub fn abort(self) -> Result<()> {
+        SyncAssociation::abort(self)
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> crate::association::pdata::PDataReader<'_, &mut S> {
+        SyncAssociation::receive_pdata(self)
+    }
+
+    /// Obtain access to the inner stream
+    /// connected to the association acceptor.
+    ///
+    /// This can be used to send the PDU in semantic fragments of the message,
+    /// thus using less memory.
+    ///
+    /// **Note:** reading and writing should be done with care
+    /// to avoid inconsistencies in the association state.
+    /// Do not call `send` and `receive` while not in a PDU boundary.
+    pub fn inner_stream(&mut self) -> &mut S {
+        SyncAssociation::inner_stream(self)
     }
 }
 
@@ -1127,6 +1198,19 @@ where
     Ok(tls_stream)
 }
 
+/// A DICOM upper level association from the perspective
+/// of a requesting application entity.
+///
+/// The most common operations of an established association are
+/// [`send`](AsyncAssociation::release) and [`receive`](AsyncAssociation::release).
+/// Sending large P-Data fragments may be easier through the P-Data sender
+/// abstraction (see [`send_pdata`](AsyncAssociation::send_pdata)).
+///
+/// Call [`release`](AsyncAssociation::release) at the end
+/// to perform a standard C-RELEASE message exchange
+/// and shut down the underlying TCP connection.
+/// Not calling this method will only close the socket
+/// without gracefully releasing the association.
 #[cfg(feature = "async")]
 #[derive(Debug)]
 pub struct AsyncClientAssociation<S> {
@@ -1358,9 +1442,7 @@ impl<'a> ClientAssociationOptions<'a> {
 }
 
 #[cfg(feature = "async")]
-impl<S> Association for AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
+impl<S> Association for AsyncClientAssociation<S> {
     fn peer_ae_title(&self) -> &str {
         &self.peer_ae_title
     }
@@ -1399,9 +1481,7 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 }
 
 #[cfg(feature = "async")]
-impl<S> AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
+impl<S> AsyncClientAssociation<S> {
     /// Retrieve read timeout for the association
     pub fn read_timeout(&self) -> Option<Duration> {
         self.read_timeout
@@ -1410,6 +1490,77 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     /// Retrieve write timeout for the association
     pub fn write_timeout(&self) -> Option<Duration> {
         self.write_timeout
+    }
+}
+
+// compatibility filler, remove in 0.10.0
+#[cfg(feature = "async")]
+impl<S> AsyncClientAssociation<S>
+where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
+
+    /// Obtain access to the inner stream
+    /// connected to the association acceptor.
+    ///
+    /// This can be used to send the PDU in semantic fragments of the message,
+    /// thus using less memory.
+    ///
+    /// **Note:** reading and writing should be done with care
+    /// to avoid inconsistencies in the association state.
+    /// Do not call `send` and `receive` while not in a PDU boundary.
+    pub fn inner_stream(&mut self) -> &mut S {
+        AsyncAssociation::inner_stream(self)
+    }
+
+    /// Send a PDU message to the other intervenient.
+    pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
+        AsyncAssociation::send(self, msg).await
+    }
+
+    /// Read a PDU message from the other intervenient.
+    pub async fn receive(&mut self) -> Result<Pdu> {
+        AsyncAssociation::receive(self).await
+    }
+
+    /// Iniate a graceful release of the association.
+    ///
+    /// A DIMSE A-RELEASE transaction is initiated by this application entity,
+    /// and the underlying socket is closed once settled.
+    ///
+    /// Note that implementers of this trait
+    /// do not try to release the association on [`Drop`],
+    /// so remember to call `release` explicitly
+    /// at the end of all DIMSE transactions.
+    pub async fn release(self) -> Result<()> {
+        AsyncAssociation::release(self).await
+    }
+
+    /// Send a provider initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    pub async fn abort(self) -> Result<()> {
+        AsyncAssociation::abort(self).await
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data item PDUs.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(
+        &mut self,
+        presentation_context_id: u8,
+    ) -> crate::association::pdata::non_blocking::AsyncPDataWriter<&mut S> {
+        AsyncAssociation::send_pdata(self, presentation_context_id)
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> crate::association::pdata::PDataReader<'_, &mut S> {
+        AsyncAssociation::receive_pdata(self)
     }
 }
 
@@ -1451,7 +1602,7 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 }
 
 #[cfg(feature = "async")]
-impl<S> super::AsyncAssociation<S> for AsyncClientAssociation<S>
+impl<S> AsyncAssociation<S> for AsyncClientAssociation<S>
 where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
 
     fn inner_stream(&mut self) -> &mut S {
