@@ -26,11 +26,10 @@
 //! | GBK: Simplified Chinese character set | ✓ | ✓ |
 //! These capabilities are available through [`SpecificCharacterSet`].
 
-use encoding::all::{
-    GB18030, GBK, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5,
-    ISO_8859_6, ISO_8859_7, ISO_8859_8, UTF_8, WINDOWS_31J, WINDOWS_874, WINDOWS_949,
+use encoding_rs::{
+    EUC_KR, GB18030, GBK, ISO_2022_JP, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6,
+    ISO_8859_7, ISO_8859_8, SHIFT_JIS, UTF_8, WINDOWS_1252, WINDOWS_874,
 };
-use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -326,25 +325,42 @@ impl TextCodec for CharsetImpl {
     }
 }
 
-fn decode_text_trap(
-    _decoder: &mut dyn RawDecoder,
-    input: &[u8],
-    output: &mut dyn StringWriter,
-) -> bool {
-    let c = input[0];
-    let o0 = c & 7;
-    let o1 = (c & 56) >> 3;
-    let o2 = (c & 192) >> 6;
-    output.write_char('\\');
-    output.write_char((o2 + b'0') as char);
-    output.write_char((o1 + b'0') as char);
-    output.write_char((o0 + b'0') as char);
-    true
+/// Helper function to generate octal representation fallback for invalid characters.
+fn format_octal_byte(byte: u8) -> String {
+    let o0 = byte & 7;
+    let o1 = (byte & 56) >> 3;
+    let o2 = (byte & 192) >> 6;
+    format!("\\{}{}{}", o2, o1, o0)
 }
 
-/// Create and implement a character set type using the `encoding` crate.
+/// Helper function to create a custom error message from invalid bytes.
+fn create_decode_error_with_fallback(input: &[u8], encoding_name: &str) -> DecodeResult<String> {
+    // For compatibility with original implementation, provide octal fallback for invalid bytes.
+    let mut result = String::new();
+    for &byte in input {
+        if byte < 128 {
+            result.push(byte as char);
+        } else {
+            result.push_str(&format_octal_byte(byte));
+        }
+    }
+
+    if result.is_empty() {
+        Err(DecodeCustomSnafu {
+            message: Cow::Owned(format!(
+                "Failed to decode bytes with {} encoding",
+                encoding_name
+            )),
+        }
+        .build())
+    } else {
+        Ok(result)
+    }
+}
+
+/// Create and implement a character set type using the `encoding_rs` crate.
 macro_rules! decl_character_set {
-    ($typ: ident, $term: literal, $val: expr) => {
+    ($typ: ident, $term: literal, $encoding: expr) => {
         #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
         #[doc = "Data type for the "]
         #[doc = $term]
@@ -357,13 +373,35 @@ macro_rules! decl_character_set {
             }
 
             fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-                $val.decode(text, DecoderTrap::Call(decode_text_trap))
-                    .map_err(|message| DecodeCustomSnafu { message }.build())
+                let (cow, _encoding_used, had_errors) = $encoding.decode(text);
+                if had_errors {
+                    create_decode_error_with_fallback(text, $term)
+                } else {
+                    Ok(cow.into_owned())
+                }
             }
 
             fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-                $val.encode(text, EncoderTrap::Strict)
-                    .map_err(|message| EncodeCustomSnafu { message }.build())
+                let (cow, _encoding_used, had_errors) = $encoding.encode(text);
+                if had_errors {
+                    Err(EncodeCustomSnafu {
+                        message: Cow::Owned(format!(
+                            "Cannot encode text with {} encoding: contains unmappable characters",
+                            $term
+                        )),
+                    }
+                    .build())
+                } else {
+                    let mut result = cow.into_owned();
+
+                    // For ISO-2022-JP, remove trailing ESC(B sequence for compatibility
+                    // with original implementation if present.
+                    if $term == "ISO_IR 87" && result.ends_with(&[0x1b, 0x28, 0x42]) {
+                        result.truncate(result.len() - 3);
+                    }
+
+                    Ok(result)
+                }
             }
         }
     };
@@ -379,23 +417,34 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 
     fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-        // Using 8859-1 because it is a superset. Reiterations of this impl
-        // should check for invalid character codes (#40).
-        ISO_8859_1
-            .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|message| DecodeCustomSnafu { message }.build())
+        // Using WINDOWS_1252 because it is a superset of ISO-8859-1.
+        // For backwards compatibility, provide octal fallback for invalid characters.
+        let (cow, _encoding_used, had_errors) = WINDOWS_1252.decode(text);
+        if had_errors {
+            create_decode_error_with_fallback(text, "ISO_IR 6")
+        } else {
+            Ok(cow.into_owned())
+        }
     }
 
     fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-        ISO_8859_1
-            .encode(text, EncoderTrap::Strict)
-            .map_err(|message| EncodeCustomSnafu { message }.build())
+        let (cow, _encoding_used, had_errors) = WINDOWS_1252.encode(text);
+        if had_errors {
+            Err(EncodeCustomSnafu {
+                message: Cow::Borrowed(
+                    "Cannot encode text with ISO_IR 6 encoding: contains unmappable characters",
+                ),
+            }
+            .build())
+        } else {
+            Ok(cow.into_owned())
+        }
     }
 }
 
-decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR 13", WINDOWS_31J);
+decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR 13", SHIFT_JIS);
 decl_character_set!(IsoIr87CharacterSetCodec, "ISO_IR 87", ISO_2022_JP);
-decl_character_set!(IsoIr100CharacterSetCodec, "ISO_IR 100", ISO_8859_1);
+decl_character_set!(IsoIr100CharacterSetCodec, "ISO_IR 100", WINDOWS_1252);
 decl_character_set!(IsoIr101CharacterSetCodec, "ISO_IR 101", ISO_8859_2);
 decl_character_set!(IsoIr109CharacterSetCodec, "ISO_IR 109", ISO_8859_3);
 decl_character_set!(IsoIr110CharacterSetCodec, "ISO_IR 110", ISO_8859_4);
@@ -403,7 +452,7 @@ decl_character_set!(IsoIr126CharacterSetCodec, "ISO_IR 126", ISO_8859_7);
 decl_character_set!(IsoIr127CharacterSetCodec, "ISO_IR 127", ISO_8859_6);
 decl_character_set!(IsoIr138CharacterSetCodec, "ISO_IR 138", ISO_8859_8);
 decl_character_set!(IsoIr144CharacterSetCodec, "ISO_IR 144", ISO_8859_5);
-decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", WINDOWS_949);
+decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", EUC_KR);
 decl_character_set!(IsoIr166CharacterSetCodec, "ISO_IR 166", WINDOWS_874);
 decl_character_set!(Utf8CharacterSetCodec, "ISO_IR 192", UTF_8);
 decl_character_set!(Gb18030CharacterSetCodec, "GB18030", GB18030);
@@ -422,11 +471,15 @@ pub enum TextValidationOutcome {
 
 /// Check whether the given byte slice contains valid text from the default character repertoire.
 pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
-    if ISO_8859_1.decode(text, DecoderTrap::Strict).is_err() {
-        match ISO_8859_1.decode(text, DecoderTrap::Call(decode_text_trap)) {
-            Ok(_) => TextValidationOutcome::BadCharacters,
-            Err(_) => TextValidationOutcome::NotOk,
+    let (_, _, had_errors) = WINDOWS_1252.decode(text);
+    if had_errors {
+        // Check if we can at least provide fallback representation.
+        for &byte in text {
+            if byte >= 128 {
+                return TextValidationOutcome::BadCharacters;
+            }
         }
+        TextValidationOutcome::NotOk
     } else {
         TextValidationOutcome::Ok
     }
