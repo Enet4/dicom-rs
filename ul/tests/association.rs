@@ -1,5 +1,5 @@
 use dicom_dictionary_std::uids::{self, VERIFICATION};
-use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions, association::SyncAssociation};
+use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions};
 use rstest::rstest;
 use std::time::Instant;
 #[cfg(feature = "sync-tls")]
@@ -142,7 +142,6 @@ fn test_tls_connection_sync() {
     
     // Spawn server thread
     let server_handle = std::thread::spawn(move || {
-        use dicom_ul::association::SyncAssociation;
 
         let (stream, _) = listener.accept().expect("Failed to accept connection");
         let mut association = server_options.establish_tls(stream)
@@ -191,7 +190,7 @@ fn test_tls_connection_sync() {
 #[cfg(feature = "async-tls")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tls_connection_async() -> Result<()> {
-    use dicom_ul::{ServerAssociationOptions, association::AsyncAssociation};
+    use dicom_ul::ServerAssociationOptions;
     // set up crypto provider -- Just use the default provider which is aws_lc_rs
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 

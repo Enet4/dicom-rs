@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
-use dicom_ul::association::{Association, SyncAssociation, Error::NoAcceptedPresentationContexts};
+use dicom_ul::association::{Association, Error::NoAcceptedPresentationContexts};
 #[cfg(feature = "async")]
-use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
+use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{
     PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem,

@@ -37,6 +37,9 @@ use super::{
     Error, Result
 };
 
+#[cfg(feature = "async")]
+use crate::association::AsyncAssociation;
+
 // stray module from 0.9.0, remove in 0.10.0
 #[deprecated(since = "0.9.1")]
 pub mod non_blocking {}
@@ -814,11 +817,83 @@ pub struct ServerAssociation<S> {
     user_variables: Vec<UserVariableItem>,
 }
 
+// compatibility filler, remove in 0.10.0
 impl<S> ServerAssociation<S> {
+    /// Obtain a view of the negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
+        &self.presentation_contexts
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association acceptor is expecting to receive.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
     /// Obtain the remote DICOM node's application entity title.
-    #[deprecated(since = "0.9.1", note = "Call `Association::peer_ae_title` instead")]
+    #[deprecated(since = "0.9.1", note = "Call `peer_ae_title` from trait `Association`")]
     pub fn client_ae_title(&self) -> &str {
         &self.client_ae_title
+    }
+}
+
+impl<S> ServerAssociation<S>
+where S: std::io::Read + std::io::Write + CloseSocket {
+    /// Send a PDU message to the other intervenient.
+    pub fn send(&mut self, msg: &Pdu) -> Result<()> {
+        SyncAssociation::send(self, msg)
+    }
+
+    /// Read a PDU message from the other intervenient.
+    pub fn receive(&mut self) -> Result<Pdu> {
+        SyncAssociation::receive(self)
+    }
+
+    /// Send a provider initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    pub fn abort(self) -> Result<()> {
+        SyncAssociation::abort(self)
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data item PDUs.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(
+        &mut self,
+        presentation_context_id: u8,
+    ) -> crate::association::pdata::PDataWriter<&mut S> {
+        SyncAssociation::send_pdata(self, presentation_context_id)
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> crate::association::pdata::PDataReader<'_, &mut S> {
+        SyncAssociation::receive_pdata(self)
+    }
+
+    /// Obtain access to the inner stream
+    /// connected to the association acceptor.
+    ///
+    /// This can be used to send the PDU in semantic fragments of the message,
+    /// thus using less memory.
+    ///
+    /// **Note:** reading and writing should be done with care
+    /// to avoid inconsistencies in the association state.
+    /// Do not call `send` and `receive` while not in a PDU boundary.
+    pub fn inner_stream(&mut self) -> &mut S {
+        SyncAssociation::inner_stream(self)
     }
 }
 
@@ -859,6 +934,10 @@ where S: std::io::Read + std::io::Write + CloseSocket{
         &self.client_ae_title
     }
 
+    /// Retrieve the user variables that were taken from the server.
+    ///
+    /// It usually contains the maximum PDU length,
+    /// the implementation class UID, and the implementation version name.
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
     }
@@ -1182,6 +1261,102 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
     fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
         let Self { socket, read_buffer, .. } = self; 
         (socket, read_buffer)
+    }
+}
+
+// compatibility filler, remove in 0.10.0
+#[cfg(feature = "async")]
+impl<S> AsyncServerAssociation<S> {
+    /// Obtain a view of the negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
+        &self.presentation_contexts
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association acceptor is expecting to receive.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
+    /// Obtain the remote DICOM node's application entity title.
+    #[deprecated(since = "0.9.1", note = "Call `peer_ae_title` from trait `Association`")]
+    pub fn client_ae_title(&self) -> &str {
+        &self.client_ae_title
+    }
+}
+
+// compatibility filler, remove in 0.10.0
+#[cfg(feature = "async")]
+impl<S> AsyncServerAssociation<S>
+where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send {
+    /// Send a PDU message to the other intervenient.
+    pub async fn send(&mut self, msg: &Pdu) -> Result<()> {
+        AsyncAssociation::send(self, msg).await
+    }
+
+    /// Read a PDU message from the other intervenient.
+    pub async fn receive(&mut self) -> Result<Pdu> {
+        AsyncAssociation::receive(self).await
+    }
+
+    /// Iniate a graceful release of the association.
+    ///
+    /// A DIMSE A-RELEASE transaction is initiated by this application entity,
+    /// and the underlying socket is closed once settled.
+    ///
+    /// Note that implementers of this trait
+    /// do not try to release the association on [`Drop`],
+    /// so remember to call `release` explicitly
+    /// at the end of all DIMSE transactions.
+    pub async fn release(self) -> Result<()> {
+        AsyncAssociation::release(self).await
+    }
+
+    /// Send a provider initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    pub async fn abort(self) -> Result<()> {
+        AsyncAssociation::abort(self).await
+    }
+
+    /// Prepare a P-Data writer for sending
+    /// one or more data item PDUs.
+    ///
+    /// Returns a writer which automatically
+    /// splits the inner data into separate PDUs if necessary.
+    pub fn send_pdata(
+        &mut self,
+        presentation_context_id: u8,
+    ) -> crate::association::pdata::non_blocking::AsyncPDataWriter<&mut S> {
+        AsyncAssociation::send_pdata(self, presentation_context_id)
+    }
+
+    /// Prepare a P-Data reader for receiving
+    /// one or more data item PDUs.
+    ///
+    /// Returns a reader which automatically
+    /// receives more data PDUs once the bytes collected are consumed.
+    pub fn receive_pdata(&mut self) -> crate::association::pdata::PDataReader<'_, &mut S> {
+        AsyncAssociation::receive_pdata(self)
+    }
+
+    /// Obtain access to the inner stream
+    /// connected to the association acceptor.
+    ///
+    /// This can be used to send the PDU in semantic fragments of the message,
+    /// thus using less memory.
+    ///
+    /// **Note:** reading and writing should be done with care
+    /// to avoid inconsistencies in the association state.
+    /// Do not call `send` and `receive` while not in a PDU boundary.
+    pub fn inner_stream(&mut self) -> &mut S {
+        AsyncAssociation::inner_stream(self)
     }
 }
 
