@@ -1,5 +1,6 @@
 use dicom_ul::{
-    ServerAssociation, association::{Association, client::ClientAssociationOptions}, pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason}
+    ServerAssociation, association::client::ClientAssociationOptions,
+    pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason},
 };
 #[cfg(feature = "async")]
 use dicom_ul::association::AsyncServerAssociation;
