@@ -3,7 +3,23 @@
 [![CratesIO](https://img.shields.io/crates/v/dicom-ul.svg)](https://crates.io/crates/dicom-ul)
 [![Documentation](https://docs.rs/dicom-ul/badge.svg)](https://docs.rs/dicom-ul)
 
-This is an implementation of the DICOM upper layer protocol.
+An implementation of the DICOM upper layer protocol.
+This crate contains the types and methods needed
+to interact with DICOM nodes through the upper layer protocol.
+It can be used as a base for finite-state machines and higher-level helpers,
+enabling the creation of concrete
+service class users (SCUs) and service class providers (SCPs).
+TLS support for secure transport connections
+is also available via [Rustls](https://crates.io/crates/rustls).
+
+Examples of DICOM network tools constructed using `dicom-ul` include
+[dicom-storescp](https://crates.io/crates/dicom-storescp),
+[dicom-storescu](https://crates.io/crates/dicom-storescu),
+and [dicom-findscu](https://crates.io/crates/dicom-findscu).
+
+This crate is part of the [DICOM-rs](https://github.com/Enet4/dicom-rs) project
+and is contained by the parent crate [`dicom`](https://crates.io/crates/dicom)
+for convenience.
 
 ## Testing
 
