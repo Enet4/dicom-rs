@@ -6,7 +6,6 @@ use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
 use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
 use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
-use dicom_ul::association::Association;
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,

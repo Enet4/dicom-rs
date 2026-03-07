@@ -1042,6 +1042,31 @@ where S: CloseSocket + std::io::Read + std::io::Write,
     pub fn write_timeout(&self) -> Option<Duration> {
         self.write_timeout
     }
+
+    /// Retrieve the maximum PDU length
+    /// that the association acceptor is expecting to receive.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
+    /// Retrieve the user variables that were taken from the server.
+    ///
+    /// It usually contains the maximum PDU length,
+    /// the implementation class UID, and the implementation version name.
+    pub fn user_variables(&self) -> &[UserVariableItem] {
+        &self.user_variables
+    }
+
+    /// Retrieve the list of negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
+        &self.presentation_contexts
+    }
 }
 
 // compatibility filler, remove in 0.10.0
@@ -1490,6 +1515,31 @@ impl<S> AsyncClientAssociation<S> {
     /// Retrieve write timeout for the association
     pub fn write_timeout(&self) -> Option<Duration> {
         self.write_timeout
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association acceptor is expecting to receive.
+    pub fn acceptor_max_pdu_length(&self) -> u32 {
+        self.acceptor_max_pdu_length
+    }
+
+    /// Retrieve the maximum PDU length
+    /// that the association requestor is expecting to receive.
+    pub fn requestor_max_pdu_length(&self) -> u32 {
+        self.requestor_max_pdu_length
+    }
+
+    /// Retrieve the user variables that were taken from the server.
+    ///
+    /// It usually contains the maximum PDU length,
+    /// the implementation class UID, and the implementation version name.
+    pub fn user_variables(&self) -> &[UserVariableItem] {
+        &self.user_variables
+    }
+
+    /// Retrieve the list of negotiated presentation contexts.
+    pub fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
+        &self.presentation_contexts
     }
 }
 

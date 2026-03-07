@@ -1,5 +1,5 @@
 use dicom_ul::{
-    ServerAssociation, association::{Association, Error, client::ClientAssociationOptions, server::ServerAssociationOptions},
+    ServerAssociation, association::{Error, client::ClientAssociationOptions, server::ServerAssociationOptions},
     pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
         PresentationContextResultReason,

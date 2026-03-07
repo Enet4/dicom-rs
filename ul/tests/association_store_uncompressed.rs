@@ -2,7 +2,7 @@
 //! which only accepts uncompressed transfer syntaxes
 
 use dicom_ul::{
-    ServerAssociation, association::{Association, client::ClientAssociationOptions},
+    ServerAssociation, association::client::ClientAssociationOptions,
     pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason}
 };
 #[cfg(feature = "async")]
