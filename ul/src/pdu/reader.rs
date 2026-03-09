@@ -13,7 +13,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<Option<Pdu>> {
     ensure!(
         max_pdu_length >= super::MINIMUM_PDU_SIZE,
-        InvalidMaxPduSnafu { max_pdu_length }
+        InvalidMaxPduSnafu { max_pdu_length },
     );
 
     // If we can't read 2 bytes here, that means that there is no PDU
@@ -36,7 +36,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
         !strict || pdu_length <= max_pdu_length,
         PduTooLargeSnafu {
             pdu_length,
-            max_pdu_length
+            max_pdu_length,
         }
     );
 
@@ -59,9 +59,10 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            if bytes.remaining() < 2 + 2 + 16 + 16 + 32 {
-                return Ok(None);
-            }
+            ensure!(
+                bytes.remaining() >= 2 + 2 + 16 + 16 + 32,
+                ReadPduItemSnafu {},
+            );
             let protocol_version = bytes.get_u16();
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
@@ -120,7 +121,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                     }
                     None => {
                         tracing::debug!("PDU variable none");
-                        return Ok(None);
+                        return ReadUserVariableSnafu {}.fail();
                     }
                 }
             }
@@ -147,9 +148,10 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // Version 1 and shall be identified with bit 0 set. A receiver of this PDU
             // implementing only this version of the DICOM UL protocol shall only test that bit
             // 0 is set.
-            if bytes.remaining() < 2 + 2 + 16 + 16 + 32 {
-                return Ok(None);
-            }
+            ensure!(
+                bytes.remaining() >= 2 + 2 + 16 + 16 + 32,
+                ReadPduItemSnafu {},
+            );
             let protocol_version = bytes.get_u16();
 
             // 9-10 - Reserved - This reserved field shall be sent with a value 0000H but not
@@ -203,7 +205,9 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                     Some(var_item) => {
                         return InvalidPduVariableSnafu { var_item }.fail();
                     }
-                    None => return Ok(None),
+                    None => {
+                        return ReadUserVariableSnafu {}.fail();
+                    }
                 }
             }
 
@@ -222,9 +226,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            if bytes.remaining() < 1 + 1 + 2 {
-                return Ok(None);
-            }
+            ensure!(bytes.remaining() >= 1 + 1 + 2, ReadPduItemSnafu {});
             bytes.get_u8();
 
             // 8 - Result - This Result field shall contain an integer value encoded as an unsigned
@@ -273,16 +275,20 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // 1-4 - Item-length - This Item-length shall be the number of bytes from the first
                 // byte of the following field to the last byte of the Presentation-data-value
                 // field. It shall be encoded as an unsigned binary number.
-                if bytes.remaining() < 4 + 1 + 1 {
-                    return Ok(None);
-                }
+
+                // Clippy warns here that `>= x+1` could be written as `> x`,
+                // unaware that 4 + 1 + 1 is the total length to expect and
+                // thus clearer to read, so we override it.
+                #[expect(clippy::int_plus_one)]
+                let enough_remaining = bytes.remaining() >= 4 + 1 + 1;
+                ensure!(enough_remaining, ReadPduItemSnafu {});
                 let item_length = bytes.get_u32();
 
                 ensure!(
                     item_length >= 2,
                     InvalidItemLengthSnafu {
                         length: item_length
-                    }
+                    },
                 );
 
                 // 5 - Presentation-context-ID - Presentation-context-ID values shall be odd
@@ -311,9 +317,10 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                     PDataValueType::Data
                 };
                 let is_last = (header & 0x02) > 0;
-                if bytes.remaining() < (item_length - 2) as usize {
-                    return Ok(None);
-                }
+                ensure!(
+                    bytes.remaining() >= (item_length - 2) as usize,
+                    ReadPduItemSnafu {},
+                );
                 values.push(PDataValue {
                     presentation_context_id,
                     value_type,
@@ -329,9 +336,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            if bytes.remaining() < 4 {
-                return Ok(None);
-            }
+            ensure!(bytes.remaining() >= 4, ReadPduItemSnafu {});
             bytes.advance(4);
 
             Ok(Some(Pdu::ReleaseRQ))
@@ -341,9 +346,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            if bytes.remaining() < 4 {
-                return Ok(None);
-            }
+            ensure!(bytes.remaining() >= 4, ReadPduItemSnafu {});
             bytes.advance(4);
 
             Ok(Some(Pdu::ReleaseRP))
@@ -355,9 +358,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // this value when received.
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            if bytes.remaining() < 2 + 2 {
-                return Ok(None);
-            }
+            ensure!(bytes.remaining() >= 2 + 2, ReadPduItemSnafu {});
             let _ = bytes.copy_to_bytes(2);
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
@@ -380,9 +381,10 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             Ok(Some(Pdu::AbortRQ { source }))
         }
         _ => {
-            if bytes.remaining() < pdu_length as usize {
-                return Ok(None);
-            }
+            ensure!(
+                bytes.remaining() >= pdu_length as usize,
+                ReadPduItemSnafu {},
+            );
             Ok(Some(Pdu::Unknown {
                 pdu_type,
                 data: bytes.copy_to_bytes(pdu_length as usize).to_vec(),
