@@ -279,7 +279,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // Clippy warns here that `>= x+1` could be written as `> x`,
                 // unaware that 4 + 1 + 1 is the total length to expect and
                 // thus clearer to read, so we override it.
-                #[expect(clippy::int_plus_one)]
+                #[allow(clippy::int_plus_one)]
                 let enough_remaining = bytes.remaining() >= 4 + 1 + 1;
                 ensure!(enough_remaining, ReadPduItemSnafu {});
                 let item_length = bytes.get_u32();
