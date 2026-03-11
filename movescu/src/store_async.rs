@@ -3,6 +3,7 @@ use dicom_dictionary_std::{tags, uids::*};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use dicom_ul::prelude::*;
 use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt, Whatever};
@@ -139,7 +140,7 @@ pub async fn run_store_async(
         .await
         .whatever_context("could not establish association")?;
 
-    let client_ae_title = association.client_ae_title();
+    let client_ae_title = association.peer_ae_title();
     if verbose {
         info!("New association from {client_ae_title}");
         debug!(
@@ -322,7 +323,7 @@ pub async fn run_store_async(
                                 snafu::Report::from_error(e)
                             );
                         });
-                        let client_ae_title = association.client_ae_title();
+                        let client_ae_title = association.peer_ae_title();
                         if verbose {
                             info!("Released association with {client_ae_title}");
                         }
@@ -356,10 +357,10 @@ pub async fn run_store_async(
     let msg = if let Ok(peer_addr) = association.inner_stream().peer_addr() {
         format!(
             "Dropping connection with {} ({peer_addr})",
-            association.client_ae_title(),
+            association.peer_ae_title(),
         )
     } else {
-        format!("Dropping connection with {}", association.client_ae_title())
+        format!("Dropping connection with {}", association.peer_ae_title())
     };
     if verbose {
         info!("{msg}");
