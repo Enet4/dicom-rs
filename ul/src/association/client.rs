@@ -1382,7 +1382,7 @@ impl<'a> ClientAssociationOptions<'a> {
     ///
     /// ```no_run
     /// # use dicom_ul::association::client::ClientAssociationOptions;
-    /// #[tokio::main]
+    /// # #[tokio::main]
     /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
     /// let association = ClientAssociationOptions::new()
     ///     .with_abstract_syntax("1.2.840.10008.1.1")
@@ -1426,7 +1426,7 @@ impl<'a> ClientAssociationOptions<'a> {
     ///
     /// ```no_run
     /// # use dicom_ul::association::client::ClientAssociationOptions;
-    /// #[tokio::main]
+    /// # #[tokio::main]
     /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
     /// let association = ClientAssociationOptions::new()
     ///     .with_abstract_syntax("1.2.840.10008.1.1")
