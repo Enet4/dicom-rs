@@ -87,7 +87,22 @@ pub enum ReadError {
     },
 
     #[snafu(display("Could not read PDU item"))]
-    ReadPduItem { backtrace: Backtrace },
+    ReadPduItem {
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Could not read PDU field `{}`", field))]
+    ReadPduField {
+        field: &'static str,
+        source: std::io::Error,
+        backtrace: Backtrace,
+    },
+
+    #[snafu(display("Invalid PDU field length"))]
+    InvalidPduFieldLength {
+        backtrace: Backtrace,
+    },
 
     #[snafu(display("Could not read user variable"))]
     ReadUserVariable { backtrace: Backtrace },

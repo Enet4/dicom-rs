@@ -61,7 +61,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // 0 is set.
             ensure!(
                 bytes.remaining() >= 2 + 2 + 16 + 16 + 32,
-                ReadPduItemSnafu {},
+                InvalidPduFieldLengthSnafu {},
             );
             let protocol_version = bytes.get_u16();
 
@@ -150,7 +150,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // 0 is set.
             ensure!(
                 bytes.remaining() >= 2 + 2 + 16 + 16 + 32,
-                ReadPduItemSnafu {},
+                InvalidPduFieldLengthSnafu {},
             );
             let protocol_version = bytes.get_u16();
 
@@ -226,7 +226,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            ensure!(bytes.remaining() >= 1 + 1 + 2, ReadPduItemSnafu {});
+            ensure!(bytes.remaining() >= 1 + 1 + 2, InvalidPduFieldLengthSnafu {});
             bytes.get_u8();
 
             // 8 - Result - This Result field shall contain an integer value encoded as an unsigned
@@ -281,7 +281,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 // thus clearer to read, so we override it.
                 #[allow(clippy::int_plus_one)]
                 let enough_remaining = bytes.remaining() >= 4 + 1 + 1;
-                ensure!(enough_remaining, ReadPduItemSnafu {});
+                ensure!(enough_remaining, InvalidPduFieldLengthSnafu {});
                 let item_length = bytes.get_u32();
 
                 ensure!(
@@ -319,7 +319,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 let is_last = (header & 0x02) > 0;
                 ensure!(
                     bytes.remaining() >= (item_length - 2) as usize,
-                    ReadPduItemSnafu {},
+                    InvalidPduFieldLengthSnafu {},
                 );
                 values.push(PDataValue {
                     presentation_context_id,
@@ -336,7 +336,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            ensure!(bytes.remaining() >= 4, ReadPduItemSnafu {});
+            ensure!(bytes.remaining() >= 4, InvalidPduFieldLengthSnafu {});
             bytes.advance(4);
 
             Ok(Some(Pdu::ReleaseRQ))
@@ -346,7 +346,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7-10 - Reserved - This reserved field shall be sent with a value 00000000H but not
             // tested to this value when received.
-            ensure!(bytes.remaining() >= 4, ReadPduItemSnafu {});
+            ensure!(bytes.remaining() >= 4, InvalidPduFieldLengthSnafu {});
             bytes.advance(4);
 
             Ok(Some(Pdu::ReleaseRP))
@@ -358,7 +358,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             // this value when received.
             // 8 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            ensure!(bytes.remaining() >= 2 + 2, ReadPduItemSnafu {});
+            ensure!(bytes.remaining() >= 2 + 2, InvalidPduFieldLengthSnafu {});
             let _ = bytes.copy_to_bytes(2);
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
@@ -383,7 +383,7 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
         _ => {
             ensure!(
                 bytes.remaining() >= pdu_length as usize,
-                ReadPduItemSnafu {},
+                InvalidPduFieldLengthSnafu {},
             );
             Ok(Some(Pdu::Unknown {
                 pdu_type,
