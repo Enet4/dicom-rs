@@ -202,7 +202,7 @@ impl TlsOptions{
             .with_root_certificates(self.root_cert_store()?);
         match (self.certs()?, &self.key) {
             (Some(certs), Some(key)) => {
-                info!("Using client certificate authentication");
+                debug!("Using client certificate authentication");
                 let key = PrivateKeyDer::from_pem_file(key)
                     .with_context(|_| PemParseSnafu{path: key.clone()})?;
                 let config = builder.with_client_auth_cert(certs, key)
@@ -214,7 +214,7 @@ impl TlsOptions{
             }
             (None, _) => {
                 let config = builder.with_no_client_auth();
-                info!("Using client without certificate authentication");
+                debug!("Using client without certificate authentication");
                 Ok(config)
             }
         }
