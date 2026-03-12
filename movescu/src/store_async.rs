@@ -1,16 +1,92 @@
-use std::net::TcpStream;
-use std::path::Path;
-
-use dicom_dictionary_std::tags;
+use dicom_core::{dicom_value, DataElement, VR};
+use dicom_dictionary_std::{tags, uids::*};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket}, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::prelude::*;
+use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
+use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt, Whatever};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
-use crate::{create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES, App};
-pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
+use crate::App;
+
+/// A list of supported abstract syntaxes for storage services
+#[allow(deprecated)]
+pub static ABSTRACT_SYNTAXES: &[&str] = &[
+    CT_IMAGE_STORAGE,
+    ENHANCED_CT_IMAGE_STORAGE,
+    STANDALONE_CURVE_STORAGE,
+    STANDALONE_OVERLAY_STORAGE,
+    SECONDARY_CAPTURE_IMAGE_STORAGE,
+    ULTRASOUND_IMAGE_STORAGE_RETIRED,
+    NUCLEAR_MEDICINE_IMAGE_STORAGE_RETIRED,
+    MR_IMAGE_STORAGE,
+    ENHANCED_MR_IMAGE_STORAGE,
+    MR_SPECTROSCOPY_STORAGE,
+    ENHANCED_MR_COLOR_IMAGE_STORAGE,
+    ULTRASOUND_MULTI_FRAME_IMAGE_STORAGE_RETIRED,
+    COMPUTED_RADIOGRAPHY_IMAGE_STORAGE,
+    DIGITAL_X_RAY_IMAGE_STORAGE_FOR_PRESENTATION,
+    DIGITAL_X_RAY_IMAGE_STORAGE_FOR_PROCESSING,
+    ENCAPSULATED_PDF_STORAGE,
+    ENCAPSULATED_CDA_STORAGE,
+    ENCAPSULATED_STL_STORAGE,
+    GRAYSCALE_SOFTCOPY_PRESENTATION_STATE_STORAGE,
+    POSITRON_EMISSION_TOMOGRAPHY_IMAGE_STORAGE,
+    BREAST_TOMOSYNTHESIS_IMAGE_STORAGE,
+    BREAST_PROJECTION_X_RAY_IMAGE_STORAGE_FOR_PRESENTATION,
+    BREAST_PROJECTION_X_RAY_IMAGE_STORAGE_FOR_PROCESSING,
+    ENHANCED_PET_IMAGE_STORAGE,
+    RT_IMAGE_STORAGE,
+    NUCLEAR_MEDICINE_IMAGE_STORAGE,
+    ULTRASOUND_MULTI_FRAME_IMAGE_STORAGE,
+    MULTI_FRAME_SINGLE_BIT_SECONDARY_CAPTURE_IMAGE_STORAGE,
+    MULTI_FRAME_GRAYSCALE_BYTE_SECONDARY_CAPTURE_IMAGE_STORAGE,
+    MULTI_FRAME_GRAYSCALE_WORD_SECONDARY_CAPTURE_IMAGE_STORAGE,
+    MULTI_FRAME_TRUE_COLOR_SECONDARY_CAPTURE_IMAGE_STORAGE,
+    BASIC_TEXT_SR_STORAGE,
+    ENHANCED_SR_STORAGE,
+    COMPREHENSIVE_SR_STORAGE,
+    VERIFICATION,
+];
+
+fn create_cstore_response(
+    message_id: u16,
+    sop_class_uid: &str,
+    sop_instance_uid: &str,
+) -> InMemDicomObject<StandardDataDictionary> {
+    InMemDicomObject::command_from_element_iter([
+        DataElement::new(
+            tags::AFFECTED_SOP_CLASS_UID,
+            VR::UI,
+            dicom_value!(Str, sop_class_uid),
+        ),
+        DataElement::new(tags::COMMAND_FIELD, VR::US, dicom_value!(U16, [0x8001])),
+        DataElement::new(
+            tags::MESSAGE_ID_BEING_RESPONDED_TO,
+            VR::US,
+            dicom_value!(U16, [message_id]),
+        ),
+        DataElement::new(
+            tags::COMMAND_DATA_SET_TYPE,
+            VR::US,
+            dicom_value!(U16, [0x0101]),
+        ),
+        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
+        DataElement::new(
+            tags::AFFECTED_SOP_INSTANCE_UID,
+            VR::UI,
+            dicom_value!(Str, sop_instance_uid),
+        ),
+    ])
+}
+
+pub async fn run_store_async(
+    scu_stream: tokio::net::TcpStream,
+    progress: Option<ProgressBar>,
+    args: &App,
+) -> Result<bool, Whatever> {
     let App {
         verbose,
         calling_ae_title,
@@ -20,11 +96,21 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         max_pdu_length,
         out_dir,
         port: _,
-        non_blocking: _,
-        tls,
-        tls_acceptor,
-    } = &args;
+        addr: _,
+        file: _,
+        query_file: _,
+        query: _,
+        called_ae_title: _,
+        patient: _,
+        study: _,
+        move_destination: _,
+    } = args;
+    let verbose = *verbose;
 
+    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    let mut msgid = 1;
+    let mut sop_class_uid = "".to_string();
+    let mut sop_instance_uid = "".to_string();
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -48,83 +134,53 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     for uid in ABSTRACT_SYNTAXES {
         options = options.with_abstract_syntax(*uid);
     }
-    let (peer_addr, peer_title) = if tls.enabled {
-        let config = tls.server_config(tls_acceptor).whatever_context("Could not create TLS config")?;
-        options = options.tls_config(config);
-        let peer_addr = scu_stream.peer_addr().ok();
-        let association = options
-            .establish_tls(scu_stream)
-            .whatever_context("could not establish association")?;
-        info!("New association from {}", association.peer_ae_title());
-        info!("New association from {}", association.peer_ae_title());
-        if args.verbose {
-            debug!(
-                "> Presentation contexts: {:?}",
-                association.presentation_contexts()
-            );
-        }
-        debug!(
-            "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-            association.presentation_contexts()
-                .iter()
-                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
-                .count(),
-            association.acceptor_max_pdu_length(),
-            association.requestor_max_pdu_length(),
-        );
-        let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, out_dir)?;
-        (peer_addr, peer_title)
-    } else {
-        let peer_addr = scu_stream.peer_addr().ok();
-        let association = options
-            .establish(scu_stream)
-            .whatever_context("could not establish association")?;
-        info!("New association from {}", association.peer_ae_title());
-        if args.verbose {
-            debug!(
-                "> Presentation contexts: {:?}",
-                association.presentation_contexts()
-            );
-        }
-        debug!(
-            "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-            association.presentation_contexts()
-                .iter()
-                .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
-                .count(),
-            association.acceptor_max_pdu_length(),
-            association.requestor_max_pdu_length(),
-        );
-        let peer_title = association.peer_ae_title().to_string();
-        inner(association, *verbose, out_dir)?;
-        (peer_addr, peer_title)
-    };
 
-    if let Some(peer_addr) = peer_addr {
-        info!(
-            "Dropping connection with {} ({})",
-            peer_title,
-            peer_addr
+    let mut association = options
+        .establish_async(scu_stream)
+        .await
+        .whatever_context("could not establish association")?;
+
+    let client_ae_title = association.peer_ae_title();
+    if verbose {
+        info!("New association from {client_ae_title}");
+        debug!(
+            "> Presentation contexts: {:?}",
+            association.presentation_contexts()
         );
-    } else {
-        info!("Dropping connection with {}", peer_title);
     }
-    Ok(())
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Received C-STORE association from {client_ae_title}"));
+    }
 
-}
+    // check whether some of the abstract syntaxes are not supported
+    let pcs_accepted = association.presentation_contexts()
+        .iter()
+        .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
+        .count();
 
-fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
-where
-    T: std::io::Read + std::io::Write + CloseSocket,
-{
-    let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
-    let mut msgid = 1;
-    let mut sop_class_uid = "".to_string();
-    let mut sop_instance_uid = "".to_string();
+    let abstract_syntaxes_rejected = association.presentation_contexts()
+        .iter()
+        .filter(|pc| pc.reason == PresentationContextResultReason::AbstractSyntaxNotSupported)
+        .count();
+
+    if pcs_accepted == 0 {
+        // error
+        error!("No presentation contexts were accepted!");
+        if abstract_syntaxes_rejected > 0 {
+            info!("Consider enabling promiscuous mode: --promiscuous");
+        }
+
+        // stop here
+        let _ = association.abort().await;
+
+        return Ok(false);
+
+    } else if abstract_syntaxes_rejected > 0 {
+        warn!("Not all presentation contexts were accepted, some files might not be received.");
+    }
 
     loop {
-        match association.receive() {
+        match association.receive().await {
             Ok(mut pdu) => {
                 if verbose {
                     debug!("scu ----> scp: {}", pdu.short_description());
@@ -152,58 +208,30 @@ where
 
                                 let obj = InMemDicomObject::read_dataset_with_ts(v.as_slice(), &ts)
                                     .whatever_context("failed to read incoming DICOM command")?;
-                                let command_field = obj
-                                    .element(tags::COMMAND_FIELD)
+                                obj.element(tags::COMMAND_FIELD)
                                     .whatever_context("Missing Command Field")?
                                     .uint16()
                                     .whatever_context("Command Field is not an integer")?;
 
-                                if command_field == 0x0030 {
-                                    // Handle C-ECHO-RQ
-                                    let cecho_response = create_cecho_response(msgid);
-                                    let mut cecho_data = Vec::new();
-
-                                    cecho_response
-                                        .write_dataset_with_ts(&mut cecho_data, &ts)
-                                        .whatever_context(
-                                            "could not write C-ECHO response object",
-                                        )?;
-
-                                    let pdu_response = Pdu::PData {
-                                        data: vec![dicom_ul::pdu::PDataValue {
-                                            presentation_context_id: data_value
-                                                .presentation_context_id,
-                                            value_type: PDataValueType::Command,
-                                            is_last: true,
-                                            data: cecho_data,
-                                        }],
-                                    };
-                                    association.send(&pdu_response).whatever_context(
-                                        "failed to send C-ECHO response object to SCU",
-                                    )?;
-                                } else {
-                                    msgid = obj
-                                        .element(tags::MESSAGE_ID)
-                                        .whatever_context("Missing Message ID")?
-                                        .to_int()
-                                        .whatever_context("Message ID is not an integer")?;
-                                    sop_class_uid = obj
-                                        .element(tags::AFFECTED_SOP_CLASS_UID)
-                                        .whatever_context("missing Affected SOP Class UID")?
-                                        .to_str()
-                                        .whatever_context(
-                                            "could not retrieve Affected SOP Class UID",
-                                        )?
-                                        .to_string();
-                                    sop_instance_uid = obj
-                                        .element(tags::AFFECTED_SOP_INSTANCE_UID)
-                                        .whatever_context("missing Affected SOP Instance UID")?
-                                        .to_str()
-                                        .whatever_context(
-                                            "could not retrieve Affected SOP Instance UID",
-                                        )?
-                                        .to_string();
-                                }
+                                msgid = obj
+                                    .element(tags::MESSAGE_ID)
+                                    .whatever_context("Missing Message ID")?
+                                    .to_int()
+                                    .whatever_context("Message ID is not an integer")?;
+                                sop_class_uid = obj
+                                    .element(tags::AFFECTED_SOP_CLASS_UID)
+                                    .whatever_context("missing Affected SOP Class UID")?
+                                    .to_str()
+                                    .whatever_context("could not retrieve Affected SOP Class UID")?
+                                    .to_string();
+                                sop_instance_uid = obj
+                                    .element(tags::AFFECTED_SOP_INSTANCE_UID)
+                                    .whatever_context("missing Affected SOP Instance UID")?
+                                    .to_str()
+                                    .whatever_context(
+                                        "could not retrieve Affected SOP Instance UID",
+                                    )?
+                                    .to_string();
                                 instance_buffer.clear();
                             } else if data_value.value_type == PDataValueType::Data
                                 && data_value.is_last
@@ -243,7 +271,7 @@ where
                                 let file_obj = obj.with_exact_meta(file_meta);
 
                                 // write the files to the current directory with their SOPInstanceUID as filenames
-                                let mut file_path = out_dir.to_path_buf();
+                                let mut file_path = out_dir.clone();
                                 file_path.push(
                                     sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
                                 );
@@ -279,25 +307,33 @@ where
                                 };
                                 association
                                     .send(&pdu_response)
+                                    .await
                                     .whatever_context("failed to send response object to SCU")?;
+
+                                if let Some(pb) = &progress {
+                                    pb.tick();
+                                }
                             }
                         }
                     }
                     Pdu::ReleaseRQ => {
-                        association.send(&Pdu::ReleaseRP).unwrap_or_else(|e| {
+                        association.send(&Pdu::ReleaseRP).await.unwrap_or_else(|e| {
                             warn!(
                                 "Failed to send association release message to SCU: {}",
                                 snafu::Report::from_error(e)
                             );
                         });
-                        info!(
-                            "Released association with {}",
-                            association.peer_ae_title()
-                        );
+                        let client_ae_title = association.peer_ae_title();
+                        if verbose {
+                            info!("Released association with {client_ae_title}");
+                        }
+                        if let Some(pb) = &progress {
+                            pb.set_message(format!("Released association with {client_ae_title}"));
+                        }
                         break;
                     }
                     Pdu::AbortRQ { source } => {
-                        warn!("Aborted connection from: {:?}", source);
+                        warn!("Connection aborted by {source:?}");
                         break;
                     }
                     _ => {}
@@ -305,9 +341,9 @@ where
             }
             Err(err @ dicom_ul::association::Error::ReceivePdu { .. }) => {
                 if verbose {
-                    info!("{}", Report::from_error(err));
+                    warn!("{}", Report::from_error(err));
                 } else {
-                    info!("{}", err);
+                    warn!("{err}");
                 }
                 break;
             }
@@ -317,6 +353,21 @@ where
             }
         }
     }
-    Ok(())
 
+    let msg = if let Ok(peer_addr) = association.inner_stream().peer_addr() {
+        format!(
+            "Dropping connection with {} ({peer_addr})",
+            association.peer_ae_title(),
+        )
+    } else {
+        format!("Dropping connection with {}", association.peer_ae_title())
+    };
+    if verbose {
+        info!("{msg}");
+    }
+    if let Some(pb) = &progress {
+        pb.finish_with_message(msg);
+    }
+
+    Ok(true)
 }

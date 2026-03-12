@@ -11,20 +11,26 @@ use dicom_ul::{
     association::ClientAssociationOptions,
     pdu::{PDataValue, PDataValueType},
 };
+use indicatif::ProgressBar;
 use query::parse_queries;
 use snafu::prelude::*;
-use std::io::{stderr, BufRead as _, Read};
+use snafu::Report;
+use std::io::{stderr, BufRead as _};
+use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
+use std::time::Duration;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
 mod query;
+mod store_async;
+use store_async::run_store_async;
 
-/// DICOM C-FIND SCU
-#[derive(Debug, Parser)]
+/// DICOM C-MOVE SCU
+#[derive(Debug, Parser, Clone)]
 #[command(version)]
 struct App {
-    /// socket address to FIND SCP (example: "127.0.0.1:1045")
+    /// socket address to MOVE SCP (example: "127.0.0.1:1045")
     addr: String,
     /// a DICOM file representing the query object
     file: Option<PathBuf>,
@@ -39,40 +45,137 @@ struct App {
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
     /// the calling AE title
-    #[arg(long = "calling-ae-title", default_value = "FIND-SCU")]
+    #[arg(long = "calling-ae-title", default_value = "STORE-SCP")]
     calling_ae_title: String,
     /// the called AE title
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
+    /// the C-MOVE destination AE title
+    #[arg(long = "move-destination", default_value = "STORE-SCP")]
+    move_destination: String,
+
     /// the maximum PDU length
     #[arg(
         long = "max-pdu-length",
-        default_value = "16378",
-        value_parser(clap::value_parser!(u32).range(1018..))
+        default_value = "16384",
+        value_parser(clap::value_parser!(u32).range(4096..=131_072))
     )]
     max_pdu_length: u32,
+    /// Output directory for incoming objects
+    #[arg(short = 'o', default_value = ".")]
+    out_dir: PathBuf,
+    /// Which port to listen on
+    #[arg(short, default_value = "11111")]
+    port: u16,
 
     /// use patient root information model
-    #[arg(short = 'P', long, conflicts_with = "study", conflicts_with = "mwl")]
+    #[arg(short = 'P', long, conflicts_with = "study")]
     patient: bool,
     /// use study root information model (default)
-    #[arg(short = 'S', long, conflicts_with = "patient", conflicts_with = "mwl")]
+    #[arg(short = 'S', long, conflicts_with = "patient")]
     study: bool,
-    /// use modality worklist information model
-    #[arg(
-        short = 'W',
-        long,
-        conflicts_with = "study",
-        conflicts_with = "patient"
-    )]
-    mwl: bool,
+
+    /// Enforce max pdu length
+    #[arg(short = 's', long = "strict")]
+    strict: bool,
+    /// Only accept native/uncompressed transfer syntaxes
+    #[arg(long)]
+    uncompressed_only: bool,
+    /// Accept unknown SOP classes
+    #[arg(long)]
+    promiscuous: bool,
 }
 
 fn main() {
-    run().unwrap_or_else(|err| {
+    let app = App::parse();
+
+    tracing::subscriber::set_global_default(
+        tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(if app.verbose {
+                Level::DEBUG
+            } else {
+                Level::INFO
+            })
+            .finish(),
+    )
+    .unwrap_or_else(|e| {
+        error!("{}", snafu::Report::from_error(e));
+    });
+
+    let progress = if !app.verbose {
+        let pb = ProgressBar::new_spinner();
+        pb.enable_steady_tick(Duration::new(0, 480_000_000));
+        Some(pb)
+    } else {
+        None
+    };
+
+    if Some(app.move_destination.clone()) != Some(app.calling_ae_title.clone()) {
+        run_move_scu(app.clone(), progress).unwrap_or_else(|err| {
+            error!("{}", snafu::Report::from_error(err));
+            std::process::exit(-2);
+        });
+        return;
+    }
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+
+    let app_for_async = app.clone();
+    let pb = progress.clone();
+    let handle = runtime.spawn(async move {
+        let proceed = run_async(app_for_async, pb).await.unwrap_or_else(|e| {
+            error!("{:?}", Report::from_error(e));
+            std::process::exit(-2);
+        });
+
+        if !proceed {
+            std::process::exit(-2);
+        }
+    });
+
+    let move_success = run_move_scu(app, progress).unwrap_or_else(|err| {
         error!("{}", snafu::Report::from_error(err));
         std::process::exit(-2);
     });
+
+    if move_success {
+        runtime.block_on(async {
+            handle.await.unwrap_or_else(|e| {
+                error!("Failed to run async task: {}", snafu::Report::from_error(e));
+            });
+        });
+    } else {
+        handle.abort();
+    }
+}
+
+async fn run_async(args: App, progress: Option<ProgressBar>) -> Result<bool, snafu::Whatever> {
+    use std::sync::Arc;
+    let args = Arc::new(args);
+
+    std::fs::create_dir_all(&args.out_dir).unwrap_or_else(|e| {
+        error!("Could not create output directory: {e}");
+        std::process::exit(-2);
+    });
+
+    let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
+    let listener = tokio::net::TcpListener::bind(listen_addr).await
+        .whatever_context("Could not bind store SCP listening address")?;
+
+    if args.verbose {
+        info!(
+            "{} listening on: tcp://{listen_addr}",
+            &args.calling_ae_title,
+        );
+    }
+
+    let (socket, _addr) = listener.accept().await
+        .whatever_context("Failed to set up a socket connection with source AE")?;
+    let args = args.clone();
+    run_store_async(socket, progress, &args).await
 }
 
 #[derive(Debug, Snafu)]
@@ -103,9 +206,6 @@ fn build_query(
     file: Option<PathBuf>,
     query_file: Option<PathBuf>,
     q: Vec<String>,
-    patient: bool,
-    study: bool,
-    mwl: bool,
     verbose: bool,
 ) -> Result<InMemDicomObject, Error> {
     // read query file if provided
@@ -151,29 +251,12 @@ fn build_query(
         whatever!("Query not specified");
     }
 
-    let mut obj =
-        parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
-
-    // try to infer query retrieve level if not defined by the user
-    // but only if not using worklist
-    if !mwl && obj.get(tags::QUERY_RETRIEVE_LEVEL).is_none() {
-        // (0008,0052) CS QueryRetrieveLevel
-        let level = match (patient, study) {
-            (true, false) => "PATIENT",
-            (false, true) | (false, false) => "STUDY",
-            _ => unreachable!(),
-        };
-        obj.put(DataElement::new(
-            tags::QUERY_RETRIEVE_LEVEL,
-            VR::CS,
-            PrimitiveValue::from(level),
-        ));
-    }
+    let obj = parse_queries(obj, &q).whatever_context("Could not build query object from terms")?;
 
     Ok(obj)
 }
 
-fn run() -> Result<(), Error> {
+fn run_move_scu(app: App, progress: Option<ProgressBar>) -> Result<bool, Error> {
     let App {
         addr,
         file,
@@ -183,37 +266,32 @@ fn run() -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        move_destination,
         patient,
         study,
-        mwl,
-    } = App::parse();
+        out_dir: _,
+        port: _,
+        strict: _,
+        uncompressed_only: _,
+        promiscuous: _,
+    } = app;
 
-    tracing::subscriber::set_global_default(
-        tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(if verbose { Level::DEBUG } else { Level::INFO })
-            .finish(),
-    )
-    .unwrap_or_else(|e| {
-        error!("{}", snafu::Report::from_error(e));
-    });
+    let dcm_query = build_query(file, query_file, query, verbose)?;
 
-    let dcm_query = build_query(file, query_file, query, patient, study, mwl, verbose)?;
-
-    let abstract_syntax = match (patient, study, mwl) {
-        // Patient Root Query/Retrieve Information Model - FIND
-        (true, false, false) => uids::PATIENT_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND,
-        // Modality Worklist Information Model – FIND
-        (false, false, true) => uids::MODALITY_WORKLIST_INFORMATION_MODEL_FIND,
-        // Study Root Query/Retrieve Information Model – FIND (default)
-        (false, false, false) | (false, true, false) => {
-            uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_FIND
-        }
-        // Series
+    let abstract_syntax = match (patient, study) {
+        // Patient Root Query/Retrieve Information Model - MOVE
+        (true, false) => uids::PATIENT_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE,
+        // Study Root Query/Retrieve Information Model – MOVE (default)
+        (false, false) | (false, true) => uids::STUDY_ROOT_QUERY_RETRIEVE_INFORMATION_MODEL_MOVE,
         _ => unreachable!("Unexpected flag combination"),
     };
 
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Establishing association with {addr}"));
+    }
+
     if verbose {
-        info!("Establishing association with '{}'...", &addr);
+        info!("Establishing association with '{addr}'...",);
     }
 
     let mut scu_opt = ClientAssociationOptions::new()
@@ -252,7 +330,7 @@ fn run() -> Result<(), Error> {
         debug!("Transfer Syntax: {}", ts.name());
     }
 
-    let cmd = find_req_command(abstract_syntax, 1);
+    let cmd = move_req_command(abstract_syntax, move_destination.as_str(), 1);
 
     let mut cmd_data = Vec::with_capacity(128);
     cmd.write_dataset_with_ts(&mut cmd_data, &entries::IMPLICIT_VR_LITTLE_ENDIAN.erased())
@@ -265,8 +343,11 @@ fn run() -> Result<(), Error> {
 
     let nbytes = cmd_data.len() + iod_data.len();
 
+    if let Some(pb) = &progress {
+        pb.set_message(format!("Sending query ({nbytes} B)"));
+    }
     if verbose {
-        debug!("Sending query ({} B)...", nbytes);
+        debug!("Sending C-MOVE request ({} B)...", nbytes);
     }
 
     let pdu = Pdu::PData {
@@ -288,13 +369,17 @@ fn run() -> Result<(), Error> {
         }],
     };
     scu.send(&pdu)
-        .whatever_context("Could not send C-Find request")?;
+        .whatever_context("Could not send C-MOVE request")?;
 
+    if let Some(pb) = &progress {
+        pb.set_message("Awaiting C-MOVE response");
+    }
     if verbose {
         debug!("Awaiting response...");
     }
 
     let mut i = 0;
+    let mut success = false;
     loop {
         let rsp_pdu = scu
             .receive()
@@ -321,7 +406,7 @@ fn run() -> Result<(), Error> {
                 )
                 .context(ReadCommandSnafu)?;
                 if verbose {
-                    eprintln!("Match #{i} Response command:");
+                    eprintln!("Response #{i} command:");
                     DumpOptions::new()
                         .dump_object_to(stderr(), &cmd_obj)
                         .context(DumpOutputSnafu)?;
@@ -332,55 +417,36 @@ fn run() -> Result<(), Error> {
                     .to_int::<u16>()
                     .whatever_context("failed to read status code")?;
                 if status == 0 {
+                    if let Some(pb) = &progress {
+                        pb.set_message("Operation complete");
+                    }
                     if verbose {
-                        debug!("Matching is complete");
+                        debug!("Operation complete");
                     }
-                    if i == 0 {
-                        info!("No results matching query");
-                    }
+                    success = true;
                     break;
                 } else if status == 0xFF00 || status == 0xFF01 {
+                    if let Some(pb) = &progress {
+                        pb.tick();
+                    }
                     if verbose {
                         debug!("Operation pending: {:x}", status);
                     }
-
-                    // fetch DICOM data
-                    // Some worklist servers sends both command and data in the same PData
-                    // So there is no need to download another PData
-                    let dcm = if let Some(second_pdata) = data.get(1) {
-                        InMemDicomObject::read_dataset_with_ts(second_pdata.data.as_slice(), ts)
-                            .whatever_context("Could not read response data set")?
-                    } else {
-                        let mut rsp = scu.receive_pdata();
-                        let mut response_data = Vec::new();
-                        rsp.read_to_end(&mut response_data)
-                            .whatever_context("Failed to read response data")?;
-
-                        InMemDicomObject::read_dataset_with_ts(&response_data[..], ts)
-                            .whatever_context("Could not read response data set")?
-                    };
-
-                    println!("------------------------ Match #{i} ------------------------");
-                    DumpOptions::new()
-                        .dump_object(&dcm)
-                        .context(DumpOutputSnafu)?;
-
-                    // check DICOM status in response data,
-                    // as some implementations might report status code 0
-                    // upon sending the response data
-                    if let Some(status) = dcm.get(tags::STATUS) {
-                        let status = status.to_int::<u16>().ok();
-                        if status == Some(0) {
-                            if verbose {
-                                debug!("Matching is complete");
-                            }
-                            break;
-                        }
-                    }
-
                     i += 1;
                 } else {
-                    warn!("Operation failed (status code {})", status);
+                    let msg = match status {
+                        0xa701 => "Out of resources (number of matches)",
+                        0xa702 => "Out of resources (sub-operations)",
+                        0x0122 => "SOP class not supported",
+                        0xa801 => "Move destination unknown",
+                        0xa900 => "Identifier does not match SOP class in C-MOVE response",
+                        0xc000 => "Unable to process C-MOVE response",
+                        0xfe00 => "Sub-operations terminated due to cancel indication",
+                        0xb000 => "Sub-operations complete with one or more failures",
+                        _ => "Unknown status code",
+                    };
+                    warn!("Operation failed (status code {status:x}) {msg}");
+
                     break;
                 }
             }
@@ -398,13 +464,16 @@ fn run() -> Result<(), Error> {
             }
         }
     }
+    if let Some(pb) = &progress {
+        pb.finish();
+    }
     let _ = scu.release();
-
-    Ok(())
+    Ok(success)
 }
 
-fn find_req_command(
+fn move_req_command(
     sop_class_uid: &str,
+    move_destination: &str,
     message_id: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
     InMemDicomObject::command_from_element_iter([
@@ -418,8 +487,8 @@ fn find_req_command(
         DataElement::new(
             tags::COMMAND_FIELD,
             VR::US,
-            // 0020H: C-FIND-RQ message
-            dicom_value!(U16, [0x0020]),
+            // 0021H: C-MOVE-RQ message  --> suggestion to create constants for these
+            dicom_value!(U16, [0x0021]),
         ),
         // message ID
         DataElement::new(tags::MESSAGE_ID, VR::US, dicom_value!(U16, [message_id])),
@@ -435,6 +504,12 @@ fn find_req_command(
             tags::COMMAND_DATA_SET_TYPE,
             VR::US,
             dicom_value!(U16, [0x0001]),
+        ),
+        // data set type
+        DataElement::new(
+            tags::MOVE_DESTINATION,
+            VR::AE,
+            PrimitiveValue::from(move_destination),
         ),
     ])
 }
