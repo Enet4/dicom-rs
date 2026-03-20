@@ -11,7 +11,7 @@ keywords = ["dicom"]
 readme = "README.md"
 
 [features]
-default = ["rayon", "simd"]
+default = ["rayon", "simd", "hayro-jpeg2000"]
 
 # inventory for compile time plugin-based transfer syntax registration
 inventory-registry = ['dicom-encoding/inventory-registry']
