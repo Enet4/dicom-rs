@@ -153,9 +153,8 @@ impl PixelDataReader for Jpeg2000Adapter {
         #[cfg(feature = "hayro-jpeg2000")]
         {
             use hayro_jpeg2000::{Image, DecodeSettings, DecoderContext};
-   
-            let image = Image::new(&frame_data, &DecodeSettings::default()).whatever_context("hayro-jpeg2000 build image failure")?;
-            println!("Original bit depth: {}, width: {}, height: {}, color_space: {:?}, has_alpha: {}", image.original_bit_depth(), image.width(), image.height(), image.color_space(), image.has_alpha());
+            
+            let image = Image::new(&frame_data, &DecodeSettings::default().with_keep_bit_depth(true)).whatever_context("hayro-jpeg2000 read image failure")?;
             image.decode_into(dst, &mut DecoderContext::default()).expect("hayro-jpeg2000 decoder failure");
         }
 
