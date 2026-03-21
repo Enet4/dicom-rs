@@ -99,14 +99,6 @@ pub enum ReadError {
         backtrace: Backtrace,
     },
 
-    #[snafu(display("Invalid PDU field length"))]
-    InvalidPduFieldLength {
-        backtrace: Backtrace,
-    },
-
-    #[snafu(display("Could not read user variable"))]
-    ReadUserVariable { backtrace: Backtrace },
-
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
     InvalidItemLength { length: u32 },
 
@@ -156,6 +148,12 @@ pub enum ReadError {
     MissingAbstractSyntax { backtrace: Backtrace },
     #[snafu(display("Missing transfer syntax"))]
     MissingTransferSyntax { backtrace: Backtrace },
+    #[snafu(display("Invalid PDU field length"))]
+    InvalidPduFieldLength {
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Could not read user variable"))]
+    ReadUserVariable { backtrace: Backtrace },
 }
 
 /// Message component for a proposed presentation context.
