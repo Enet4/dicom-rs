@@ -32,7 +32,7 @@ num-traits = "0.2.12"
 tracing = "0.1.34"
 
 [dependencies.image]
-version = ">=0.25.1, <0.25.8"
+version = "0.25"
 default-features = false
 features = ["jpeg", "png", "pnm", "tiff", "webp", "bmp", "exr"]
 optional = true
@@ -70,6 +70,8 @@ rle = ["dicom-transfer-syntax-registry/rle"]
 openjpeg-sys = ["dicom-transfer-syntax-registry/openjpeg-sys"]
 # JPEG 2000 decoding via Rust port of OpenJPEG
 openjp2 = ["dicom-transfer-syntax-registry/openjp2"]
+# JPEG 2000 support via the hayro-jpeg2000
+hayro-jpeg2000 = ["dicom-transfer-syntax-registry/hayro-jpeg2000"]
 # JpegLS via CharLS
 charls = ["dicom-transfer-syntax-registry/charls"]
 # use vcpkg to build CharLS

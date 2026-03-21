@@ -2,14 +2,22 @@
 
 use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
 use dicom_encoding::snafu::prelude::*;
-use jpeg2k::Image;
 use std::borrow::Cow;
-use tracing::warn;
 
 // Check jpeg2k backend conflicts
 #[cfg(all(feature = "openjp2", feature = "openjpeg-sys"))]
 compile_error!(
     "feature \"openjp2\" and feature \"openjpeg-sys\" cannot be enabled at the same time"
+);
+
+#[cfg(all(feature = "openjp2", feature = "hayro-jpeg2000"))]
+compile_error!(
+    "feature \"openjp2\" and feature \"hayro-jpeg2000\" cannot be enabled at the same time"
+);
+
+#[cfg(all(feature = "hayro-jpeg2000", feature = "openjpeg-sys"))]
+compile_error!(
+    "feature \"hayro-jpeg2000\" and feature \"openjpeg-sys\" cannot be enabled at the same time"
 );
 
 /// Pixel data adapter for transfer syntaxes based on JPEG 2000.
@@ -109,31 +117,45 @@ impl PixelDataReader for Jpeg2000Adapter {
             Cow::Owned(fragments)
         };
 
-        let image = Image::from_bytes(&frame_data).whatever_context("jpeg2k decoder failure")?;
+        #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+        {
+            use jpeg2k::Image;
+            use tracing::warn;
+            
+            let image = Image::from_bytes(&frame_data).whatever_context("jpeg2k decoder failure")?;
 
-        // Note: we cannot use `get_pixels`
-        // because the current implementation narrows the data
-        // down to 8 bits per sample
-        let components = image.components();
+            // Note: we cannot use `get_pixels`
+            // because the current implementation narrows the data
+            // down to 8 bits per sample
+            let components = image.components();
 
-        // write each component into the destination buffer
-        for (component_i, component) in components.iter().enumerate() {
-            if component_i > samples_per_pixel as usize {
-                warn!(
-                    "JPEG 2000 image has more components than expected ({} > {})",
-                    component_i, samples_per_pixel
-                );
-                break;
+            // write each component into the destination buffer
+            for (component_i, component) in components.iter().enumerate() {
+                if component_i > samples_per_pixel as usize {
+                    warn!(
+                        "JPEG 2000 image has more components than expected ({} > {})",
+                        component_i, samples_per_pixel
+                    );
+                    break;
+                }
+
+                // write in standard layout
+                for (i, sample) in component.data().iter().enumerate() {
+                    let offset = base_offset
+                        + i * samples_per_pixel as usize * bytes_per_sample as usize
+                        + component_i * bytes_per_sample as usize;
+                    dst[offset..offset + bytes_per_sample as usize]
+                        .copy_from_slice(&sample.to_le_bytes()[..bytes_per_sample as usize]);
+                }
             }
+        }
 
-            // write in standard layout
-            for (i, sample) in component.data().iter().enumerate() {
-                let offset = base_offset
-                    + i * samples_per_pixel as usize * bytes_per_sample as usize
-                    + component_i * bytes_per_sample as usize;
-                dst[offset..offset + bytes_per_sample as usize]
-                    .copy_from_slice(&sample.to_le_bytes()[..bytes_per_sample as usize]);
-            }
+        #[cfg(feature = "hayro-jpeg2000")]
+        {
+            use hayro_jpeg2000::{Image, DecodeSettings, DecoderContext};
+            
+            let image = Image::new(&frame_data, &DecodeSettings::default().with_keep_bit_depth(true)).whatever_context("hayro-jpeg2000 read image failure")?;
+            image.decode_into(dst, &mut DecoderContext::default()).expect("hayro-jpeg2000 decoder failure");
         }
 
         Ok(())
