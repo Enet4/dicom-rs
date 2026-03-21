@@ -95,9 +95,12 @@ pub enum EncodeError {
     },
 
     /// Input pixel data is not native, should be decoded first.
+    #[snafu(display("Pixel Data is not native"))]
     NotNative,
 
-    /// The requested frame range is outside the given object's frame range.
+    /// Pixel Data is missing
+    /// or the requested frame range is outside the object's frame range.
+    #[snafu(display("Frame of pixel data is missing or out of bounds"))]
     FrameRangeOutOfBounds,
 
     /// A required attribute is missing
