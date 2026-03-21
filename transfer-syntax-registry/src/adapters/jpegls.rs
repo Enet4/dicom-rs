@@ -36,16 +36,9 @@ impl PixelDataReader for JpegLsAdapter {
             "BitsAllocated other than 8 or 16 is not supported"
         );
 
-        let nr_frames = src.number_of_frames().unwrap_or(1) as usize;
-
-        ensure!(
-            nr_frames > frame as usize,
-            decode_error::FrameRangeOutOfBoundsSnafu
-        );
-
         let frame_data = src
             .frame_pixel_data(frame)
-            .whatever_context("Missing frame pixeldata")?;
+            .context(FrameRangeOutOfBoundsSnafu)?;
 
         let mut decoded = CharLS::default()
             .decode(&frame_data)
@@ -100,7 +93,7 @@ impl PixelDataWriter for JpegLsAdapter {
         // identify frame data using the frame index
         let frame_data = src
             .frame_pixel_data(frame)
-            .whatever_context("Missing frame pixeldata")?;
+            .context(FrameRangeOutOfBoundsSnafu)?;
 
         // Encode the data
         let mut encoder = CharLS::default();
