@@ -51,9 +51,12 @@ pub enum DecodeError {
     ///
     /// Either the image needs no decoding
     /// or the compressed imaging data was in a flat pixel data element by mistake.
+    #[snafu(display("Pixel Data is not encapsulated"))]
     NotEncapsulated,
 
-    /// The requested frame range is outside the given object's frame range.
+    /// Pixel Data is missing
+    /// or the requested frame range is outside the object's frame range.
+    #[snafu(display("Frame of pixel data is missing or out of bounds"))]
     FrameRangeOutOfBounds,
 
     /// A required attribute is missing
