@@ -38,7 +38,7 @@ impl PixelDataReader for JpegLsAdapter {
 
         let frame_data = src
             .frame_pixel_data(frame)
-            .context(FrameRangeOutOfBoundsSnafu)?;
+            .context(encode_error::FrameRangeOutOfBoundsSnafu)?;
 
         let mut decoded = CharLS::default()
             .decode(&frame_data)
@@ -93,7 +93,7 @@ impl PixelDataWriter for JpegLsAdapter {
         // identify frame data using the frame index
         let frame_data = src
             .frame_pixel_data(frame)
-            .context(FrameRangeOutOfBoundsSnafu)?;
+            .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
 
         // Encode the data
         let mut encoder = CharLS::default();

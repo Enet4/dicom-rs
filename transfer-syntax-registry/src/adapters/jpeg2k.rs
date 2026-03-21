@@ -62,7 +62,7 @@ impl PixelDataReader for Jpeg2000Adapter {
 
         let frame_data = src
             .frame_pixel_data(frame)
-            .context(FrameRangeOutOfBoundsSnafu)?;
+            .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
         let image = Image::from_bytes(&frame_data).whatever_context("jpeg2k decoder failure")?;
 
         // Note: we cannot use `get_pixels`
