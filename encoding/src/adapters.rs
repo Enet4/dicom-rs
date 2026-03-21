@@ -510,3 +510,185 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
         unreachable!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use dicom_core::value::{InMemFragment, PixelFragmentSequence};
+
+    use crate::adapters::RawPixelData;
+
+    use super::PixelDataObject;
+
+    /// Generates frames with solid pixel data values 0, 1, and so on.
+    fn generated_rgb_frames(columns: u16, rows: u16) -> impl Iterator<Item = Vec<u8>> {
+        (0..=255_u8).map(move |n| vec![n; columns as usize * rows as usize * 3])
+    }
+
+    pub(crate) struct TestDataObject {
+        pub ts_uid: &'static str,
+        pub rows: u16,
+        pub columns: u16,
+        pub bits_allocated: u16,
+        pub bits_stored: u16,
+        pub samples_per_pixel: u16,
+        pub photometric_interpretation: &'static str,
+        pub number_of_frames: u32,
+        pub flat_pixel_data: Option<Vec<u8>>,
+        pub pixel_data_sequence: Option<PixelFragmentSequence<InMemFragment>>,
+    }
+
+    impl PixelDataObject for TestDataObject {
+        fn transfer_syntax_uid(&self) -> &str {
+            &self.ts_uid
+        }
+
+        fn rows(&self) -> Option<u16> {
+            Some(self.rows)
+        }
+
+        fn cols(&self) -> Option<u16> {
+            Some(self.columns)
+        }
+
+        fn samples_per_pixel(&self) -> Option<u16> {
+            Some(self.samples_per_pixel)
+        }
+
+        fn bits_allocated(&self) -> Option<u16> {
+            Some(self.bits_allocated)
+        }
+
+        fn bits_stored(&self) -> Option<u16> {
+            Some(self.bits_stored)
+        }
+
+        fn photometric_interpretation(&self) -> Option<&str> {
+            Some(self.photometric_interpretation)
+        }
+
+        fn number_of_frames(&self) -> Option<u32> {
+            Some(self.number_of_frames)
+        }
+
+        fn number_of_fragments(&self) -> Option<u32> {
+            self.pixel_data_sequence
+                .as_ref()
+                .map(|v| v.fragments().len() as u32)
+        }
+
+        fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
+            match (&self.flat_pixel_data, &self.pixel_data_sequence) {
+                (Some(_), Some(_)) => {
+                    panic!("Invalid pixel data object (both flat and fragment sequence)")
+                }
+                (_, Some(v)) => v
+                    .fragments()
+                    .get(fragment)
+                    .map(|f| Cow::Borrowed(f.as_slice())),
+                (Some(v), _) => {
+                    if fragment == 0 {
+                        Some(Cow::Borrowed(v))
+                    } else {
+                        None
+                    }
+                }
+                (None, None) => None,
+            }
+        }
+
+        fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
+            match &self.pixel_data_sequence {
+                Some(v) => Some(Cow::Borrowed(v.offset_table())),
+                _ => None,
+            }
+        }
+
+        fn raw_pixel_data(&self) -> Option<RawPixelData> {
+            match (&self.flat_pixel_data, &self.pixel_data_sequence) {
+                (Some(_), Some(_)) => {
+                    panic!("Invalid pixel data object (both flat and fragment sequence)")
+                }
+                (Some(v), _) => Some(RawPixelData {
+                    fragments: vec![v.clone()].into(),
+                    offset_table: Default::default(),
+                }),
+                (_, Some(v)) => Some(RawPixelData {
+                    fragments: v.fragments().into(),
+                    offset_table: v.offset_table().into(),
+                }),
+                _ => None,
+            }
+        }
+    }
+
+    /// Frame pixel data can be retrieved from an object
+    /// with native pixel data.
+    #[test]
+    fn frame_pixel_data_in_object_flat() {
+        let rows = 10;
+        let columns = 10;
+        let number_of_frames = 4;
+
+        let obj = TestDataObject {
+            ts_uid: "1.2.840.10008.1.2.1",
+            rows,
+            columns,
+            bits_allocated: 8,
+            bits_stored: 8,
+            samples_per_pixel: 3,
+            photometric_interpretation: "RGB",
+            number_of_frames,
+            flat_pixel_data: Some(generated_rgb_frames(columns, rows).take(number_of_frames as usize).flatten().collect()),
+            pixel_data_sequence: None,
+        };
+
+        assert_eq!(obj.frame_pixel_data(0), Some((&[0; 10 * 10 * 3]).into()));
+        assert_eq!(obj.frame_pixel_data(1), Some((&[1; 10 * 10 * 3]).into()));
+        assert_eq!(obj.frame_pixel_data(2), Some((&[2; 10 * 10 * 3]).into()));
+        assert_eq!(obj.frame_pixel_data(3), Some((&[3; 10 * 10 * 3]).into()));
+        assert_eq!(obj.frame_pixel_data(4), None);
+    }
+
+    /// Frame pixel data can be retrieved from an object
+    /// with encapsulated pixel data.
+    #[test]
+    fn frame_pixel_data_in_object_encapsulated() {
+        let obj = TestDataObject {
+            ts_uid: "9.9.999.9999.9.9.99",
+            rows: 512,
+            columns: 512,
+            bits_allocated: 16,
+            bits_stored: 12,
+            samples_per_pixel: 1,
+            photometric_interpretation: "MONOCHROME2",
+            number_of_frames: 3,
+            flat_pixel_data: None,
+            pixel_data_sequence: Some(PixelFragmentSequence::new(
+                // offset table: 1 frame with 2 fragments + 2 frames with 1 fragment
+                vec![0, 16 + 20, 16 + 20 + 24],
+                vec![
+                    // fragment 0 (frame 0)
+                    vec![0x33 ; 16],
+                    // fragment 1 (frame 0)
+                    vec![0x55 ; 20],
+                    // fragment 2 (frame 1)
+                    vec![0x77 ; 24],
+                    // fragment 3 (frame 2)
+                    vec![0x99 ; 36],
+                ]
+            )),
+        };
+
+        // the first two fragments will be combined
+        let frame_1: Vec<u8> = IntoIterator::into_iter([0x33; 16])
+            .chain(IntoIterator::into_iter([0x55; 20]))
+            .collect();
+        assert_eq!(obj.frame_pixel_data(0), Some(frame_1.into()));
+
+        assert_eq!(obj.frame_pixel_data(1), Some((&[0x77; 24]).into()));
+        assert_eq!(obj.frame_pixel_data(2), Some((&[0x99; 36]).into()));
+
+    }
+}
