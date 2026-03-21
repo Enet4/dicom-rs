@@ -187,6 +187,11 @@ pub trait PixelDataObject {
     /// in its encoded form.
     ///
     /// Returns `None` if there is no such frame or there is no pixel data at all.
+    ///
+    /// _Note:_ If pixel data is uncompressed and Bits Allocated is 1,
+    /// the slice may include leading or trailing bits
+    /// belonging to other frames,
+    /// depending on the size of each frame.
     fn frame_pixel_data(&self, frame: u32) -> Option<Cow<'_, [u8]>> {
         match self.number_of_fragments() {
             Some(number_of_fragments) if number_of_fragments == self.number_of_frames()? => {
@@ -227,14 +232,31 @@ pub trait PixelDataObject {
             }
             // In the case of native pixel data, the whole data is considered as a single fragment.
             None => {
+                let bits_allocated = self.bits_allocated()?;
                 let rows = self.rows()?;
                 let columns = self.cols()?;
-                let samples_per_pixel = self.samples_per_pixel()?;
-                let bits_allocated = self.bits_allocated()?;
-                let frame_size = rows * columns * samples_per_pixel * ((bits_allocated + 7) / 8);
+                let frame_size = determine_bytes_per_native_frame(
+                    rows,
+                    columns,
+                    self.samples_per_pixel()?,
+                    bits_allocated,
+                    self.photometric_interpretation()?,
+                );
                 let pixel_data = self.fragment(0)?;
-                let start = frame as usize * frame_size as usize;
-                let end = start + frame_size as usize;
+
+                // special case of 1 bit per sample:
+                // include starting byte even it leading bits are outside the frame
+                // and include next byte if it ends outside frame boundary
+                let (start, end) = if bits_allocated == 1 {
+                    let samples_per_frame = rows as usize * columns as usize;
+                    let start = frame as usize * samples_per_frame / 8;
+                    let end = ((frame as usize + 1) * samples_per_frame + 7) / 8;
+                    (start, end)
+                } else {
+                    let start = frame as usize * frame_size;
+                    let end = start + frame_size;
+                    (start, end)
+                };
                 if end <= pixel_data.len() {
                     match pixel_data {
                         Cow::Borrowed(slice) => slice.get(start..end).map(Cow::Borrowed),
@@ -243,6 +265,7 @@ pub trait PixelDataObject {
                 } else {
                     None
                 }
+
             }
         }
     }
@@ -509,6 +532,34 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
     ) -> EncodeResult<Vec<AttributeOp>> {
         unreachable!()
     }
+}
+
+/// Use the information in a pixel data object
+/// to determine the number of bytes needed to encode one frame.
+/// 
+/// Only makes sense if the object contains native pixel data.
+#[inline]
+fn determine_bytes_per_native_frame(
+    rows: u16,
+    columns: u16,
+    samples_per_pixel: u16,
+    bits_allocated: u16,
+    photometric_interpretation: &str,
+) -> usize {
+    // handle special case of 1 bit per sample
+    if bits_allocated == 1 {
+        return (rows as usize * columns as usize + 7) / 8;
+    }
+
+    let real_samples_per_pixel = if samples_per_pixel == 3 && photometric_interpretation == "YBR_FULL_422" {
+        2
+    } else {
+        samples_per_pixel
+    };
+    rows as usize
+        * columns as usize
+        * real_samples_per_pixel as usize
+        * ((bits_allocated as usize + 7) / 8)
 }
 
 #[cfg(test)]
