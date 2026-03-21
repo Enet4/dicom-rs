@@ -196,7 +196,7 @@ pub(crate) struct NegotiatedOptions{
 
 /// Socket configuration for associations
 #[derive(Debug, Clone, Copy, Default)]
-pub struct SocketOptions {
+pub(crate) struct SocketOptions {
     /// Timeout for individual read operations
     read_timeout: Option<Duration>,
     /// Timeout for individual send operations
@@ -204,6 +204,7 @@ pub struct SocketOptions {
     /// Timeout for connection establishment
     connection_timeout: Option<Duration>,
 }
+
 /// Trait to close underlying socket
 pub trait CloseSocket {
     fn close(&mut self) -> std::io::Result<()>;
@@ -409,8 +410,16 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
         private::SyncAssociationSealed::abort(&mut self)
     }
 
-    /// Iniate a graceful release of the association
-    fn release(mut self) -> Result<()> where Self: Sized{
+    /// Iniate a graceful release of the association.
+    ///
+    /// A DIMSE A-RELEASE transaction is initiated by this application entity,
+    /// and the underlying socket is closed once settled.
+    ///
+    /// Note that as of version 0.9.1,
+    /// implementers of this trait no longer call this method on [`Drop`],
+    /// so remember to call `release` explicitly
+    /// at the end of all DIMSE transactions.
+    fn release(mut self) -> Result<()> where Self: Sized {
         private::SyncAssociationSealed::release(&mut self)
     }
 
@@ -488,7 +497,15 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         }
     }
 
-    /// Iniate a graceful release of the association
+    /// Iniate a graceful release of the association.
+    ///
+    /// A DIMSE A-RELEASE transaction is initiated by this application entity,
+    /// and the underlying socket is closed once settled.
+    ///
+    /// Note that implementers of this trait
+    /// do not try to release the association on [`Drop`],
+    /// so remember to call `release` explicitly
+    /// at the end of all DIMSE transactions.
     fn release(mut self) -> impl std::future::Future<Output = Result<()>> + Send 
     where Self: Sized + Send {
         async move {
@@ -543,7 +560,7 @@ async fn timeout<T>(
 }
 
 /// Encode a PDU into the provided buffer
-pub fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u32) -> Result<()> {
+pub(crate) fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u32) -> Result<()> {
     write_pdu( buffer, pdu).context(SendPduSnafu)?;
     if buffer.len() > peer_max_pdu_length as usize {
         return SendTooLongPduSnafu {

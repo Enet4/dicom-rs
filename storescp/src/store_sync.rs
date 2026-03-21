@@ -5,7 +5,7 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket, SyncAssociation}, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket}, pdu::{PDataValueType, PresentationContextResultReason}};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
