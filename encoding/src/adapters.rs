@@ -644,10 +644,10 @@ mod tests {
             pixel_data_sequence: None,
         };
 
-        assert_eq!(obj.frame_pixel_data(0), Some((&[0; 10 * 10 * 3]).into()));
-        assert_eq!(obj.frame_pixel_data(1), Some((&[1; 10 * 10 * 3]).into()));
-        assert_eq!(obj.frame_pixel_data(2), Some((&[2; 10 * 10 * 3]).into()));
-        assert_eq!(obj.frame_pixel_data(3), Some((&[3; 10 * 10 * 3]).into()));
+        assert_eq!(obj.frame_pixel_data(0), Some(vec![0; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(1), Some(vec![1; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(2), Some(vec![2; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(3), Some(vec![3; 10 * 10 * 3].into()));
         assert_eq!(obj.frame_pixel_data(4), None);
     }
 
@@ -687,8 +687,8 @@ mod tests {
             .collect();
         assert_eq!(obj.frame_pixel_data(0), Some(frame_1.into()));
 
-        assert_eq!(obj.frame_pixel_data(1), Some((&[0x77; 24]).into()));
-        assert_eq!(obj.frame_pixel_data(2), Some((&[0x99; 36]).into()));
+        assert_eq!(obj.frame_pixel_data(1), Some(vec![0x77; 24].into()));
+        assert_eq!(obj.frame_pixel_data(2), Some(vec![0x99; 36].into()));
 
     }
 }
