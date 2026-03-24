@@ -149,9 +149,7 @@ pub enum ReadError {
     #[snafu(display("Missing transfer syntax"))]
     MissingTransferSyntax { backtrace: Backtrace },
     #[snafu(display("Invalid PDU field length"))]
-    InvalidPduFieldLength {
-        backtrace: Backtrace,
-    },
+    InvalidPduFieldLength { backtrace: Backtrace },
     #[snafu(display("Could not read user variable"))]
     ReadUserVariable { backtrace: Backtrace },
 }

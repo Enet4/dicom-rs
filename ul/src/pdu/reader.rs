@@ -226,7 +226,10 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
 
             // 7 - Reserved - This reserved field shall be sent with a value 00H but not tested to
             // this value when received.
-            ensure!(bytes.remaining() >= 1 + 1 + 2, InvalidPduFieldLengthSnafu {});
+            ensure!(
+                bytes.remaining() >= 1 + 1 + 2,
+                InvalidPduFieldLengthSnafu {}
+            );
             bytes.get_u8();
 
             // 8 - Result - This Result field shall contain an integer value encoded as an unsigned

@@ -1080,8 +1080,8 @@ fn write_pdu_variable_user_variables(
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn can_write_chunks_with_preceding_u32_length() -> Result<()> {
@@ -1199,12 +1199,10 @@ mod tests {
             called_ae_title: "SCP".to_string(),
             application_context_name: "1.2.3".to_string(),
             presentation_contexts: vec![],
-            user_variables: vec![
-                UserVariableItem::SopClassExtendedNegotiationSubItem(
-                    "1.2.3.4".to_string(),
-                    vec![1, 0, 1, 1],
-                ),
-            ],
+            user_variables: vec![UserVariableItem::SopClassExtendedNegotiationSubItem(
+                "1.2.3.4".to_string(),
+                vec![1, 0, 1, 1],
+            )],
         });
         let mut out = Vec::<u8>::new();
 

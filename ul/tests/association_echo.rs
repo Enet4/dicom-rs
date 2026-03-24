@@ -1,12 +1,13 @@
+#[cfg(feature = "async")]
+use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::{
-    ServerAssociation, association::{Error, client::ClientAssociationOptions, server::ServerAssociationOptions},
+    association::{client::ClientAssociationOptions, server::ServerAssociationOptions, Error},
     pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
         PresentationContextResultReason,
-    }
+    },
+    ServerAssociation,
 };
-#[cfg(feature = "async")]
-use dicom_ul::association::AsyncServerAssociation;
 use std::io::Write;
 
 #[cfg(feature = "async")]
@@ -47,7 +48,10 @@ fn bogus_packet(len: usize) -> Pdu {
 fn spawn_scp(
     max_server_pdu_len: usize,
     max_client_pdu_len: usize,
-) -> Result<(std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>, SocketAddr)> {
+) -> Result<(
+    std::thread::JoinHandle<Result<ServerAssociation<std::net::TcpStream>>>,
+    SocketAddr,
+)> {
     let listener = std::net::TcpListener::bind("localhost:0")?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -121,8 +125,12 @@ fn spawn_scp(
                 assert_eq!(data.len(), 1);
                 assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
             }
-            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-            Err(err) => { panic!("Receive returned error {:?}", err); }
+            Ok(other_pdus) => {
+                panic!("Unknown PDU: {:?}", other_pdus);
+            }
+            Err(err) => {
+                panic!("Receive returned error {:?}", err);
+            }
         }
         // Second packet
         match association.receive() {
@@ -130,8 +138,12 @@ fn spawn_scp(
                 assert_eq!(data.len(), 1);
                 assert_eq!(data[0].data.len(), 2);
             }
-            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-            Err(err) => { panic!("Receive returned error {:?}", err); }
+            Ok(other_pdus) => {
+                panic!("Unknown PDU: {:?}", other_pdus);
+            }
+            Err(err) => {
+                panic!("Receive returned error {:?}", err);
+            }
         }
         // Let the client test our send_pdata() fragmentation for us
         {
@@ -140,7 +152,9 @@ fn spawn_scp(
             let buf = vec![0_u8; filler_len];
             let mut sender = association.send_pdata(1);
             // This should split the data in two packets
-            sender.write_all(&buf).expect("Error sending fragmented data");
+            sender
+                .write_all(&buf)
+                .expect("Error sending fragmented data");
         }
 
         // handle one release request
@@ -157,7 +171,10 @@ fn spawn_scp(
 async fn spawn_scp_async(
     max_server_pdu_len: usize,
     max_client_pdu_len: usize,
-) -> Result<(tokio::task::JoinHandle<Result<AsyncServerAssociation<tokio::net::TcpStream>>>, SocketAddr)> {
+) -> Result<(
+    tokio::task::JoinHandle<Result<AsyncServerAssociation<tokio::net::TcpStream>>>,
+    SocketAddr,
+)> {
     let listener = tokio::net::TcpListener::bind("localhost:0").await?;
     let addr = listener.local_addr()?;
     let scp = ServerAssociationOptions::new()
@@ -167,7 +184,6 @@ async fn spawn_scp_async(
         .with_abstract_syntax(VERIFICATION_SOP_CLASS);
 
     let h = tokio::spawn(async move {
-
         let (stream, _addr) = listener.accept().await?;
         let mut association = scp.establish_async(stream).await?;
 
@@ -235,8 +251,12 @@ async fn spawn_scp_async(
                 assert_eq!(data.len(), 1);
                 assert_eq!(data[0].data.len(), max_server_pdu_len - PDV_HDR_LEN);
             }
-            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-            Err(err) => { panic!("Receive returned error {:?}", err); }
+            Ok(other_pdus) => {
+                panic!("Unknown PDU: {:?}", other_pdus);
+            }
+            Err(err) => {
+                panic!("Receive returned error {:?}", err);
+            }
         }
         // Second packet
         match association.receive().await {
@@ -244,8 +264,12 @@ async fn spawn_scp_async(
                 assert_eq!(data.len(), 1);
                 assert_eq!(data[0].data.len(), 2);
             }
-            Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-            Err(err) => { panic!("Receive returned error {:?}", err); }
+            Ok(other_pdus) => {
+                panic!("Unknown PDU: {:?}", other_pdus);
+            }
+            Err(err) => {
+                panic!("Receive returned error {:?}", err);
+            }
         }
         // Let the client test our send_pdata() fragmentation
         {
@@ -254,7 +278,10 @@ async fn spawn_scp_async(
             let buf = vec![0_u8; filler_len];
             let mut sender = association.send_pdata(1);
             // This should split the data in two packets
-            sender.write_all(&buf).await.expect("Error sending fragmented data");
+            sender
+                .write_all(&buf)
+                .await
+                .expect("Error sending fragmented data");
         }
 
         // handle one release request
@@ -333,7 +360,9 @@ fn run_scu_scp_association_test(max_is_client: bool) {
         let buf = vec![0_u8; filler_len];
         let mut sender = association.send_pdata(1);
         // This should split the data in two packets
-        sender.write_all(&buf).expect("Error sending fragmented data");
+        sender
+            .write_all(&buf)
+            .expect("Error sending fragmented data");
     }
     // Test send_pdata() fragmentation of the server; we should receive two packets
     // First packet
@@ -342,8 +371,12 @@ fn run_scu_scp_association_test(max_is_client: bool) {
             assert_eq!(data.len(), 1);
             assert_eq!(data[0].data.len(), max_client_pdu_len - PDV_HDR_LEN);
         }
-        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-        Err(err) => { panic!("Receive returned error {:?}", err); }
+        Ok(other_pdus) => {
+            panic!("Unknown PDU: {:?}", other_pdus);
+        }
+        Err(err) => {
+            panic!("Receive returned error {:?}", err);
+        }
     }
     // Second packet
     match association.receive() {
@@ -351,8 +384,12 @@ fn run_scu_scp_association_test(max_is_client: bool) {
             assert_eq!(data.len(), 1);
             assert_eq!(data[0].data.len(), 2);
         }
-        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-        Err(err) => { panic!("Receive returned error {:?}", err); }
+        Ok(other_pdus) => {
+            panic!("Unknown PDU: {:?}", other_pdus);
+        }
+        Err(err) => {
+            panic!("Receive returned error {:?}", err);
+        }
     }
 
     association
@@ -375,7 +412,6 @@ async fn scu_scp_association_test_async() {
 
 #[cfg(feature = "async")]
 async fn run_scu_scp_association_test_async(max_is_client: bool) {
-
     let (max_client_pdu_len, max_server_pdu_len) = if max_is_client {
         (HI_PDU_LEN, LO_PDU_LEN)
     } else {
@@ -442,7 +478,10 @@ async fn run_scu_scp_association_test_async(max_is_client: bool) {
         let buf = vec![0_u8; filler_len];
         let mut sender = association.send_pdata(1);
         // This should split the data in two packets
-        sender.write_all(&buf).await.expect("Error sending fragmented data");
+        sender
+            .write_all(&buf)
+            .await
+            .expect("Error sending fragmented data");
     }
     // Test send_pdata() fragmentation of the server; we should receive two packets
     // First packet
@@ -451,8 +490,12 @@ async fn run_scu_scp_association_test_async(max_is_client: bool) {
             assert_eq!(data.len(), 1);
             assert_eq!(data[0].data.len(), max_client_pdu_len - PDV_HDR_LEN);
         }
-        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-        Err(err) => { panic!("Receive returned error {:?}", err); }
+        Ok(other_pdus) => {
+            panic!("Unknown PDU: {:?}", other_pdus);
+        }
+        Err(err) => {
+            panic!("Receive returned error {:?}", err);
+        }
     }
     // Second packet
     match association.receive().await {
@@ -460,8 +503,12 @@ async fn run_scu_scp_association_test_async(max_is_client: bool) {
             assert_eq!(data.len(), 1);
             assert_eq!(data[0].data.len(), 2);
         }
-        Ok(other_pdus) => { panic!("Unknown PDU: {:?}", other_pdus); }
-        Err(err) => { panic!("Receive returned error {:?}", err); }
+        Ok(other_pdus) => {
+            panic!("Unknown PDU: {:?}", other_pdus);
+        }
+        Err(err) => {
+            panic!("Receive returned error {:?}", err);
+        }
     }
 
     association

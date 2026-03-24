@@ -31,7 +31,10 @@ mod successive_pdus_during_client_association {
     use std::net::TcpListener;
 
     use super::*;
-    use crate::{ClientAssociationOptions, Pdu, pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType}};
+    use crate::{
+        pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType},
+        ClientAssociationOptions, Pdu,
+    };
 
     use crate::association::server::*;
 
@@ -123,8 +126,10 @@ mod successive_pdus_during_client_association {
                 .accept_any()
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
-                
-            let association = server_options.establish_with_extra_pdus(stream, vec![server_pdu]).unwrap();
+
+            let association = server_options
+                .establish_with_extra_pdus(stream, vec![server_pdu])
+                .unwrap();
             association
         });
 
@@ -242,8 +247,11 @@ mod successive_pdus_during_client_association {
                 .accept_any()
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
-                
-            let association = server_options.establish_with_extra_pdus_async(stream, vec![server_pdu]).await.unwrap();
+
+            let association = server_options
+                .establish_with_extra_pdus_async(stream, vec![server_pdu])
+                .await
+                .unwrap();
             association
         });
 
@@ -300,7 +308,9 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
 
-            let association = server_options.establish_with_extra_pdus(stream, vec![echo_pdu]).unwrap();
+            let association = server_options
+                .establish_with_extra_pdus(stream, vec![echo_pdu])
+                .unwrap();
             association
         });
         // Give server time to start
@@ -318,11 +328,18 @@ mod successive_pdus_during_client_association {
 
         // Initiate abort server side
         server_handle.join().unwrap().abort().unwrap();
-        
+
         // Client should not have anything to receive, only receives abort Rq
         let received_pdu = association.receive().unwrap();
-        assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
-        
+        assert_eq!(
+            received_pdu,
+            Pdu::AbortRQ {
+                source: AbortRQSource::ServiceProvider(
+                    AbortRQServiceProviderReason::ReasonNotSpecified
+                )
+            }
+        );
+
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
         drop(association);
@@ -358,7 +375,10 @@ mod successive_pdus_during_client_association {
                 .with_abstract_syntax(VERIFICATION)
                 .ae_title("THIS-SCP");
 
-            let association = server_options.establish_with_extra_pdus_async(stream, vec![echo_pdu]).await.unwrap();
+            let association = server_options
+                .establish_with_extra_pdus_async(stream, vec![echo_pdu])
+                .await
+                .unwrap();
             association
         });
 
@@ -373,15 +393,26 @@ mod successive_pdus_during_client_association {
             .read_timeout(std::time::Duration::from_secs(5));
 
         // Client's broken implementation will miss the extra PDU from server
-        let mut association = scu_options.broken_establish_async(
-            server_addr.into()
-        ).await.unwrap();
+        let mut association = scu_options
+            .broken_establish_async(server_addr.into())
+            .await
+            .unwrap();
         // Initiate abort server-side
         server_handle.await.unwrap().abort().await.unwrap();
 
         // Client should be able to receive the release request that was sent consecutively
-        let received_pdu = association.receive().await.expect("Could not receive abort PDU");
-        assert_eq!(received_pdu, Pdu::AbortRQ { source: AbortRQSource::ServiceProvider(AbortRQServiceProviderReason::ReasonNotSpecified) });
+        let received_pdu = association
+            .receive()
+            .await
+            .expect("Could not receive abort PDU");
+        assert_eq!(
+            received_pdu,
+            Pdu::AbortRQ {
+                source: AbortRQSource::ServiceProvider(
+                    AbortRQServiceProviderReason::ReasonNotSpecified
+                )
+            }
+        );
 
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown

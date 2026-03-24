@@ -27,22 +27,26 @@ pub(crate) mod pdata;
 
 use std::{
     backtrace::Backtrace,
-    io::{BufRead, BufReader, Cursor, Read}, time::Duration,
+    io::{BufRead, BufReader, Cursor, Read},
+    time::Duration,
 };
 
 use bytes::{Buf, BytesMut};
-pub use pdata::{PDataReader, PDataWriter};
-pub use client::{ClientAssociation, ClientAssociationOptions};
-pub use server::{ServerAssociation, ServerAssociationOptions};
-#[cfg(feature = "async")]
-pub use pdata::non_blocking::AsyncPDataWriter;
 #[cfg(feature = "async")]
 pub use client::AsyncClientAssociation;
+pub use client::{ClientAssociation, ClientAssociationOptions};
+#[cfg(feature = "async")]
+pub use pdata::non_blocking::AsyncPDataWriter;
+pub use pdata::{PDataReader, PDataWriter};
 #[cfg(feature = "async")]
 pub use server::AsyncServerAssociation;
+pub use server::{ServerAssociation, ServerAssociationOptions};
 use snafu::{ensure, ResultExt, Snafu};
 
-use crate::{Pdu, pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem}, write_pdu};
+use crate::{
+    pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem},
+    write_pdu, Pdu,
+};
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -148,7 +152,7 @@ pub enum Error {
     #[snafu(display("failed close connection: {}", source))]
     Close {
         source: std::io::Error,
-        backtrace: Backtrace
+        backtrace: Backtrace,
     },
 
     #[snafu(display(
@@ -169,21 +173,21 @@ pub enum Error {
     /// Invalid server name for TLS
     #[cfg(feature = "sync-tls")]
     #[snafu(display("Invalid server name for TLS connection"))]
-    InvalidServerName { 
+    InvalidServerName {
         source: rustls::pki_types::InvalidDnsNameError,
-        backtrace: Backtrace 
+        backtrace: Backtrace,
     },
 
     /// Failed to establish TLS connection
     #[cfg(feature = "sync-tls")]
     #[snafu(display("Failed to establish TLS connection: {:?}", source))]
-    TlsConnection { 
+    TlsConnection {
         source: rustls::Error,
-        backtrace: Backtrace 
+        backtrace: Backtrace,
     },
 }
 /// Struct to hold negotiated options after association is accepted
-pub(crate) struct NegotiatedOptions{
+pub(crate) struct NegotiatedOptions {
     /// Maximum PDU length the peer can handle
     peer_max_pdu_length: u32,
     /// User variables accepted by the peer
@@ -191,7 +195,7 @@ pub(crate) struct NegotiatedOptions{
     /// Presentation contexts accepted by the peer
     presentation_contexts: Vec<PresentationContextNegotiated>,
     /// The peer's AE title
-    peer_ae_title: String
+    peer_ae_title: String,
 }
 
 /// Socket configuration for associations
@@ -217,14 +221,14 @@ impl CloseSocket for std::net::TcpStream {
 }
 
 #[cfg(feature = "sync-tls")]
-impl CloseSocket for rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream>{
+impl CloseSocket for rustls::StreamOwned<rustls::ClientConnection, std::net::TcpStream> {
     fn close(&mut self) -> std::io::Result<()> {
         self.get_mut().shutdown(std::net::Shutdown::Both)
     }
 }
 
 #[cfg(feature = "sync-tls")]
-impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream>{
+impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream> {
     fn close(&mut self) -> std::io::Result<()> {
         self.get_mut().shutdown(std::net::Shutdown::Both)
     }
@@ -272,23 +276,25 @@ pub trait Association {
 }
 
 mod private {
-    use crate::{Pdu, pdu::{AbortRQServiceProviderReason, AbortRQSource}};
-    use snafu::{ResultExt};
+    use crate::{
+        pdu::{AbortRQServiceProviderReason, AbortRQSource},
+        Pdu,
+    };
+    use snafu::ResultExt;
 
     /// Private trait which exposes "unsafe" methods that should not be called by the user
-    /// 
-    /// `close` and `release` _should_ take ownership, and in the public interface, they 
-    /// do. However, in order to implement `Drop` we need to expose a version of these 
+    ///
+    /// `close` and `release` _should_ take ownership, and in the public interface, they
+    /// do. However, in order to implement `Drop` we need to expose a version of these
     /// methods that don't take ownership.
-    /// 
+    ///
     /// `send` and `receive` implementations are needed in order to provide
     /// the implementation for `release`
     pub trait SyncAssociationSealed<S: std::io::Read + std::io::Write + super::CloseSocket> {
-
         fn close(&mut self) -> std::io::Result<()>;
         fn send(&mut self, pdu: &Pdu) -> super::Result<()>;
         fn receive(&mut self) -> super::Result<Pdu>;
-        fn release(&mut self) -> super::Result<()>{
+        fn release(&mut self) -> super::Result<()> {
             let pdu = Pdu::ReleaseRQ;
             self.send(&pdu)?;
             let pdu = self.receive()?;
@@ -303,12 +309,14 @@ mod private {
                 | pdu @ Pdu::ReleaseRQ => return super::UnexpectedPduSnafu { pdu }.fail(),
                 pdu @ Pdu::Unknown { .. } => return super::UnknownPduSnafu { pdu }.fail(),
             }
-            self.close()
-                .context(super::CloseSnafu)?;
+            self.close().context(super::CloseSnafu)?;
             Ok(())
         }
 
-        fn abort(&mut self) -> super::Result<()> where Self: Sized {
+        fn abort(&mut self) -> super::Result<()>
+        where
+            Self: Sized,
+        {
             let pdu = Pdu::AbortRQ {
                 source: AbortRQSource::ServiceProvider(
                     AbortRQServiceProviderReason::ReasonNotSpecified,
@@ -321,23 +329,31 @@ mod private {
     }
 
     /// Private trait which exposes "unsafe" methods that should not be called by the user
-    /// 
-    /// `close` and `release` _should_ take ownership, and in the public interface, they 
-    /// do. However, in order to implement `Drop` we need to expose a version of these 
+    ///
+    /// `close` and `release` _should_ take ownership, and in the public interface, they
+    /// do. However, in order to implement `Drop` we need to expose a version of these
     /// methods that don't take ownership.
-    /// 
+    ///
     /// `send` and `receive` implementations are needed in order to provide
     /// the implementation for `release`
     #[cfg(feature = "async")]
     pub trait AsyncAssociationSealed<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin> {
         fn close(&mut self) -> impl std::future::Future<Output = std::io::Result<()>> + Send
-            where Self: Send;
-        fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output=super::Result<()>> + Send 
-            where Self: Send;
-        fn receive(&mut self) -> impl std::future::Future<Output = super::Result<Pdu>> + Send 
-            where Self: Send;
-        fn release(&mut self) -> impl std::future::Future<Output=super::Result<()>> + Send
-            where Self: Send {
+        where
+            Self: Send;
+        fn send(
+            &mut self,
+            pdu: &Pdu,
+        ) -> impl std::future::Future<Output = super::Result<()>> + Send
+        where
+            Self: Send;
+        fn receive(&mut self) -> impl std::future::Future<Output = super::Result<Pdu>> + Send
+        where
+            Self: Send;
+        fn release(&mut self) -> impl std::future::Future<Output = super::Result<()>> + Send
+        where
+            Self: Send,
+        {
             async move {
                 let pdu = Pdu::ReleaseRQ;
                 self.send(&pdu).await?;
@@ -353,15 +369,15 @@ mod private {
                     | pdu @ Pdu::ReleaseRQ => return super::UnexpectedPduSnafu { pdu }.fail(),
                     pdu @ Pdu::Unknown { .. } => return super::UnknownPduSnafu { pdu }.fail(),
                 }
-                self.close()
-                    .await
-                    .context(super::CloseSnafu)?;
+                self.close().await.context(super::CloseSnafu)?;
                 Ok(())
             }
         }
 
-        fn abort(&mut self) -> impl std::future::Future<Output = super::Result<()>> + Send 
-        where Self: Sized + Send {
+        fn abort(&mut self) -> impl std::future::Future<Output = super::Result<()>> + Send
+        where
+            Self: Sized + Send,
+        {
             let pdu = Pdu::AbortRQ {
                 source: AbortRQSource::ServiceProvider(
                     AbortRQServiceProviderReason::ReasonNotSpecified,
@@ -377,8 +393,9 @@ mod private {
 }
 
 /// Trait that represents methods that can be made on a synchronous association.
-pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: private::SyncAssociationSealed<S> + Association {
-
+pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
+    private::SyncAssociationSealed<S> + Association
+{
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -394,19 +411,22 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut);
 
     /// Send a PDU message to the other intervenient.
-    fn send(&mut self, pdu: &Pdu) -> Result<()>{
+    fn send(&mut self, pdu: &Pdu) -> Result<()> {
         private::SyncAssociationSealed::send(self, pdu)
     }
 
     /// Read a PDU message from the other intervenient.
-    fn receive(&mut self) -> Result<Pdu>{
+    fn receive(&mut self) -> Result<Pdu> {
         private::SyncAssociationSealed::receive(self)
     }
 
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
     /// terminating the association.
-    fn abort(mut self) -> Result<()> where Self: Sized {
+    fn abort(mut self) -> Result<()>
+    where
+        Self: Sized,
+    {
         private::SyncAssociationSealed::abort(&mut self)
     }
 
@@ -419,7 +439,10 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
     /// implementers of this trait no longer call this method on [`Drop`],
     /// so remember to call `release` explicitly
     /// at the end of all DIMSE transactions.
-    fn release(mut self) -> Result<()> where Self: Sized {
+    fn release(mut self) -> Result<()>
+    where
+        Self: Sized,
+    {
         private::SyncAssociationSealed::release(&mut self)
     }
 
@@ -428,13 +451,9 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S>{
+    fn send_pdata(&mut self, presentation_context_id: u8) -> PDataWriter<&mut S> {
         let max_pdu_length = self.peer_max_pdu_length();
-        PDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
+        PDataWriter::new(self.inner_stream(), presentation_context_id, max_pdu_length)
     }
 
     /// Prepare a P-Data reader for receiving
@@ -442,21 +461,18 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: priv
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
         let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
+        PDataReader::new(socket, max_pdu_length, read_buffer)
     }
 }
 
 #[cfg(feature = "async")]
 /// Trait that represents methods that can be made on an asynchronous association.
-pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>: private::AsyncAssociationSealed<S> + Association {
-
+pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>:
+    private::AsyncAssociationSealed<S> + Association
+{
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -472,29 +488,29 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut);
 
     /// Send a PDU message to the other intervenient.
-    fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send 
-    where Self: Send {
-        async move{ 
-            private::AsyncAssociationSealed::send(self, pdu).await
-        }
+    fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send
+    where
+        Self: Send,
+    {
+        async move { private::AsyncAssociationSealed::send(self, pdu).await }
     }
 
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> impl std::future::Future<Output = Result<Pdu>> + Send
-    where Self: Send {
-        async move {
-            private::AsyncAssociationSealed::receive(self).await
-        }
+    where
+        Self: Send,
+    {
+        async move { private::AsyncAssociationSealed::receive(self).await }
     }
 
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
     /// terminating the association.
-    fn abort(mut self) -> impl std::future::Future<Output = Result<()>> + Send 
-    where Self: Sized + Send {
-        async move {
-            private::AsyncAssociationSealed::abort(&mut self).await
-        }
+    fn abort(mut self) -> impl std::future::Future<Output = Result<()>> + Send
+    where
+        Self: Sized + Send,
+    {
+        async move { private::AsyncAssociationSealed::abort(&mut self).await }
     }
 
     /// Iniate a graceful release of the association.
@@ -506,11 +522,11 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// do not try to release the association on [`Drop`],
     /// so remember to call `release` explicitly
     /// at the end of all DIMSE transactions.
-    fn release(mut self) -> impl std::future::Future<Output = Result<()>> + Send 
-    where Self: Sized + Send {
-        async move {
-            private::AsyncAssociationSealed::release(&mut self).await
-        }
+    fn release(mut self) -> impl std::future::Future<Output = Result<()>> + Send
+    where
+        Self: Sized + Send,
+    {
+        async move { private::AsyncAssociationSealed::release(&mut self).await }
     }
 
     /// Prepare a P-Data writer for sending
@@ -518,13 +534,9 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
-    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S>{
+    fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S> {
         let max_pdu_length = self.peer_max_pdu_length();
-        AsyncPDataWriter::new(
-            self.inner_stream(),
-            presentation_context_id,
-            max_pdu_length,
-        )
+        AsyncPDataWriter::new(self.inner_stream(), presentation_context_id, max_pdu_length)
     }
 
     /// Prepare a P-Data reader for receiving
@@ -532,14 +544,10 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
-    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S>{
+    fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
         let (socket, read_buffer) = self.get_mut();
-        PDataReader::new(
-            socket,
-            max_pdu_length,
-            read_buffer,
-        )
+        PDataReader::new(socket, max_pdu_length, read_buffer)
     }
 }
 
@@ -561,7 +569,7 @@ async fn timeout<T>(
 
 /// Encode a PDU into the provided buffer
 pub(crate) fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u32) -> Result<()> {
-    write_pdu( buffer, pdu).context(SendPduSnafu)?;
+    write_pdu(buffer, pdu).context(SendPduSnafu)?;
     if buffer.len() > peer_max_pdu_length as usize {
         return SendTooLongPduSnafu {
             length: buffer.len(),
