@@ -12,25 +12,23 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, association::{
-        Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
-        private::SyncAssociationSealed, read_pdu_from_wire,
-    }, pdu::{
-        AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
-        PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed,
-        PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem,
-        write_pdu,
-    }
-};
 #[cfg(feature = "async")]
 use crate::association::AsyncAssociation;
+use crate::{
+    association::{
+        encode_pdu, private::SyncAssociationSealed, read_pdu_from_wire, Association,
+        NegotiatedOptions, SocketOptions, SyncAssociation,
+    },
+    pdu::{
+        write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextNegotiated,
+        PresentationContextProposed, PresentationContextResultReason, UserIdentity,
+        UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE,
+    },
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+};
 use snafu::{ensure, ResultExt};
 
-use super::{
-    uid::trim_uid,
-    Result,
-};
+use super::{uid::trim_uid, Result};
 
 // stray module from 0.9.0, remove in 0.10.0
 #[deprecated(since = "0.9.1")]
@@ -44,15 +42,16 @@ pub type AsyncTlsStream = tokio_rustls::client::TlsStream<tokio::net::TcpStream>
 pub use crate::association::CloseSocket;
 
 /// Helper function to establish a TCP client connection
-fn tcp_connection<T>(
-    ae_address: &AeAddr<T>,
-    opts: &SocketOptions,
-) -> Result<TcpStream> where T: ToSocketAddrs
+fn tcp_connection<T>(ae_address: &AeAddr<T>, opts: &SocketOptions) -> Result<TcpStream>
+where
+    T: ToSocketAddrs,
 {
     // NOTE: TcpStream::connect_timeout needs a single SocketAddr, whereas TcpStream::connect can
-    // take multiple 
+    // take multiple
     let conn_result: Result<TcpStream> = if let Some(timeout) = opts.connection_timeout {
-        let addresses = ae_address.to_socket_addrs().context(super::ToAddressSnafu)?;
+        let addresses = ae_address
+            .to_socket_addrs()
+            .context(super::ToAddressSnafu)?;
         let mut result = Result::Err(std::io::Error::from(std::io::ErrorKind::AddrNotAvailable));
         for address in addresses {
             result = TcpStream::connect_timeout(&address, timeout);
@@ -74,7 +73,6 @@ fn tcp_connection<T>(
         .context(super::SetWriteTimeoutSnafu)?;
 
     Ok(socket)
-
 }
 
 /// Helper function to establish a TLS client connection
@@ -84,16 +82,19 @@ fn tls_connection<T>(
     server_name: &str,
     opts: &SocketOptions,
     tls_config: std::sync::Arc<rustls::ClientConfig>,
-) -> Result<TlsStream> where T: ToSocketAddrs{
+) -> Result<TlsStream>
+where
+    T: ToSocketAddrs,
+{
     use std::convert::TryFrom;
 
-    let socket =  tcp_connection(ae_address, opts)?;
+    let socket = tcp_connection(ae_address, opts)?;
     let server_name = rustls::pki_types::ServerName::try_from(server_name.to_string())
         .context(super::InvalidServerNameSnafu)?;
-    
+
     let conn = rustls::ClientConnection::new(tls_config.clone(), server_name)
         .context(super::TlsConnectionSnafu)?;
-        
+
     Ok(rustls::StreamOwned::new(conn, socket))
 }
 
@@ -129,7 +130,7 @@ fn tls_connection<T>(
 /// ```
 ///
 /// ### Asynchronous API
-/// 
+///
 /// Include the `async` feature in your `Cargo.toml`
 ///
 /// ```no_run
@@ -147,22 +148,22 @@ fn tls_connection<T>(
 /// # Ok(())
 /// # }
 /// ```
-/// 
+///
 /// ## TLS Support
-/// 
+///
 /// Enabling one of the Cargo features `sync-tls` or `async-tls`
 /// unlocks the methods for configuring TLS.
 /// Call `tls_config` and `server_name`
 /// to establish the association over a secure transport connection.
 ///
 /// ### TLS in synchronous API
-/// 
+///
 /// Include the `sync-tls` feature in your `Cargo.toml`.
-/// 
+///
 /// ### TLS in asynchronous API
-/// 
+///
 /// Include the `async-tls` feature in your `Cargo.toml`.
-/// 
+///
 /// ### Example
 ///
 /// ```no_run
@@ -515,8 +516,7 @@ impl<'a> ClientAssociationOptions<'a> {
     pub fn establish<A: ToSocketAddrs>(
         self,
         address: A,
-    ) -> Result<ClientAssociation<std::net::TcpStream>> 
-    {
+    ) -> Result<ClientAssociation<std::net::TcpStream>> {
         let addr = AeAddr::new_socket_addr(address);
         let socket = tcp_connection(&addr, &self.socket_options)?;
         self.establish_impl(addr, socket)
@@ -527,17 +527,17 @@ impl<'a> ClientAssociationOptions<'a> {
     /// negotiating the presentation contexts in the process.
     #[cfg(feature = "sync-tls")]
     pub fn establish_tls<A: ToSocketAddrs>(
-        self, address: A
+        self,
+        address: A,
     ) -> Result<ClientAssociation<TlsStream>> {
         match (&self.tls_config, &self.server_name) {
             (Some(tls_config), Some(server_name)) => {
                 let addr = AeAddr::new_socket_addr(address);
-                let socket = tls_connection(
-                    &addr, server_name, &self.socket_options, tls_config.clone()
-                )?;
+                let socket =
+                    tls_connection(&addr, server_name, &self.socket_options, tls_config.clone())?;
                 self.establish_impl(addr, socket)
-            },
-            _ => super::TlsConfigMissingSnafu.fail()?
+            }
+            _ => super::TlsConfigMissingSnafu.fail()?,
         }
     }
 
@@ -565,23 +565,19 @@ impl<'a> ClientAssociationOptions<'a> {
     /// # }
     /// ```
     #[allow(unreachable_patterns)]
-    pub fn establish_with(
-        self,
-        ae_address: &str,
-    ) -> Result<ClientAssociation<TcpStream>> {
+    pub fn establish_with(self, ae_address: &str) -> Result<ClientAssociation<TcpStream>> {
         match ae_address.try_into() {
             Ok(ae_address) => {
                 let socket = tcp_connection(&ae_address, &self.socket_options)?;
                 self.establish_impl(ae_address, socket)
-            },
+            }
             Err(_) => {
                 let addr = AeAddr::new_socket_addr(ae_address);
                 let socket = tcp_connection(&addr, &self.socket_options)?;
                 self.establish_impl(addr, socket)
-            },
+            }
         }
     }
-
 
     /// Initiate TLS connection to the given address
     /// and request a new DICOM association,
@@ -608,30 +604,30 @@ impl<'a> ClientAssociationOptions<'a> {
     /// ```
     #[allow(unreachable_patterns)]
     #[cfg(feature = "sync-tls")]
-    pub fn establish_with_tls(
-        self,
-        ae_address: &str,
-    ) -> Result<ClientAssociation<TlsStream>> {
+    pub fn establish_with_tls(self, ae_address: &str) -> Result<ClientAssociation<TlsStream>> {
         match (&self.tls_config, &self.server_name) {
-            (Some(tls_config), Some(server_name)) => {
-                match ae_address.try_into() {
-                    Ok(ae_address) => {
-                        let socket = tls_connection(
-                            &ae_address, server_name, &self.socket_options, tls_config.clone()
-                        )?;
-                        self.establish_impl(ae_address, socket)
-                    },
-                    Err(_) => {
-                        let addr = AeAddr::new_socket_addr(ae_address);
-                        let socket = tls_connection(
-                            &addr, server_name, &self.socket_options, tls_config.clone()
-                        )?;
-                        self.establish_impl(addr, socket)
-                    },
+            (Some(tls_config), Some(server_name)) => match ae_address.try_into() {
+                Ok(ae_address) => {
+                    let socket = tls_connection(
+                        &ae_address,
+                        server_name,
+                        &self.socket_options,
+                        tls_config.clone(),
+                    )?;
+                    self.establish_impl(ae_address, socket)
                 }
-
+                Err(_) => {
+                    let addr = AeAddr::new_socket_addr(ae_address);
+                    let socket = tls_connection(
+                        &addr,
+                        server_name,
+                        &self.socket_options,
+                        tls_config.clone(),
+                    )?;
+                    self.establish_impl(addr, socket)
+                }
             },
-            _ => super::TlsConfigMissingSnafu.fail()?
+            _ => super::TlsConfigMissingSnafu.fail()?,
         }
     }
 
@@ -826,13 +822,15 @@ impl<'a> ClientAssociationOptions<'a> {
                     peer_ae_title: called_ae_title,
                 })
             }
-            Pdu::AssociationRJ(association_rj) => crate::association::RejectedSnafu { association_rj }.fail(),
+            Pdu::AssociationRJ(association_rj) => {
+                crate::association::RejectedSnafu { association_rj }.fail()
+            }
             pdu @ Pdu::AbortRQ { .. }
             | pdu @ Pdu::ReleaseRQ
             | pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
             | pdu @ Pdu::ReleaseRP => crate::association::UnexpectedPduSnafu { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => crate::association::UnknownPduSnafu { pdu }.fail()
+            pdu @ Pdu::Unknown { .. } => crate::association::UnknownPduSnafu { pdu }.fail(),
         }
     }
 
@@ -840,7 +838,7 @@ impl<'a> ClientAssociationOptions<'a> {
     fn establish_impl<T, S>(
         self,
         ae_address: AeAddr<T>,
-        mut socket: S
+        mut socket: S,
     ) -> Result<ClientAssociation<S>>
     where
         T: ToSocketAddrs,
@@ -870,8 +868,13 @@ impl<'a> ClientAssociationOptions<'a> {
                 let _ = socket.write_all(&buffer);
                 buffer.clear();
                 Err(e)
-            },
-            Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables, peer_ae_title}) => {
+            }
+            Ok(NegotiatedOptions {
+                presentation_contexts,
+                peer_max_pdu_length,
+                user_variables,
+                peer_ae_title,
+            }) => {
                 Ok(ClientAssociation {
                     presentation_contexts,
                     requestor_max_pdu_length: self.max_pdu_length,
@@ -991,7 +994,8 @@ pub struct ClientAssociation<S> {
 }
 
 impl<S> Association for ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write,
+where
+    S: CloseSocket + std::io::Read + std::io::Write,
 {
     fn peer_ae_title(&self) -> &str {
         &self.peer_ae_title
@@ -1031,7 +1035,8 @@ where S: CloseSocket + std::io::Read + std::io::Write,
 }
 
 impl<S> ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write,
+where
+    S: CloseSocket + std::io::Read + std::io::Write,
 {
     /// Retrieve read timeout for the association
     pub fn read_timeout(&self) -> Option<Duration> {
@@ -1071,7 +1076,8 @@ where S: CloseSocket + std::io::Read + std::io::Write,
 
 // compatibility filler, remove in 0.10.0
 impl<S> ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write,
+where
+    S: CloseSocket + std::io::Read + std::io::Write,
 {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, pdu: &Pdu) -> Result<()> {
@@ -1139,17 +1145,30 @@ where S: CloseSocket + std::io::Read + std::io::Write,
 }
 
 impl<S> SyncAssociationSealed<S> for ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write{
+where
+    S: CloseSocket + std::io::Read + std::io::Write,
+{
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
         self.write_buffer.clear();
-        encode_pdu(&mut self.write_buffer, pdu, self.acceptor_max_pdu_length + PDU_HEADER_SIZE)?;
-        self.socket.write_all(&self.write_buffer).context(super::WireSendSnafu)
+        encode_pdu(
+            &mut self.write_buffer,
+            pdu,
+            self.acceptor_max_pdu_length + PDU_HEADER_SIZE,
+        )?;
+        self.socket
+            .write_all(&self.write_buffer)
+            .context(super::WireSendSnafu)
     }
 
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(&mut self.socket, &mut self.read_buffer, self.requestor_max_pdu_length, self.strict)
+        read_pdu_from_wire(
+            &mut self.socket,
+            &mut self.read_buffer,
+            self.requestor_max_pdu_length,
+            self.strict,
+        )
     }
 
     fn close(&mut self) -> std::io::Result<()> {
@@ -1158,13 +1177,19 @@ where S: CloseSocket + std::io::Read + std::io::Write{
 }
 
 impl<S> SyncAssociation<S> for ClientAssociation<S>
-where S: CloseSocket + std::io::Read + std::io::Write{
+where
+    S: CloseSocket + std::io::Read + std::io::Write,
+{
     fn inner_stream(&mut self) -> &mut S {
         &mut self.socket
     }
 
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
-        let Self { socket, read_buffer, .. } = self;
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
         (socket, read_buffer)
     }
 }
@@ -1188,12 +1213,16 @@ impl Release for ClientAssociation<std::net::TcpStream> {
 pub(crate) async fn async_connection<T>(
     ae_address: &AeAddr<T>,
     opts: &SocketOptions,
-) -> Result<tokio::net::TcpStream> where T: tokio::net::ToSocketAddrs{
+) -> Result<tokio::net::TcpStream>
+where
+    T: tokio::net::ToSocketAddrs,
+{
     super::timeout(opts.connection_timeout, async {
         tokio::net::TcpStream::connect(ae_address.socket_addr())
             .await
             .context(crate::association::ConnectSnafu)
-    }).await
+    })
+    .await
 }
 
 /// Initiate TLS connection to the given address
@@ -1207,8 +1236,8 @@ pub(crate) async fn async_tls_connection<T>(
 where
     T: tokio::net::ToSocketAddrs,
 {
-    use std::convert::TryFrom;
     use rustls::pki_types::ServerName;
+    use std::convert::TryFrom;
 
     let tcp_stream = async_connection(ae_address, opts).await?;
     let connector = tokio_rustls::TlsConnector::from(tls_config);
@@ -1269,7 +1298,7 @@ impl<'a> ClientAssociationOptions<'a> {
     async fn establish_impl_async<T, S>(
         self,
         ae_address: AeAddr<T>,
-        mut socket: S
+        mut socket: S,
     ) -> Result<AsyncClientAssociation<S>>
     where
         T: tokio::net::ToSocketAddrs,
@@ -1280,14 +1309,15 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
 
         // send request
-        write_pdu(&mut write_buffer, &a_associate)
-            .context(crate::association::SendPduSnafu)?;
+        write_pdu(&mut write_buffer, &a_associate).context(crate::association::SendPduSnafu)?;
         super::timeout(self.socket_options.write_timeout, async {
-            socket.write_all(&write_buffer)
+            socket
+                .write_all(&write_buffer)
                 .await
                 .context(crate::association::WireSendSnafu)?;
             Ok(())
-        }).await?;
+        })
+        .await?;
         write_buffer.clear();
 
         // read buffer is prepared according to the requestor's max pdu length
@@ -1295,7 +1325,13 @@ impl<'a> ClientAssociationOptions<'a> {
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
         let resp = super::timeout(self.socket_options.read_timeout, async {
-            super::read_pdu_from_wire_async(&mut socket, &mut read_buffer, self.max_pdu_length, self.strict).await
+            super::read_pdu_from_wire_async(
+                &mut socket,
+                &mut read_buffer,
+                self.max_pdu_length,
+                self.strict,
+            )
+            .await
         })
         .await?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
@@ -1308,13 +1344,19 @@ impl<'a> ClientAssociationOptions<'a> {
                         source: AbortRQSource::ServiceUser,
                     },
                 );
-                socket.write_all(&write_buffer)
+                socket
+                    .write_all(&write_buffer)
                     .await
                     .context(crate::association::WireSendSnafu)?;
                 write_buffer.clear();
                 Err(e)
-            },
-            Ok(NegotiatedOptions{presentation_contexts, peer_max_pdu_length, user_variables, peer_ae_title}) => {
+            }
+            Ok(NegotiatedOptions {
+                presentation_contexts,
+                peer_max_pdu_length,
+                user_variables,
+                peer_ae_title,
+            }) => {
                 Ok(AsyncClientAssociation {
                     presentation_contexts,
                     requestor_max_pdu_length: self.max_pdu_length,
@@ -1327,7 +1369,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     read_timeout: self.socket_options.read_timeout,
                     write_timeout: self.socket_options.write_timeout,
                     user_variables,
-                    peer_ae_title
+                    peer_ae_title,
                 })
             }
         }
@@ -1342,8 +1384,7 @@ impl<'a> ClientAssociationOptions<'a> {
     ) -> Result<AsyncClientAssociation<tokio::net::TcpStream>> {
         let addr = AeAddr::new_socket_addr(address);
         let socket = async_connection(&addr, &self.socket_options).await?;
-        self.establish_impl_async(addr, socket)
-            .await
+        self.establish_impl_async(addr, socket).await
     }
 
     /// Initiate the TCP connection to the given address
@@ -1358,12 +1399,15 @@ impl<'a> ClientAssociationOptions<'a> {
             (Some(tls_config), Some(server_name)) => {
                 let addr = AeAddr::new_socket_addr(address);
                 let socket = async_tls_connection(
-                    &addr, server_name, &self.socket_options, tls_config.clone()
-                ).await?;
-                self.establish_impl_async(addr, socket)
-                    .await
-            },
-            _ => crate::association::TlsConfigMissingSnafu.fail()?
+                    &addr,
+                    server_name,
+                    &self.socket_options,
+                    tls_config.clone(),
+                )
+                .await?;
+                self.establish_impl_async(addr, socket).await
+            }
+            _ => crate::association::TlsConfigMissingSnafu.fail()?,
         }
     }
 
@@ -1401,12 +1445,11 @@ impl<'a> ClientAssociationOptions<'a> {
             Ok(ae_address) => {
                 let socket = async_connection(&ae_address, &self.socket_options).await?;
                 self.establish_impl_async(ae_address, socket).await
-            },
+            }
             Err(_) => {
                 let addr = AeAddr::new_socket_addr(ae_address);
                 let socket = async_connection(&addr, &self.socket_options).await?;
-                self.establish_impl_async(addr, socket)
-                    .await
+                self.establish_impl_async(addr, socket).await
             }
         }
     }
@@ -1443,25 +1486,30 @@ impl<'a> ClientAssociationOptions<'a> {
         ae_address: &str,
     ) -> Result<AsyncClientAssociation<AsyncTlsStream>> {
         match (&self.tls_config, &self.server_name) {
-            (Some(tls_config), Some(server_name)) => {
-                match ae_address.try_into() {
-                    Ok(ae_address) => {
-                        let socket = async_tls_connection(
-                            &ae_address, server_name, &self.socket_options, tls_config.clone()
-                        ).await?;
-                        self.establish_impl_async(ae_address, socket).await
-                    },
-                    Err(_) => {
-                        let addr = AeAddr::new_socket_addr(ae_address);
-                        let socket = async_tls_connection(
-                            &addr, server_name, &self.socket_options, tls_config.clone()
-                        ).await?;
-                        self.establish_impl_async(addr, socket).await
-                    },
+            (Some(tls_config), Some(server_name)) => match ae_address.try_into() {
+                Ok(ae_address) => {
+                    let socket = async_tls_connection(
+                        &ae_address,
+                        server_name,
+                        &self.socket_options,
+                        tls_config.clone(),
+                    )
+                    .await?;
+                    self.establish_impl_async(ae_address, socket).await
                 }
-
+                Err(_) => {
+                    let addr = AeAddr::new_socket_addr(ae_address);
+                    let socket = async_tls_connection(
+                        &addr,
+                        server_name,
+                        &self.socket_options,
+                        tls_config.clone(),
+                    )
+                    .await?;
+                    self.establish_impl_async(addr, socket).await
+                }
             },
-            _ => crate::association::TlsConfigMissingSnafu.fail()?
+            _ => crate::association::TlsConfigMissingSnafu.fail()?,
         }
     }
 }
@@ -1546,9 +1594,9 @@ impl<S> AsyncClientAssociation<S> {
 // compatibility filler, remove in 0.10.0
 #[cfg(feature = "async")]
 impl<S> AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
-
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -1616,13 +1664,18 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 
 #[cfg(feature = "async")]
 impl<S> super::private::AsyncAssociationSealed<S> for AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
     async fn send(&mut self, msg: &Pdu) -> Result<()> {
         use tokio::io::AsyncWriteExt;
 
         self.write_buffer.clear();
-        encode_pdu(&mut self.write_buffer, msg, self.acceptor_max_pdu_length + PDU_HEADER_SIZE)?;
+        encode_pdu(
+            &mut self.write_buffer,
+            msg,
+            self.acceptor_max_pdu_length + PDU_HEADER_SIZE,
+        )?;
         super::timeout(self.write_timeout, async {
             self.socket
                 .write_all(&self.write_buffer)
@@ -1639,8 +1692,9 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
                 &mut self.socket,
                 &mut self.read_buffer,
                 self.requestor_max_pdu_length,
-                self.strict
-            ).await
+                self.strict,
+            )
+            .await
         })
         .await
     }
@@ -1653,14 +1707,19 @@ where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 
 #[cfg(feature = "async")]
 impl<S> AsyncAssociation<S> for AsyncClientAssociation<S>
-where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send{
-
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
     fn inner_stream(&mut self) -> &mut S {
         &mut self.socket
     }
 
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
-        let Self { socket, read_buffer, .. } = self;
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
         (socket, read_buffer)
     }
 }
@@ -1671,7 +1730,6 @@ mod tests {
     #[cfg(feature = "async")]
     use crate::association::read_pdu_from_wire_async;
     use std::io::Write;
-
 
     impl<'a> ClientAssociationOptions<'a> {
         pub(crate) fn establish_with_extra_pdus<T>(
@@ -1691,7 +1749,9 @@ mod tests {
             for pdu in extra_pdus {
                 write_pdu(&mut write_buffer, &pdu).context(crate::association::SendPduSnafu)?;
             }
-            socket.write_all(&write_buffer).context(crate::association::WireSendSnafu)?;
+            socket
+                .write_all(&write_buffer)
+                .context(crate::association::WireSendSnafu)?;
             write_buffer.clear();
 
             let mut read_buffer = BytesMut::with_capacity(
@@ -1707,7 +1767,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             } = self
                 .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
@@ -1723,7 +1783,7 @@ mod tests {
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             })
         }
 
@@ -1747,7 +1807,10 @@ mod tests {
             for pdu in extra_pdus {
                 write_pdu(&mut buffer, &pdu).context(crate::association::SendPduSnafu)?;
             }
-            socket.write_all(&buffer).await.context(crate::association::WireSendSnafu)?;
+            socket
+                .write_all(&buffer)
+                .await
+                .context(crate::association::WireSendSnafu)?;
             buffer.clear();
 
             let mut buf = BytesMut::with_capacity(
@@ -1760,7 +1823,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             } = self
                 .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
@@ -1776,7 +1839,7 @@ mod tests {
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             })
         }
 
@@ -1793,7 +1856,9 @@ mod tests {
             let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(crate::association::SendPduSnafu)?;
-            socket.write_all(&buffer).context(crate::association::WireSendSnafu)?;
+            socket
+                .write_all(&buffer)
+                .context(crate::association::WireSendSnafu)?;
             buffer.clear();
 
             let mut buf = BytesMut::with_capacity(
@@ -1804,7 +1869,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             } = self
                 .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
@@ -1821,7 +1886,7 @@ mod tests {
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             })
         }
 
@@ -1841,7 +1906,10 @@ mod tests {
             let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(crate::association::SendPduSnafu)?;
-            socket.write_all(&buffer).await.context(crate::association::WireSendSnafu)?;
+            socket
+                .write_all(&buffer)
+                .await
+                .context(crate::association::WireSendSnafu)?;
             buffer.clear();
 
             let mut buf = BytesMut::with_capacity(
@@ -1854,7 +1922,7 @@ mod tests {
                 presentation_contexts,
                 peer_max_pdu_length,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             } = self
                 .process_a_association_resp(resp, &pc_proposed)
                 .expect("Failed to process a associate response");
@@ -1871,7 +1939,7 @@ mod tests {
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
-                peer_ae_title
+                peer_ae_title,
             })
         }
     }
