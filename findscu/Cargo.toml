@@ -19,6 +19,6 @@ dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9" }
 dicom-dump = { path = "../dump", default-features = false, version = "0.9" }
 clap = { version = "4.0.18", features = ["derive"] }
-snafu = "0.8"
+snafu = "0.9"
 tracing = "0.1.36"
 tracing-subscriber = "0.3.15"
