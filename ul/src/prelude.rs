@@ -1,7 +1,7 @@
 //! Prelude module for easy inclusion of important types
 //!
-//! This module re-exports all association traits as underscore imports. 
-//! 
+//! This module re-exports all association traits as underscore imports.
+//!
 //! # Usage
 //!
 //! ```ignore
