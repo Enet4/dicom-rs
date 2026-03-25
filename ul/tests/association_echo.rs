@@ -71,6 +71,21 @@ fn spawn_scp(
                 None
             }
         }
+
+        fn negotiate_roles(
+            &self,
+            sop_class_uid: &str,
+            scu: bool,
+            scp: bool,
+        ) -> Option<(bool, bool)> {
+            if sop_class_uid == "1.2.3.4" {
+                Some((scu, scp))
+            } else if sop_class_uid == "1.2.3.5" {
+                Some((false, scp))
+            } else {
+                None
+            }
+        }
     }
     let test_negotiation = TestNegotiation;
 
@@ -127,6 +142,10 @@ fn spawn_scp(
             association.extended_negotiation_for("1.2.3.7"), // not offered by client
             None
         );
+        assert_eq!(association.requestor_roles_for("1.2.3.4"), (true, true));
+        assert_eq!(association.requestor_roles_for("1.2.3.5"), (false, true));
+        assert_eq!(association.requestor_roles_for("1.2.3.6"), (true, false));
+        assert_eq!(association.requestor_roles_for("1.2.3.7"), (true, false));
 
         // handle one bogus payload
         let pdu = association.receive()?;
@@ -358,6 +377,9 @@ fn run_scu_scp_association_test(max_is_client: bool) {
         .with_extended_negotiation("1.2.3.4", &[1, 1, 0, 0])
         .with_extended_negotiation("1.2.3.5", &[0, 1, 1, 1])
         .with_extended_negotiation("1.2.3.6", &[1, 1, 1, 1])
+        .with_role_selection("1.2.3.4", true, true)
+        .with_role_selection("1.2.3.5", true, true)
+        .with_role_selection("1.2.3.6", true, true)
         .max_pdu_length(max_client_pdu_len as u32)
         .establish(scp_addr)
         .unwrap();
@@ -386,6 +408,10 @@ fn run_scu_scp_association_test(max_is_client: bool) {
         association.extended_negotiation_for("1.2.3.7"), // not offered by client
         None
     );
+    assert_eq!(association.requestor_roles_for("1.2.3.4"), (true, true));
+    assert_eq!(association.requestor_roles_for("1.2.3.5"), (false, true));
+    assert_eq!(association.requestor_roles_for("1.2.3.6"), (true, false));
+    assert_eq!(association.requestor_roles_for("1.2.3.7"), (true, false));
 
     // Create a bogus payload which fills the PDU to the max.
     // Take into account the PDU and PDV header lengths for that purpose.

@@ -730,6 +730,64 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                             implementation_class_uid,
                         ));
                     }
+                    0x54 => {
+                        // SCP/SCU Role Selection Sub-Item Structure
+
+                        // 5-6 - UID-length - This UID-length shall be the number of bytes from the
+                        // first byte of the following field to the last byte of the SOP-class-uid
+                        // field. It shall be encoded as an unsigned binary number.
+                        if bytes.remaining() < 2 {
+                            return Ok(None);
+                        }
+                        let sop_class_uid_length = bytes.get_u16();
+
+                        // 7 - xxx - SOP-class-uid - The SOP Class or Meta SOP Class identifier
+                        // encoded as a UID as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
+                        if bytes.remaining() < sop_class_uid_length as usize {
+                            return Ok(None);
+                        }
+                        let sop_class_uid = codec
+                            .decode(bytes.copy_to_bytes(sop_class_uid_length as usize).as_ref())
+                            .context(DecodeTextSnafu {
+                                field: "SOP-class-uid",
+                            })?
+                            .trim()
+                            .to_string();
+
+                        // xxx - SCU-role - This byte field shall contain the SCU-role as defined in
+                        // Section D.3.3.4. It shall be encoded as an unsigned binary and shall use
+                        // one of the following values:
+                        //
+                        // 0 - The Association-acceptor rejects the Association-requestor's proposal
+                        // of the SCU role selection
+                        //
+                        // 1 - The Association-acceptor accepts the Association-requestor's proposal
+                        // of the SCU role selection
+                        if bytes.remaining() < 1 {
+                            return Ok(None);
+                        }
+                        let scu_role = bytes.get_u8() != 0;
+
+                        // xxx - SCP-role - This byte field shall contain the SCP-role as defined
+                        // for the Association-acceptor in Section D.3.3.4. It shall be encoded as
+                        // an unsigned binary and shall use one of the following values:
+                        //
+                        // 0 - The Association-acceptor rejects the Association-requestor's proposal
+                        // of the SCP role selection
+                        //
+                        // 1 - The Association-acceptor accepts the Association-requestor's proposal
+                        // of the SCP role selection
+                        if bytes.remaining() < 1 {
+                            return Ok(None);
+                        }
+                        let scp_role = bytes.get_u8() != 0;
+
+                        user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
+                            sop_class_uid,
+                            scu_role,
+                            scp_role,
+                        ));
+                    }
                     0x55 => {
                         // Implementation Version Name Structure
 

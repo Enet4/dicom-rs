@@ -265,6 +265,8 @@ pub struct ClientAssociationOptions<'a> {
     jwt: Option<Cow<'a, str>>,
     /// Extended Negotiation info
     extended_negotiation: Vec<(Cow<'a, str>, Vec<u8>)>,
+    /// SCU/SCP Role Selection info
+    scu_scp_role_selection: Vec<(Cow<'a, str>, bool, bool)>,
     /// Socket options for TCP connections
     socket_options: SocketOptions,
     /// TLS configuration to use for the connection
@@ -295,6 +297,7 @@ impl Default for ClientAssociationOptions<'_> {
             saml_assertion: None,
             jwt: None,
             extended_negotiation: Vec::new(),
+            scu_scp_role_selection: Vec::new(),
             socket_options: SocketOptions {
                 read_timeout: None,
                 write_timeout: None,
@@ -516,6 +519,15 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    pub fn with_role_selection<T>(mut self, sop_class: T, scu_role: bool, scp_role: bool) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        self.scu_scp_role_selection
+            .push((sop_class.into(), scu_role, scp_role));
+        self
+    }
+
     /// Set the TLS configuration to use for the connection
     #[cfg(feature = "sync-tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ClientConfig>>) -> Self {
@@ -707,6 +719,7 @@ impl<'a> ClientAssociationOptions<'a> {
             saml_assertion,
             jwt,
             extended_negotiation,
+            scu_scp_role_selection,
             ..
         } = self;
         // fail if no presentation contexts were provided: they represent intent,
@@ -754,6 +767,13 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
                 sub_item.0.to_string(),
                 sub_item.1.clone(),
+            ));
+        }
+        for sub_item in scu_scp_role_selection {
+            user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
+                sub_item.0.to_string(),
+                sub_item.1,
+                sub_item.2,
             ));
         }
 

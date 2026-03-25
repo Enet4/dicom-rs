@@ -201,6 +201,74 @@ pub trait Negotiation {
     fn extended_negotiation(&self, sop_class_uid: &str, input: &[u8]) -> Option<Vec<u8>> {
         None
     }
+
+    /// User-provided negotiation of accepted association-requestor
+    /// (client) roles for a given SOP Class. The client may request
+    /// to be either an SCU, an SCP, or both for any given SOP Class.
+    /// Through this function, the server will decide for that SOP
+    /// Class whether to allow the client to take that role or not.
+    /// Note that if the client specifies `false` for one of its
+    /// roles, it's not allowed for the server to return `true` for
+    /// that role in that SOP Class.
+    ///
+    /// The return value is an `Option<(bool, bool)>`. It shall be
+    /// `None` if this negotiation item is not to be returned to the
+    /// client, or `Some((scu_role, scp_role))` with the accepted
+    /// values.
+    ///
+    /// The default action is to ignore this negotiation and not
+    /// send back any role selection for any SOP CLass, which
+    /// implicitly makes the client be an SCU.
+    ///
+    /// In this example, the server rejects any client's proposal
+    /// to be an SCP for the Storage MR SOP Class:
+    /// ```no_run
+    /// # use dicom_ul::association::server::{Negotiation, ServerAssociationOptions};
+    /// # use dicom_ul::association::Association;
+    /// # use std::net::TcpListener;
+    /// const STORAGE_MR_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.4";
+    /// struct RoleOptions;
+    ///
+    /// impl Negotiation for RoleOptions {
+    ///     fn negotiate_roles(
+    ///         &self,
+    ///         sop_class_uid: &str,
+    ///         scu_role: bool,
+    ///         scp_role: bool,
+    ///     ) -> Option<(bool, bool)> {
+    ///         // Only this SOP Class is supported, so ditch the rest
+    ///         if sop_class_uid != STORAGE_MR_SOP_CLASS {
+    ///             return None;
+    ///         }
+    ///         // Always set SCP role to false
+    ///         Some((scu_role, false))
+    ///     }
+    /// }
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let tcp_listener: TcpListener = unimplemented!();
+    /// let role_options = RoleOptions;
+    ///
+    /// let scp_options = ServerAssociationOptions::new()
+    ///     .with_negotiation(role_options);
+    ///
+    /// let (stream, _address) = tcp_listener.accept()?;
+    /// let assoc = scp_options.establish(stream)?;
+    ///
+    /// // Association is established; read the flags that were negotiated
+    /// // (or not) for the association requestor.
+    /// let (client_is_scu, client_is_scp) = assoc.requestor_roles_for(STORAGE_MR_SOP_CLASS);
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn negotiate_roles(
+        &self,
+        _sop_class_uid: &str,
+        _scu_role: bool,
+        _scp_role: bool,
+    ) -> Option<(bool, bool)> {
+        None
+    }
 }
 
 /// A Negotiation rule that causes the server to omit the negotiation in the response, thus forcing
@@ -678,19 +746,74 @@ where
                     return Err((pdu, RejectedSnafu { association_rj }.build()));
                 }
 
+                // User variables resulting from the negotiation are stored here
+                let mut new_user_variables = vec![
+                    UserVariableItem::MaxLength(self.max_pdu_length),
+                    UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+                    UserVariableItem::ImplementationVersionName(
+                        IMPLEMENTATION_VERSION_NAME.to_string(),
+                    ),
+                ];
+
+                // Process user variables in a single pass
+                let mut user_identity = None;
+                let mut requestor_max_pdu_length = DEFAULT_MAX_PDU;
+                for user_variable in user_variables {
+                    use UserVariableItem::*;
+                    match user_variable {
+                        UserIdentityItem(negotiated_user_identity) => {
+                            user_identity = Some(negotiated_user_identity);
+                        }
+
+                        MaxLength(len) => {
+                            requestor_max_pdu_length = if len == 0 {
+                                // treat 0 as practically unlimited,
+                                // so use the largest 32-bit unsigned number
+                                u32::MAX
+                            } else {
+                                len
+                            };
+                        }
+
+                        // Extended negotiation is performed here: add only the variables
+                        // for which the user-supplied negotiation function returns Some(x).
+                        SopClassExtendedNegotiationSubItem(sop_class_uid, scai) => {
+                            if let Some(extended_negotiation_result) =
+                                self.negotiation.extended_negotiation(&sop_class_uid, &scai)
+                            {
+                                new_user_variables.push(SopClassExtendedNegotiationSubItem(
+                                    sop_class_uid.clone(),
+                                    extended_negotiation_result,
+                                ));
+                            }
+                        }
+
+                        // SCU/SCP Role Selection negotiation is performed here: add only the
+                        // variables for which the user-supplied negotiation function returns
+                        // Some(x).
+                        ScuScpRoleSelectionSubItem(sop_class_uid, scu_role, scp_role) => {
+                            if let Some((scu, scp)) =
+                                self.negotiation
+                                    .negotiate_roles(&sop_class_uid, scu_role, scp_role)
+                            {
+                                new_user_variables.push(ScuScpRoleSelectionSubItem(
+                                    sop_class_uid,
+                                    scu,
+                                    scp,
+                                ));
+                            }
+                        }
+
+                        _ => (),
+                    }
+                }
+
                 self.ae_access_control
                     .check_access(
                         &self.ae_title,
                         &calling_ae_title,
                         &called_ae_title,
-                        user_variables
-                            .iter()
-                            .find_map(|user_variable| match user_variable {
-                                UserVariableItem::UserIdentityItem(user_identity) => {
-                                    Some(user_identity)
-                                }
-                                _ => None,
-                            }),
+                        user_identity.as_ref(),
                     )
                     .map(Ok)
                     .unwrap_or_else(|reason| {
@@ -701,23 +824,6 @@ where
                         let pdu = Pdu::AssociationRJ(association_rj.clone());
                         Err((pdu, RejectedSnafu { association_rj }.build()))
                     })?;
-
-                // fetch requested maximum PDU length
-                let requestor_max_pdu_length = user_variables
-                    .iter()
-                    .find_map(|item| match item {
-                        UserVariableItem::MaxLength(len) => Some(*len),
-                        _ => None,
-                    })
-                    .unwrap_or(DEFAULT_MAX_PDU);
-
-                // treat 0 as practically unlimited,
-                // so use the largest 32-bit unsigned number
-                let requestor_max_pdu_length = if requestor_max_pdu_length == 0 {
-                    u32::MAX
-                } else {
-                    requestor_max_pdu_length
-                };
 
                 let presentation_contexts_negotiated: Vec<_> = presentation_contexts
                     .into_iter()
@@ -752,34 +858,6 @@ where
                         }
                     })
                     .collect();
-
-                let mut new_user_variables = vec![
-                    UserVariableItem::MaxLength(self.max_pdu_length),
-                    UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
-                    UserVariableItem::ImplementationVersionName(
-                        IMPLEMENTATION_VERSION_NAME.to_string(),
-                    ),
-                ];
-                // Extended negotiation is performed here: add only the variables
-                // for which the user-supplied negotiation function returns Some(x).
-                for item in user_variables.iter() {
-                    if let UserVariableItem::SopClassExtendedNegotiationSubItem(
-                        sop_class_uid,
-                        scai,
-                    ) = item
-                    {
-                        if let Some(extended_negotiation_result) =
-                            self.negotiation.extended_negotiation(sop_class_uid, scai)
-                        {
-                            new_user_variables.push(
-                                UserVariableItem::SopClassExtendedNegotiationSubItem(
-                                    sop_class_uid.clone(),
-                                    extended_negotiation_result,
-                                ),
-                            );
-                        }
-                    }
-                }
 
                 let pdu = Pdu::AssociationAC(AssociationAC {
                     protocol_version: self.protocol_version,

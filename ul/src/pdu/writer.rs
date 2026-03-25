@@ -951,6 +951,50 @@ fn write_pdu_variable_user_variables(
                         name: "Implementation-class-uid",
                     })?;
                 }
+                UserVariableItem::ScuScpRoleSelectionSubItem(sop_class_uid, scu_role, scp_role) => {
+                    // 1 - Item-type - 54H
+                    writer
+                        .write_u8(0x54)
+                        .context(WriteFieldSnafu { field: "Item-type" })?;
+
+                    // 2 - Reserved - This reserved field shall be sent with a value 00H but not
+                    // tested to this value when received.
+                    writer
+                        .write_u8(0x00)
+                        .context(WriteReservedSnafu { bytes: 1_u32 })?;
+
+                    // 3-4 - Item-length
+                    write_chunk_u16(writer, |writer| {
+                        // 5-6 - UID-length
+                        write_chunk_u16(writer, |writer| {
+                            //  7-xxx - The SOP Class or Meta SOP Class identifier encoded as a UID
+                            //  as defined in Section 9 “Unique Identifiers (UIDs)” in PS3.5.
+                            writer
+                                .write_all(&codec.encode(sop_class_uid).context(
+                                    EncodeFieldSnafu {
+                                        field: "SOP-class-uid",
+                                    },
+                                )?)
+                                .context(WriteFieldSnafu {
+                                    field: "SOP-class-uid",
+                                })
+                        })
+                        .context(WriteChunkSnafu {
+                            name: "SOP-class-uid",
+                        })?;
+
+                        // xxx - SCU-role
+                        writer
+                            .write_u8(if *scu_role { 1 } else { 0 })
+                            .context(WriteFieldSnafu { field: "SCU-role" })?;
+
+                        // xxx - SCP-role
+                        writer
+                            .write_u8(if *scp_role { 1 } else { 0 })
+                            .context(WriteFieldSnafu { field: "SCP-role" })
+                    })
+                    .context(WriteChunkSnafu { name: "Sub-item" })?;
+                }
                 UserVariableItem::SopClassExtendedNegotiationSubItem(sop_class_uid, data) => {
                     // 1 - Item-type - 56H
                     writer

@@ -292,6 +292,28 @@ pub trait Association {
     ///
     /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]>;
+
+    /// Roles that the Association-requestor may assume. Returns a pair
+    /// of booleans; the first is whether it can assume an SCU role and
+    /// the second whether it can assume an SCP role.
+    fn requestor_roles_for(&self, sop_class_uid: &str) -> (bool, bool) {
+        self.user_variables()
+            .iter()
+            .find_map(|uv| match uv {
+                UserVariableItem::ScuScpRoleSelectionSubItem(uid, scu_role, scp_role)
+                    if uid == sop_class_uid =>
+                {
+                    Some((*scu_role, *scp_role))
+                }
+                _ => None,
+            })
+            // PS3.7 D.3.3.4:
+            // If the SCP/SCU Role Selection item is not returned by the
+            // Association-acceptor then the role of the Association-requestor
+            // shall be SCU and the role of the Association-acceptor shall be SCP.
+            // These apply to the requestor only, so only SCU is set.
+            .unwrap_or((true, false))
+    }
 }
 
 mod private {

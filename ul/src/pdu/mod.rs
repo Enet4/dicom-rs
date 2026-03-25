@@ -489,6 +489,7 @@ pub enum UserVariableItem {
     ImplementationClassUID(String),
     ImplementationVersionName(String),
     SopClassExtendedNegotiationSubItem(String, Vec<u8>),
+    ScuScpRoleSelectionSubItem(String, bool, bool),
     UserIdentityItem(UserIdentity),
 }
 
