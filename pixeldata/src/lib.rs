@@ -2995,19 +2995,19 @@ mod tests {
         #[rstest]
         // jpeg2000 encoding
         #[cfg_attr(
-            any(feature = "openjp2", feature = "openjpeg-sys"),
+            any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"),
             case("pydicom/emri_small_jpeg_2k_lossless.dcm", 10)
         )]
         #[cfg_attr(
-            any(feature = "openjp2", feature = "openjpeg-sys"),
+            any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"),
             case("pydicom/693_J2KI.dcm", 1)
         )]
         #[cfg_attr(
-            any(feature = "openjp2", feature = "openjpeg-sys"),
+            any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"),
             case("pydicom/693_J2KR.dcm", 1)
         )]
         #[cfg_attr(
-            any(feature = "openjp2", feature = "openjpeg-sys"),
+            any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"),
             case("pydicom/JPEG2000.dcm", 1)
         )]
         //

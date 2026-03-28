@@ -47,6 +47,9 @@ simd = ["jpeg-encoder?/simd"]
 # conflicts with `openjp2`
 openjpeg-sys = ["dep:jpeg2k", "jpeg2k/openjpeg-sys"]
 
+# JPEG 2000 support via the hayro-jpeg2000
+hayro-jpeg2000 = ["dep:hayro-jpeg2000"]
+
 # jpeg LS support via charls bindings
 charls = ["dep:charls"]
 
@@ -75,6 +78,10 @@ optional = true
 version = "0.10"
 optional = true
 default-features = false
+
+[dependencies.hayro-jpeg2000]
+version = "0.3.4"
+optional = true
 
 [dependencies.jpeg-decoder]
 version = "0.3.0"

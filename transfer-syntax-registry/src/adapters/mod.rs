@@ -30,7 +30,7 @@
 //! [zune-jpegxl]: https://crates.io/crates/zune-jpegxl
 #[cfg(feature = "jpeg")]
 pub mod jpeg;
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 pub mod jpeg2k;
 #[cfg(feature = "charls")]
 pub mod jpegls;
@@ -50,7 +50,7 @@ pub mod jpeg {}
 
 /// **Note:** This module is a stub.
 /// Enable either `openjp2` or `openjpeg-sys` to use this module.
-#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000")))]
 pub mod jpeg2k {}
 
 /// **Note:** This module is a stub.
