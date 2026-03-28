@@ -2,8 +2,11 @@
 name = "dicom-app-common"
 description = "Helper library for command-line applications in the DICOM-rs project"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>", "Nate Richman <naterichman@flywheel.io>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Enet4/dicom-rs"
+readme = "README.md"
 keywords = ["dicom", "cli"]
-version = "0.1.0"
+version = "0.9.0"
 edition = "2021"
 
 [dependencies]

@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "dicom"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -461,7 +461,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-app-common"
-version = "0.1.0"
+version = "0.9.0"
 dependencies = [
  "clap",
  "rustls",
@@ -472,7 +472,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-core"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "chrono",
  "either",
@@ -507,7 +507,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dump"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-echoscu"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-encoding"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -552,7 +552,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-findscu"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-fromimage"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-object"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -617,7 +617,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-parser"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -629,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-pixeldata"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "byteorder",
  "clap",
@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-scpproxy"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "bytes",
  "clap",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-storescp"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -683,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-storescu"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-toimage"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -733,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "byteordered",
  "charls",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-ul"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "byteordered",
  "bytes",

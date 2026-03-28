@@ -11,9 +11,9 @@ readme = "README.md"
 
 [dependencies]
 base64 = "0.22"
-dicom-core = { path = "../core", version = "0.9" }
+dicom-core = { path = "../core", version = "0.9.1" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
-dicom-object = { path = "../object", version = "0.9" }
+dicom-object = { path = "../object", version = "0.9.1" }
 num-traits = "0.2.15"
 serde = { version = "1.0.164", features = ["derive"] }
 serde_json = { version = "1.0.96", features = ["preserve_order"] }
