@@ -108,5 +108,5 @@ default-features = false
 features = ["native"]
 
 [dev-dependencies]
-dicom-test-files = "0.3"
+dicom-test-files = "0.4"
 dicom-object = { path = "../object" }
