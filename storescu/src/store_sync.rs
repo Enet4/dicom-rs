@@ -212,8 +212,7 @@ pub fn inner<T>(
     ignore_sop_class: bool,
 ) -> Result<(), Error>
 where T: std::io::Read + std::io::Write + CloseSocket{
-    let mut message_id = 1;
-    for mut file in d_files {
+    for (message_id, mut file) in (1..).zip(d_files) {
         // identify the right transfer syntax to use
         let r: Result<_, Error> =
             check_presentation_contexts(&file, scu.presentation_contexts(), ignore_sop_class, never_transcode);
@@ -245,7 +244,6 @@ where T: std::io::Read + std::io::Write + CloseSocket{
             verbose,
             fail_first,
         )?;
-        message_id += 1;
     }
     scu.release().map_err(Box::from).context(ScuSnafu)?;
     if let Some(pb) = pbx {
