@@ -1,8 +1,8 @@
 [package]
 name = "dicom-fromimage"
 version = "0.9.1"
-edition = "2018"
-rust-version = "1.72.0"
+edition = "2024"
+rust-version = "1.85.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "A CLI tool for replacing the image content from DICOM files"
 license = "MIT OR Apache-2.0"

@@ -19,8 +19,6 @@ members = [
     "storescp",
     "storescu",
     "toimage",
-    "transfer-syntax-registry",
-    "ul",
     "app-common",
 ]
 

@@ -2,7 +2,7 @@
 name = "dicom-storescp"
 version = "0.9.1"
 authors = ["Victor Saase <vsaase@gmail.com>", "Eduardo Pinho <enet4mikeenet@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 description = "A server accepting DICOM C-STORE"

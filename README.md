@@ -106,12 +106,13 @@ Consult each crate for guidelines on selecting features to suit your needs.
 DICOM-rs currently provides partial MSRV guarantees,
 defined by the following rules:
 
-- The minimum supported Rust version required to build _library crates_ with default features is **1.72.0**.
+- The minimum supported Rust version required to build _library crates_ with default features is **1.85.0**.
 - For any other cases, namely building the tool/binary crates or including extra features,
   only the latest stable toolchain is guaranteed to build.
 
-At of 2025-10-04, version 1.80.0 can build the full project,
+As of 2026-03-28, version 1.88.0 can build the full project,
 though this is not prescriptive and is subject to change over time.
+Prefer using the latest stable toolchain whenever possible.
 
 ## Roadmap & Contributing
 
