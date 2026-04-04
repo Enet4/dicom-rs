@@ -1169,7 +1169,7 @@ impl DecodedPixelData<'_> {
                             }
                         };
 
-                        self.mono_image_with_narrow(buffer.into_iter(), *bit_depth)?
+                        self.mono_image_with_narrow(buffer, *bit_depth)?
                     }
 
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
