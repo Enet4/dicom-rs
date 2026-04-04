@@ -621,11 +621,11 @@ pub mod non_blocking {
                     return Poll::Ready(Ok(()));
                 }
                 let Self {
-                    ref mut stream,
-                    ref mut read_buffer,
-                    ref max_data_length,
+                    mut stream,
+                    mut read_buffer,
+                    max_data_length,
                     ..
-                } = &mut *self;
+                } = &mut self;
                 let mut reader = BufReader::new(stream);
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
