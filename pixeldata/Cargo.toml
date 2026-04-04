@@ -48,7 +48,7 @@ optional = true
 
 [dev-dependencies]
 rstest = "0.26.1"
-dicom-test-files = "0.3"
+dicom-test-files = "0.4"
 
 [features]
 default = ["rayon", "native"]
