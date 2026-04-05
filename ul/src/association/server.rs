@@ -493,7 +493,7 @@ where
     fn process_a_association_rq(
         &self,
         msg: Pdu,
-    ) -> std::result::Result<(Pdu, NegotiatedOptions), (Pdu, Error)> {
+    ) -> std::result::Result<(Pdu, NegotiatedOptions, String), (Pdu, Error)> {
         match msg {
             Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
@@ -612,7 +612,7 @@ where
                         })
                         .collect(),
                     calling_ae_title: calling_ae_title.clone(),
-                    called_ae_title,
+                    called_ae_title: called_ae_title.clone(),
                     user_variables: vec![
                         UserVariableItem::MaxLength(self.max_pdu_length),
                         UserVariableItem::ImplementationClassUID(
@@ -631,6 +631,7 @@ where
                         presentation_contexts: presentation_contexts_negotiated,
                         peer_ae_title: calling_ae_title,
                     },
+                    called_ae_title
                 ))
             }
             Pdu::ReleaseRQ => Err((Pdu::ReleaseRP, AbortedSnafu.build())),
@@ -690,6 +691,7 @@ where
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             )) => {
                 write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                 socket.write_all(&write_buffer).context(WireSendSnafu)?;
@@ -703,6 +705,7 @@ where
                     strict: self.strict,
                     read_buffer,
                     user_variables,
+                    called_ae_title
                 })
             }
             Err((pdu, err)) => {
@@ -756,6 +759,7 @@ where
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             )) => {
                 write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                 tls_stream.write_all(&write_buffer).context(WireSendSnafu)?;
@@ -769,6 +773,7 @@ where
                     strict: self.strict,
                     read_buffer,
                     user_variables,
+                    called_ae_title
                 })
             }
             Err((pdu, err)) => {
@@ -830,6 +835,8 @@ pub struct ServerAssociation<S> {
     socket: S,
     /// The application entity title of the other DICOM node
     client_ae_title: String,
+    /// The AE title the calling client used.
+    called_ae_title: String,
     /// Reusable buffer used for sending PDUs on the wire
     /// prevents reallocation on each send
     write_buffer: Vec<u8>,
@@ -867,6 +874,11 @@ impl<S> ServerAssociation<S> {
     )]
     pub fn client_ae_title(&self) -> &str {
         &self.client_ae_title
+    }
+
+    /// Obtain the AE title the client called.
+    pub fn called_ae_title(&self) -> &str {
+        &self.called_ae_title
     }
 }
 
@@ -1117,6 +1129,7 @@ where
                         peer_max_pdu_length,
                         peer_ae_title,
                     },
+                    called_ae_title
                 )) => {
                     write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                     socket
@@ -1135,6 +1148,7 @@ where
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
                         user_variables,
+                        called_ae_title
                     })
                 }
                 Err((pdu, err)) => {
@@ -1197,6 +1211,7 @@ where
                         peer_max_pdu_length,
                         peer_ae_title,
                     },
+                    called_ae_title
                 )) => {
                     write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                     socket
@@ -1215,6 +1230,7 @@ where
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
                         user_variables,
+                        called_ae_title
                     })
                 }
                 Err((pdu, err)) => {
@@ -1256,6 +1272,8 @@ pub struct AsyncServerAssociation<S> {
     socket: S,
     /// The application entity title of the other DICOM node
     client_ae_title: String,
+    /// The AE title the calling client used.
+    called_ae_title: String,
     /// write buffer to send fully assembled PDUs on wire
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
@@ -1404,6 +1422,11 @@ impl<S> AsyncServerAssociation<S> {
     pub fn client_ae_title(&self) -> &str {
         &self.client_ae_title
     }
+
+    /// Obtain the AE title the client called.
+    pub fn called_ae_title(&self) -> &str {
+        &self.called_ae_title
+    }
 }
 
 // compatibility filler, remove in 0.10.0
@@ -1528,6 +1551,7 @@ mod tests {
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             ) = self
                 .process_a_association_rq(pdu)
                 .expect("Could not parse association req");
@@ -1550,6 +1574,7 @@ mod tests {
                 read_buffer,
                 strict: self.strict,
                 user_variables,
+                called_ae_title
             })
         }
 
@@ -1582,6 +1607,7 @@ mod tests {
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             ) = self
                 .process_a_association_rq(pdu)
                 .expect("Could not parse association req");
@@ -1609,6 +1635,7 @@ mod tests {
                 user_variables,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                called_ae_title
             })
         }
 
@@ -1634,6 +1661,7 @@ mod tests {
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             ) = self
                 .process_a_association_rq(msg)
                 .expect("Could not parse association req");
@@ -1654,6 +1682,7 @@ mod tests {
                     (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
                 user_variables,
+                called_ae_title
             })
         }
 
@@ -1685,6 +1714,7 @@ mod tests {
                     peer_max_pdu_length,
                     peer_ae_title,
                 },
+                called_ae_title
             ) = self
                 .process_a_association_rq(msg)
                 .expect("Could not parse association req");
@@ -1707,6 +1737,7 @@ mod tests {
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
+                called_ae_title
             })
         }
     }
