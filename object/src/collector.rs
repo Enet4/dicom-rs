@@ -1204,6 +1204,7 @@ where
                         decoder
                             .read_u32_to_vec(len, &mut table)
                             .context(ReadItemSnafu)?;
+                        offset_table = Some(table);
                         first = false;
                     } else {
                         let mut data = Vec::new();
