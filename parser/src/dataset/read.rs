@@ -6,11 +6,13 @@
 //! to form a syntax tree of a full data set.
 use crate::stateful::decode::{
     CharacterSetOverride, DynStatefulDecoder, Error as DecoderError, StatefulDecode,
+    StatefulDecoder,
 };
 use dicom_core::header::{DataElementHeader, Header, Length, SequenceItemHeader};
 use dicom_core::{PrimitiveValue, Tag, VR};
+use dicom_encoding::decode::adaptive_le::StandardAdaptiveVRLittleEndianDecoder;
 use dicom_encoding::text::SpecificCharacterSet;
-use dicom_encoding::transfer_syntax::TransferSyntax;
+use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::cmp::Ordering;
 use std::io::Read;
@@ -168,6 +170,15 @@ pub struct DataSetReaderOptions {
     /// The position of the reader as received at building time in bytes.
     /// Defaults to 0.
     pub base_offset: u64,
+
+    /// When enabled, the decoder will probe the first non-meta element
+    /// to determine whether the dataset actually uses explicit or implicit VR,
+    /// regardless of what the transfer syntax declares.
+    ///
+    /// This handles non-conformant files that declare Explicit VR Little Endian
+    /// but actually encode the dataset in Implicit VR.
+    /// Defaults to `false`.
+    pub flexible_decoding: bool,
 }
 
 impl DataSetReaderOptions {
@@ -179,6 +190,11 @@ impl DataSetReaderOptions {
     /// Replace the base reader offset of the options.
     pub fn base_offset(mut self, base_offset: u64) -> Self {
         self.base_offset = base_offset;
+        self
+    }
+    /// Enable or disable flexible VR decoding.
+    pub fn flexible_decoding(mut self, flexible_decoding: bool) -> Self {
+        self.flexible_decoding = flexible_decoding;
         self
     }
 }
@@ -257,9 +273,23 @@ impl<R> DataSetReader<DynStatefulDecoder<R>> {
     where
         R: Read,
     {
-        let parser =
+        let parser = if options.flexible_decoding
+            && ts.endianness() == dicom_encoding::Endianness::Little
+        {
+            let basic = ts.basic_decoder();
+            let decoder: DynDecoder<R> = Box::<StandardAdaptiveVRLittleEndianDecoder>::default();
+            StatefulDecoder::new_with_all_options(
+                source,
+                decoder,
+                basic,
+                cs,
+                options.charset_override,
+                0,
+            )
+        } else {
             DynStatefulDecoder::new_with_override(source, ts, cs, options.charset_override, 0)
-                .context(CreateDecoderSnafu)?;
+                .context(CreateDecoderSnafu)?
+        };
 
         is_stateful_decode(&parser);
 
