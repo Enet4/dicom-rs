@@ -22,7 +22,7 @@ dicom-core = { path = "../core", version = "0.9.1" }
 dicom-encoding = { path = "../encoding", version = "0.9.1" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.9.1" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
-snafu = "0.8"
+snafu = "0.9"
 byteorder = "1.4.3"
 gdcm-rs = { version = "0.6", optional = true }
 rayon = { version = "1.5", optional = true }

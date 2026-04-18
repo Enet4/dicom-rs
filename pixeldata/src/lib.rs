@@ -177,6 +177,7 @@ mod gdcm;
 
 /// Error type for most pixel data related operations.
 #[derive(Debug, Snafu)]
+#[snafu(source(from(exact)))]
 pub struct Error(InnerError);
 
 /// Inner error type
