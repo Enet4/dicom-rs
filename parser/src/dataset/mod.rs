@@ -69,7 +69,7 @@ pub enum DataToken {
 impl fmt::Display for DataToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DataToken::PrimitiveValue(ref v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
+            DataToken::PrimitiveValue(v) => write!(f, "PrimitiveValue({:?})", v.value_type()),
             other => write!(f, "{other:?}"),
         }
     }

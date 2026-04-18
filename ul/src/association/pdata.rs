@@ -349,9 +349,7 @@ fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
 #[cfg(feature = "async")]
 pub mod non_blocking {
     use std::{
-        io::Cursor,
-        pin::Pin,
-        task::{ready, Context, Poll},
+        io::Cursor, pin::Pin, task::{Context, Poll, ready}
     };
 
     use bytes::{Buf, BufMut};
@@ -620,16 +618,16 @@ pub mod non_blocking {
                 if self.last_pdu {
                     return Poll::Ready(Ok(()));
                 }
-                let Self {
+                let &mut Self {
                     ref mut stream,
                     ref mut read_buffer,
-                    ref max_data_length,
+                    max_data_length,
                     ..
                 } = &mut *self;
                 let mut reader = BufReader::new(stream);
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
-                    match read_pdu(&mut buf, *max_data_length + PDV_HEADER_SIZE, false)
+                    match read_pdu(&mut buf, max_data_length + PDV_HEADER_SIZE, false)
                         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
                     {
                         Some(pdu) => {
