@@ -43,7 +43,7 @@ optional = true
 features = ["cargo", "derive"]
 
 [dependencies.tracing-subscriber]
-version = "0.3.17"
+version = "0.3.20"
 optional = true
 
 [dev-dependencies]

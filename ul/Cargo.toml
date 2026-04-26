@@ -13,7 +13,7 @@ readme = "README.md"
 
 [dependencies]
 byteordered = "0.6"
-bytes = "^1.6"
+bytes = "1.11.1"
 cfg-if = "1.0.3"
 dicom-encoding = { path = "../encoding/", version = "0.9.1" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9.1", default-features = false }
@@ -56,7 +56,7 @@ rstest = "0.26.1"
 tokio = { version = "^1.38", features = ["io-util", "macros", "net", "rt", "rt-multi-thread"] }
 dicom-core = { path = '../core' }
 dicom-object = { path = '../object' }
-time = "0.3"
+time = "0.3.47"
 rustls-cert-gen = "0.2.0"
 rcgen = "0.14.4"
 # Install full features of rustls for testing
