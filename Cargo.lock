@@ -769,7 +769,6 @@ dependencies = [
  "ndarray",
  "num-traits",
  "rayon",
- "rayon-core",
  "rstest",
  "snafu 0.9.0",
  "tracing",
