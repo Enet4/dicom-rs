@@ -177,6 +177,7 @@ mod gdcm;
 
 /// Error type for most pixel data related operations.
 #[derive(Debug, Snafu)]
+#[snafu(source(from(exact)))]
 pub struct Error(InnerError);
 
 /// Inner error type
@@ -659,7 +660,7 @@ impl DecodedPixelData<'_> {
     #[inline]
     pub fn voi_lut_function(&self) -> Result<Option<&[VoiLutFunction]>> {
         if let Some(inner) = &self.voi_lut_function {
-            let res = match &inner.len() {
+            match &inner.len() {
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
                 len => {
@@ -677,8 +678,7 @@ impl DecodedPixelData<'_> {
                         Ok(Some(&inner[0..1]))
                     }
                 }
-            };
-            res
+            }
         } else {
             Ok(None)
         }
@@ -687,7 +687,7 @@ impl DecodedPixelData<'_> {
     #[inline]
     pub fn window(&self) -> Result<Option<&[WindowLevel]>> {
         if let Some(inner) = &self.window {
-            let res = match &inner.len() {
+            match &inner.len() {
                 0 => Ok(None),
                 1 => Ok(Some(inner.as_slice())),
                 len => {
@@ -705,8 +705,7 @@ impl DecodedPixelData<'_> {
                         Ok(Some(&inner[0..1]))
                     }
                 }
-            };
-            res
+            }
         } else {
             Ok(None)
         }
@@ -1169,7 +1168,7 @@ impl DecodedPixelData<'_> {
                             }
                         };
 
-                        self.mono_image_with_narrow(buffer.into_iter(), *bit_depth)?
+                        self.mono_image_with_narrow(buffer, *bit_depth)?
                     }
 
                     ModalityLutOption::Default | ModalityLutOption::Override(..) => {
@@ -2462,7 +2461,7 @@ where
                     },
                 )?;
 
-                let pixel_data = if bits_allocated == 1 {
+                if bits_allocated == 1 {
                     // Map every bit in each byte to a separate byte of either 0 or 255
                     frame_data
                         .iter()
@@ -2471,9 +2470,7 @@ where
                         .collect()
                 } else {
                     frame_data.to_vec()
-                };
-
-                pixel_data
+                }
             }
             DicomValue::Sequence(..) => InvalidPixelDataSnafu.fail()?,
         };

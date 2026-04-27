@@ -2,8 +2,8 @@
 name = "dicom-object"
 version = "0.9.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
-edition = "2018"
-rust-version = "1.72.0"
+edition = "2024"
+rust-version = "1.85.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 description = "A high-level API for reading and manipulating DICOM objects"
@@ -24,9 +24,9 @@ dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version
 itertools = "0.14"
 byteordered = "0.6"
 smallvec = "1.6.1"
-snafu = "0.8"
+snafu = "0.9"
 tracing = "0.1.34"
 
 [dev-dependencies]
 tempfile = "3.2.0"
-dicom-test-files = "0.3"
+dicom-test-files = "0.4"

@@ -3,8 +3,8 @@ name = "dicom-encoding"
 version = "0.9.1"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 description = "DICOM encoding and decoding primitives"
-edition = "2018"
-rust-version = "1.72.0"
+edition = "2024"
+rust-version = "1.85.0"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 categories = ["encoding"]
@@ -17,7 +17,7 @@ dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
 encoding = "0.2.33"
 byteordered = "0.6"
 inventory = { version = "0.3.2", optional = true }
-snafu = "0.8"
+snafu = "0.9"
 
 [features]
 default = []

@@ -409,7 +409,7 @@ where
                     .encode_item_delimiter()
                     .context(WriteItemDelimiterSnafu)?;
             }
-            DataToken::PrimitiveValue(ref value) => {
+            DataToken::PrimitiveValue(value) => {
                 let last_de = self.last_de.take().with_context(|| UnexpectedTokenSnafu {
                     token: token.clone(),
                 })?;
