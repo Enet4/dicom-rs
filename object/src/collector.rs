@@ -1204,6 +1204,7 @@ where
                         decoder
                             .read_u32_to_vec(len, &mut table)
                             .context(ReadItemSnafu)?;
+                        offset_table = Some(table);
                         first = false;
                     } else {
                         let mut data = Vec::new();
@@ -1786,9 +1787,77 @@ mod tests {
             .expect("should be able to read up to the PixelData element");
 
         // read the rest of the dicom
-        // NOTE: this doesn't include the offset table currently
         collector
             .read_dataset_to_end(&mut obj)
             .expect("should be able to read the rest of the DICOM");
+    }
+
+    /// read the full DICOM file,
+    /// checking that everything is in it as expected
+    #[test]
+    fn test_read_to_end() {
+        let filename = dicom_test_files::path("pydicom/SC_rgb_rle_2frame.dcm").unwrap();
+
+        let mut collector = DicomCollector::open_file(filename).unwrap();
+
+        let fmi = collector
+            .read_file_meta()
+            .expect("should read file meta info successfully");
+
+        assert_eq!(fmi.transfer_syntax(), uids::RLE_LOSSLESS);
+
+        let mut dset = InMemDicomObject::new_empty();
+        collector
+            .read_dataset_to_end(&mut dset)
+            .expect("should read dataset successfully");
+
+        // inspect a few attributes
+        assert_eq!(
+            dset.get(tags::SPECIFIC_CHARACTER_SET)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "ISO_IR 192"
+        );
+        assert_eq!(dset.get(tags::MODALITY).unwrap().to_str().unwrap(), "OT");
+        assert_eq!(dset.get(tags::PATIENT_ID).unwrap().to_str().unwrap(), "ID1");
+        assert_eq!(
+            dset.get(tags::PHOTOMETRIC_INTERPRETATION)
+                .unwrap()
+                .to_str()
+                .unwrap(),
+            "RGB"
+        );
+
+        assert_eq!(
+            dset.get(tags::NUMBER_OF_FRAMES)
+                .unwrap()
+                .to_int::<u32>()
+                .unwrap(),
+            2
+        );
+
+        // inspect the basic offset table
+        let pixel_data = dset
+            .get(tags::PIXEL_DATA)
+            .expect("Should have pixel data")
+            .value();
+        let DicomValue::PixelSequence(seq) = pixel_data else {
+            panic!("Expected encapsulated pixel data");
+        };
+        let bot = seq.offset_table();
+        assert_eq!(bot.len(), 2);
+        assert_eq!(&bot, &[0x0000, 0x02A0]);
+
+        // inspect the other fragments
+
+        let fragments = seq.fragments();
+
+        assert_eq!(fragments.len(), 2);
+        assert_eq!(fragments[0].len(), 664);
+
+        // inspect a few bytes just to be sure
+        assert_eq!(&fragments[0][0..5], &[0x03, 0x00, 0x00, 0x00, 0x40]);
+        assert_eq!(&fragments[1][0..5], &[0x03, 0x00, 0x00, 0x00, 0x40]);
     }
 }
