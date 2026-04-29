@@ -161,10 +161,13 @@ pub trait PixelDataObject {
     /// or `None` if it is not defined
     fn photometric_interpretation(&self) -> Option<&str>;
 
-    /// Return the _Number Of Frames_, or `None` if it is not defined
+    /// Return the _Number Of Frames_,
+    /// or `None` if it is not defined by this object.
     fn number_of_frames(&self) -> Option<u32>;
 
-    /// Returns the _Number of Fragments_, or `None` for native pixel data
+    /// Returns the _number of pixel data fragments_,
+    /// excluding the basic offset table,
+    /// or `None` for native pixel data.
     fn number_of_fragments(&self) -> Option<u32>;
 
     /// Return a specific encoded pixel fragment by index
