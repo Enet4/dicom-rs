@@ -1376,11 +1376,12 @@ where
             .ok()
     }
 
-    /// Returns the number of fragments or None for native pixel data
+    /// Returns the number of fragments (without offset table)
+    /// or None for native pixel data
     fn number_of_fragments(&self) -> Option<u32> {
         let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            DicomValue::Primitive(_p) => Some(1),
+            DicomValue::Primitive(_p) => None,
             DicomValue::PixelSequence(v) => Some(v.fragments().len() as u32),
             DicomValue::Sequence(..) => None,
         }
