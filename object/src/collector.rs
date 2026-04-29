@@ -1846,7 +1846,7 @@ mod tests {
             panic!("Expected encapsulated pixel data");
         };
         let bot = seq.offset_table();
-        assert_eq!(bot.len(), 2); // <-- FAILS HERE
+        assert_eq!(bot.len(), 2);
         assert_eq!(&bot, &[0x0000, 0x02A0]);
 
         // inspect the other fragments
