@@ -1443,6 +1443,7 @@ where
 mod tests {
     use dicom_core::{DataElement, PrimitiveValue, VR};
     use dicom_dictionary_std::{tags, uids};
+    use dicom_encoding::adapters::PixelDataObject;
 
     use crate::meta::FileMetaTableBuilder;
     use crate::{AccessError, DicomAttribute as _, DicomObject, FileDicomObject, InMemDicomObject};
@@ -1694,5 +1695,30 @@ mod tests {
             instance_number.item(0),
             Err(crate::AttributeError::NotDataSet)
         ));
+    }
+
+    /// A DICOM file object properly implements trait `PixelDataObject`.
+    #[test]
+    fn implements_pixeldata_object() {
+        let test_file = dicom_test_files::path("pydicom/693_J2KI.dcm").unwrap();
+        let obj = crate::open_file(test_file).unwrap();
+
+        // some attributes
+        assert_eq!(PixelDataObject::rows(&obj), Some(512), "incorrect rows");
+        assert_eq!(PixelDataObject::cols(&obj), Some(512), "incorrect cols");
+        assert_eq!(PixelDataObject::number_of_frames(&obj), None, "incorrect number_of_frames");
+        assert_eq!(PixelDataObject::number_of_fragments(&obj), Some(1), "incorrect number_of_fragments");
+        assert_eq!(PixelDataObject::photometric_interpretation(&obj), Some("MONOCHROME2"), "incorrect photometric_interpretation");
+
+        // can fetch an encoded pixel data frame
+        let Some(frame0) = PixelDataObject::frame_pixel_data(&obj, 0) else {
+            panic!("Could not retrieve pixel data frame #0");
+        };
+
+        assert_eq!(frame0.len(), 1548);
+        assert_eq!(&frame0[0..4], &[0xFF, 0x4F, 0xFF, 0x51]);
+
+        // no more frames
+        assert_eq!(PixelDataObject::frame_pixel_data(&obj, 1), None);
     }
 }
