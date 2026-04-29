@@ -767,6 +767,16 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         if bytes.remaining() < sop_class_uid_length as usize {
                             return Ok(None);
                         }
+
+                        // check item length against SOP class UID length
+                        ensure!(
+                            item_length >= 2 + sop_class_uid_length,
+                            ShortSopClassExtendedNegotiationItemLengthSnafu {
+                                length: item_length,
+                                sop_class_uid_length,
+                            }
+                        );
+
                         let sop_class_uid = codec
                             .decode(bytes.copy_to_bytes(sop_class_uid_length as usize).as_ref())
                             .context(DecodeTextSnafu {
