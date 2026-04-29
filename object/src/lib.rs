@@ -1396,7 +1396,7 @@ where
     fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
         let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            DicomValue::PixelSequence(v) => Some(Cow::Borrowed(v.fragments()[fragment].as_ref())),
+            DicomValue::PixelSequence(v) => v.fragments().get(fragment).map(|f| Cow::Borrowed(f.as_ref())),
             DicomValue::Primitive(p) if fragment == 0 => Some(p.to_bytes()),
             _ => None,
         }
