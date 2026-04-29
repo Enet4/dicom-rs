@@ -51,9 +51,12 @@ pub enum DecodeError {
     ///
     /// Either the image needs no decoding
     /// or the compressed imaging data was in a flat pixel data element by mistake.
+    #[snafu(display("Pixel Data is not encapsulated"))]
     NotEncapsulated,
 
-    /// The requested frame range is outside the given object's frame range.
+    /// Pixel Data is missing
+    /// or the requested frame range is outside the object's frame range.
+    #[snafu(display("Frame of pixel data is missing or out of bounds"))]
     FrameRangeOutOfBounds,
 
     /// A required attribute is missing
@@ -92,9 +95,12 @@ pub enum EncodeError {
     },
 
     /// Input pixel data is not native, should be decoded first.
+    #[snafu(display("Pixel Data is not native"))]
     NotNative,
 
-    /// The requested frame range is outside the given object's frame range.
+    /// Pixel Data is missing
+    /// or the requested frame range is outside the object's frame range.
+    #[snafu(display("Frame of pixel data is missing or out of bounds"))]
     FrameRangeOutOfBounds,
 
     /// A required attribute is missing
@@ -155,10 +161,13 @@ pub trait PixelDataObject {
     /// or `None` if it is not defined
     fn photometric_interpretation(&self) -> Option<&str>;
 
-    /// Return the _Number Of Frames_, or `None` if it is not defined
+    /// Return the _Number Of Frames_,
+    /// or `None` if it is not defined by this object.
     fn number_of_frames(&self) -> Option<u32>;
 
-    /// Returns the _Number of Fragments_, or `None` for native pixel data
+    /// Returns the _number of pixel data fragments_,
+    /// excluding the basic offset table,
+    /// or `None` for native pixel data.
     fn number_of_fragments(&self) -> Option<u32>;
 
     /// Return a specific encoded pixel fragment by index
@@ -182,6 +191,98 @@ pub trait PixelDataObject {
     ///
     /// Returns `None` if no pixel data is found.
     fn raw_pixel_data(&self) -> Option<RawPixelData>;
+
+    /// Return the pixel data of a specific frame as a byte slice/vector,
+    /// in its encoded form.
+    ///
+    /// Returns `None` if there is no such frame or there is no pixel data at all.
+    ///
+    /// _Note:_ If pixel data is uncompressed and Bits Allocated is 1,
+    /// the slice may include leading or trailing bits
+    /// belonging to other frames,
+    /// depending on the size of each frame.
+    fn frame_pixel_data(&self, frame: u32) -> Option<Cow<'_, [u8]>> {
+        match self.number_of_fragments() {
+            // Handle cases of single frame object
+            // and multi-frame with 1:1 fragment to frame.
+            // This is important not just for the shortcut,
+            // but because the basic offset table may be missing.
+            Some(number_of_fragments) if number_of_fragments == self.number_of_frames().unwrap_or(1) => {
+                self.fragment(frame as usize)
+            }
+            // Other cases of multi-frame objects
+            Some(number_of_fragments) => {
+                // In this case we look up the basic offset table
+                // and gather all of the frame's fragments in a single vector.
+                // Note: not the most efficient way to do this,
+                // consider optimizing later with byte chunk readers
+                let offset_table = self.offset_table()?;
+                let base_offset = offset_table.get(frame as usize).copied();
+                let base_offset = if frame == 0 {
+                    base_offset.unwrap_or(0) as usize
+                } else {
+                    base_offset? as usize
+                };
+                let next_offset = offset_table.get(frame as usize + 1);
+
+                let mut offset = 0;
+                let mut frame_data = Vec::new();
+                for idx in 0..number_of_fragments as usize {
+                    let fragment = self.fragment(idx)?;
+                    // include it
+                    if offset >= base_offset {
+                        frame_data.extend_from_slice(&fragment);
+                    }
+                    offset += fragment.len() + 8;
+                    if let Some(&next_offset) = next_offset {
+                        if offset >= next_offset as usize {
+                            // next fragment is for the next frame
+                            break;
+                        }
+                    }
+                }
+
+                Some(Cow::Owned(frame_data))
+            }
+            // In the case of native pixel data, the whole data is considered as a single fragment.
+            None => {
+                let bits_allocated = self.bits_allocated()?;
+                let rows = self.rows()?;
+                let columns = self.cols()?;
+                let frame_size = determine_bytes_per_native_frame(
+                    rows,
+                    columns,
+                    self.samples_per_pixel()?,
+                    bits_allocated,
+                    self.photometric_interpretation()?,
+                );
+                let pixel_data = self.fragment(0)?;
+
+                // special case of 1 bit per sample:
+                // include starting byte even it leading bits are outside the frame
+                // and include next byte if it ends outside frame boundary
+                let (start, end) = if bits_allocated == 1 {
+                    let samples_per_frame = rows as usize * columns as usize;
+                    let start = frame as usize * samples_per_frame / 8;
+                    let end = ((frame as usize + 1) * samples_per_frame + 7) / 8;
+                    (start, end)
+                } else {
+                    let start = frame as usize * frame_size;
+                    let end = start + frame_size;
+                    (start, end)
+                };
+                if end <= pixel_data.len() {
+                    match pixel_data {
+                        Cow::Borrowed(slice) => slice.get(start..end).map(Cow::Borrowed),
+                        Cow::Owned(vec) => vec.get(start..end).map(|s| Cow::Owned(s.to_vec())),
+                    }
+                } else {
+                    None
+                }
+
+            }
+        }
+    }
 }
 
 /// Custom options when encoding pixel data into an encapsulated form.
@@ -444,5 +545,215 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
         _dst: &mut Vec<u8>,
     ) -> EncodeResult<Vec<AttributeOp>> {
         unreachable!()
+    }
+}
+
+/// Use the information in a pixel data object
+/// to determine the number of bytes needed to encode one frame.
+/// 
+/// Only makes sense if the object contains native pixel data.
+#[inline]
+fn determine_bytes_per_native_frame(
+    rows: u16,
+    columns: u16,
+    samples_per_pixel: u16,
+    bits_allocated: u16,
+    photometric_interpretation: &str,
+) -> usize {
+    // handle special case of 1 bit per sample
+    if bits_allocated == 1 {
+        return (rows as usize * columns as usize + 7) / 8;
+    }
+
+    let real_samples_per_pixel = if samples_per_pixel == 3 && photometric_interpretation == "YBR_FULL_422" {
+        2
+    } else {
+        samples_per_pixel
+    };
+    rows as usize
+        * columns as usize
+        * real_samples_per_pixel as usize
+        * ((bits_allocated as usize + 7) / 8)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+
+    use dicom_core::value::{InMemFragment, PixelFragmentSequence};
+
+    use crate::adapters::RawPixelData;
+
+    use super::PixelDataObject;
+
+    /// Generates frames with solid pixel data values 0, 1, and so on.
+    fn generated_rgb_frames(columns: u16, rows: u16) -> impl Iterator<Item = Vec<u8>> {
+        (0..=255_u8).map(move |n| vec![n; columns as usize * rows as usize * 3])
+    }
+
+    pub(crate) struct TestDataObject {
+        pub ts_uid: &'static str,
+        pub rows: u16,
+        pub columns: u16,
+        pub bits_allocated: u16,
+        pub bits_stored: u16,
+        pub samples_per_pixel: u16,
+        pub photometric_interpretation: &'static str,
+        pub number_of_frames: u32,
+        pub flat_pixel_data: Option<Vec<u8>>,
+        pub pixel_data_sequence: Option<PixelFragmentSequence<InMemFragment>>,
+    }
+
+    impl PixelDataObject for TestDataObject {
+        fn transfer_syntax_uid(&self) -> &str {
+            &self.ts_uid
+        }
+
+        fn rows(&self) -> Option<u16> {
+            Some(self.rows)
+        }
+
+        fn cols(&self) -> Option<u16> {
+            Some(self.columns)
+        }
+
+        fn samples_per_pixel(&self) -> Option<u16> {
+            Some(self.samples_per_pixel)
+        }
+
+        fn bits_allocated(&self) -> Option<u16> {
+            Some(self.bits_allocated)
+        }
+
+        fn bits_stored(&self) -> Option<u16> {
+            Some(self.bits_stored)
+        }
+
+        fn photometric_interpretation(&self) -> Option<&str> {
+            Some(self.photometric_interpretation)
+        }
+
+        fn number_of_frames(&self) -> Option<u32> {
+            Some(self.number_of_frames)
+        }
+
+        fn number_of_fragments(&self) -> Option<u32> {
+            self.pixel_data_sequence
+                .as_ref()
+                .map(|v| v.fragments().len() as u32)
+        }
+
+        fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
+            match (&self.flat_pixel_data, &self.pixel_data_sequence) {
+                (Some(_), Some(_)) => {
+                    panic!("Invalid pixel data object (both flat and fragment sequence)")
+                }
+                (_, Some(v)) => v
+                    .fragments()
+                    .get(fragment)
+                    .map(|f| Cow::Borrowed(f.as_slice())),
+                (Some(v), _) => {
+                    if fragment == 0 {
+                        Some(Cow::Borrowed(v))
+                    } else {
+                        None
+                    }
+                }
+                (None, None) => None,
+            }
+        }
+
+        fn offset_table(&self) -> Option<Cow<'_, [u32]>> {
+            match &self.pixel_data_sequence {
+                Some(v) => Some(Cow::Borrowed(v.offset_table())),
+                _ => None,
+            }
+        }
+
+        fn raw_pixel_data(&self) -> Option<RawPixelData> {
+            match (&self.flat_pixel_data, &self.pixel_data_sequence) {
+                (Some(_), Some(_)) => {
+                    panic!("Invalid pixel data object (both flat and fragment sequence)")
+                }
+                (Some(v), _) => Some(RawPixelData {
+                    fragments: vec![v.clone()].into(),
+                    offset_table: Default::default(),
+                }),
+                (_, Some(v)) => Some(RawPixelData {
+                    fragments: v.fragments().into(),
+                    offset_table: v.offset_table().into(),
+                }),
+                _ => None,
+            }
+        }
+    }
+
+    /// Frame pixel data can be retrieved from an object
+    /// with native pixel data.
+    #[test]
+    fn frame_pixel_data_in_object_flat() {
+        let rows = 10;
+        let columns = 10;
+        let number_of_frames = 4;
+
+        let obj = TestDataObject {
+            ts_uid: "1.2.840.10008.1.2.1",
+            rows,
+            columns,
+            bits_allocated: 8,
+            bits_stored: 8,
+            samples_per_pixel: 3,
+            photometric_interpretation: "RGB",
+            number_of_frames,
+            flat_pixel_data: Some(generated_rgb_frames(columns, rows).take(number_of_frames as usize).flatten().collect()),
+            pixel_data_sequence: None,
+        };
+
+        assert_eq!(obj.frame_pixel_data(0), Some(vec![0; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(1), Some(vec![1; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(2), Some(vec![2; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(3), Some(vec![3; 10 * 10 * 3].into()));
+        assert_eq!(obj.frame_pixel_data(4), None);
+    }
+
+    /// Frame pixel data can be retrieved from an object
+    /// with encapsulated pixel data.
+    #[test]
+    fn frame_pixel_data_in_object_encapsulated() {
+        let obj = TestDataObject {
+            ts_uid: "9.9.999.9999.9.9.99",
+            rows: 512,
+            columns: 512,
+            bits_allocated: 16,
+            bits_stored: 12,
+            samples_per_pixel: 1,
+            photometric_interpretation: "MONOCHROME2",
+            number_of_frames: 3,
+            flat_pixel_data: None,
+            pixel_data_sequence: Some(PixelFragmentSequence::new(
+                // offset table: 1 frame with 2 fragments + 2 frames with 1 fragment
+                vec![0, 16 + 20, 16 + 20 + 24],
+                vec![
+                    // fragment 0 (frame 0)
+                    vec![0x33 ; 16],
+                    // fragment 1 (frame 0)
+                    vec![0x55 ; 20],
+                    // fragment 2 (frame 1)
+                    vec![0x77 ; 24],
+                    // fragment 3 (frame 2)
+                    vec![0x99 ; 36],
+                ]
+            )),
+        };
+
+        // the first two fragments will be combined
+        let frame_1: Vec<u8> = IntoIterator::into_iter([0x33; 16])
+            .chain(IntoIterator::into_iter([0x55; 20]))
+            .collect();
+        assert_eq!(obj.frame_pixel_data(0), Some(frame_1.into()));
+
+        assert_eq!(obj.frame_pixel_data(1), Some(vec![0x77; 24].into()));
+        assert_eq!(obj.frame_pixel_data(2), Some(vec![0x99; 36].into()));
+
     }
 }
