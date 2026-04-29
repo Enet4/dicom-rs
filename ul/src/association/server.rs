@@ -835,7 +835,8 @@ pub struct ServerAssociation<S> {
     socket: S,
     /// The application entity title of the other DICOM node
     client_ae_title: String,
-    /// The AE title the calling client used.
+    /// The application entity title used by the client
+    /// to call this server
     called_ae_title: String,
     /// Reusable buffer used for sending PDUs on the wire
     /// prevents reallocation on each send
@@ -876,7 +877,7 @@ impl<S> ServerAssociation<S> {
         &self.client_ae_title
     }
 
-    /// Obtain the AE title the client called.
+    /// Obtain the application entity title called by the client.
     pub fn called_ae_title(&self) -> &str {
         &self.called_ae_title
     }
@@ -1423,7 +1424,7 @@ impl<S> AsyncServerAssociation<S> {
         &self.client_ae_title
     }
 
-    /// Obtain the AE title the client called.
+    /// Obtain the application entity title called by the client.
     pub fn called_ae_title(&self) -> &str {
         &self.called_ae_title
     }
