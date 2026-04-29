@@ -102,6 +102,12 @@ pub enum ReadError {
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
     InvalidItemLength { length: u32 },
 
+    #[snafu(display("SOP Class Extended Negotiation item length {length} is too short (should be >= 2 + SOP Class UID length {sop_class_uid_length})"))]
+    ShortSopClassExtendedNegotiationItemLength {
+        length: u32,
+        sop_class_uid_length: u16,
+    },
+
     #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
         bytes: u32,
