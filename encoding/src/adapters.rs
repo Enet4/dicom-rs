@@ -200,9 +200,14 @@ pub trait PixelDataObject {
     /// depending on the size of each frame.
     fn frame_pixel_data(&self, frame: u32) -> Option<Cow<'_, [u8]>> {
         match self.number_of_fragments() {
-            Some(number_of_fragments) if number_of_fragments == self.number_of_frames()? => {
+            // Handle cases of single frame object
+            // and multi-frame with 1:1 fragment to frame.
+            // This is important not just for the shortcut,
+            // but because the basic offset table may be missing.
+            Some(number_of_fragments) if number_of_fragments == self.number_of_frames().unwrap_or(1) => {
                 self.fragment(frame as usize)
             }
+            // Other cases of multi-frame objects
             Some(number_of_fragments) => {
                 // In this case we look up the basic offset table
                 // and gather all of the frame's fragments in a single vector.
