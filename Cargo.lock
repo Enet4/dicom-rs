@@ -455,12 +455,13 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
 name = "console"
-version = "0.16.3"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d64e8af5551369d19cf50138de61f1c42074ab970f74e99be916646777f8fc87"
+checksum = "b430743a6eb14e9764d4260d4c0d8123087d504eeb9c48f2b2a5e810dd369df4"
 dependencies = [
  "encode_unicode",
  "libc",
+ "once_cell",
  "unicode-width",
  "windows-sys 0.61.2",
 ]
@@ -720,6 +721,25 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "dicom-movescu"
+version = "0.9.0"
+dependencies = [
+ "clap",
+ "dicom-core",
+ "dicom-dictionary-std",
+ "dicom-dump",
+ "dicom-encoding",
+ "dicom-object",
+ "dicom-transfer-syntax-registry",
+ "dicom-ul",
+ "indicatif",
+ "snafu 0.8.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
