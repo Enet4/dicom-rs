@@ -264,7 +264,7 @@ pub trait PixelDataObject {
                 let (start, end) = if bits_allocated == 1 {
                     let samples_per_frame = rows as usize * columns as usize;
                     let start = frame as usize * samples_per_frame / 8;
-                    let end = ((frame as usize + 1) * samples_per_frame + 7) / 8;
+                    let end = ((frame as usize + 1) * samples_per_frame).div_ceil(8);
                     (start, end)
                 } else {
                     let start = frame as usize * frame_size;
@@ -562,7 +562,7 @@ fn determine_bytes_per_native_frame(
 ) -> usize {
     // handle special case of 1 bit per sample
     if bits_allocated == 1 {
-        return (rows as usize * columns as usize + 7) / 8;
+        return (rows as usize * columns as usize).div_ceil(8);
     }
 
     let real_samples_per_pixel = if samples_per_pixel == 3 && photometric_interpretation == "YBR_FULL_422" {
@@ -573,7 +573,7 @@ fn determine_bytes_per_native_frame(
     rows as usize
         * columns as usize
         * real_samples_per_pixel as usize
-        * ((bits_allocated as usize + 7) / 8)
+        * (bits_allocated as usize).div_ceil(8)
 }
 
 #[cfg(test)]
