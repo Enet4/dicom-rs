@@ -980,9 +980,8 @@ where
             .context(DecodeItemHeaderSnafu {
                 position: self.position,
             })
-            .map(|header| {
+            .inspect(|_header| {
                 self.position += 8;
-                header
             })
     }
 
