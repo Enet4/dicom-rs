@@ -1,14 +1,14 @@
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, VR};
+use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids};
-use dicom_object::{mem::InMemDicomObject, StandardDataDictionary};
+use dicom_object::{StandardDataDictionary, mem::InMemDicomObject};
 use dicom_ul::{
-    association::{client::ClientAssociationOptions},
+    association::client::ClientAssociationOptions,
     pdu::{self, PDataValueType, Pdu},
 };
 use pdu::PDataValue;
-use snafu::{prelude::*, Whatever};
-use tracing::{debug, error, info, warn, Level};
+use snafu::{Whatever, prelude::*};
+use tracing::{Level, debug, error, info, warn};
 
 /// DICOM C-ECHO SCU
 #[derive(Debug, Parser)]
