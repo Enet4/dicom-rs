@@ -537,7 +537,7 @@ impl DecodedPixelData<'_> {
     /// Retrieve a slice of a frame's raw pixel data samples as bytes,
     /// irrespective of the expected size of each sample.
     pub fn frame_data(&self, frame: u32) -> Result<&[u8]> {
-        let bytes_per_sample = (self.bits_allocated as usize + 7) / 8;
+        let bytes_per_sample = self.bits_allocated.div_ceil(8) as usize;
         let frame_length = self.rows as usize
             * self.cols as usize
             * self.samples_per_pixel as usize
@@ -2071,7 +2071,7 @@ pub trait PixelDecoder {
         let mut px = self.decode_pixel_data()?;
 
         // calculate frame offset and size
-        let frame_size = ((px.bits_allocated + 7) / 8) as usize
+        let frame_size = px.bits_allocated.div_ceil(8) as usize
             * px.samples_per_pixel as usize
             * px.rows as usize
             * px.cols as usize;
@@ -2449,7 +2449,7 @@ where
                 let frame_size = if bits_allocated == 1 {
                     frame_samples / 8
                 } else {
-                    frame_samples * ((bits_allocated as usize + 7) / 8)
+                    frame_samples * (bits_allocated.div_ceil(8) as usize)
                 };
                 let frame_offset = frame_size * (frame as usize);
 

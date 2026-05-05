@@ -289,7 +289,7 @@ where
             let msg = loop {
                 let mut buf = Cursor::new(&self.read_buffer[..]);
                 match read_pdu(&mut buf, self.max_data_length, false)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                    .map_err(std::io::Error::other)?
                 {
                     Some(pdu) => {
                         self.read_buffer.advance(buf.position() as usize);
@@ -304,8 +304,7 @@ where
                 reader.consume(recv.len());
                 self.read_buffer.extend_from_slice(&recv);
                 if recv.is_empty() {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
+                    return Err(std::io::Error::other(
                         "Connection closed by peer",
                     ));
                 }
@@ -628,7 +627,7 @@ pub mod non_blocking {
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
                     match read_pdu(&mut buf, max_data_length + PDV_HEADER_SIZE, false)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+                        .map_err(std::io::Error::other)?
                     {
                         Some(pdu) => {
                             read_buffer.advance(buf.position() as usize);
@@ -643,8 +642,7 @@ pub mod non_blocking {
                     reader.consume(recv.len());
                     read_buffer.extend_from_slice(&recv);
                     if recv.is_empty() {
-                        return Poll::Ready(Err(std::io::Error::new(
-                            std::io::ErrorKind::Other,
+                        return Poll::Ready(Err(std::io::Error::other(
                             "Connection closed by peer",
                         )));
                     }
