@@ -171,6 +171,9 @@ fn run() -> Result<(), Whatever> {
         pdu => whatever!("Unexpected PDU {:?}", pdu),
     }
 
+    // release association
+    let _ = association.release();
+
     Ok(())
 }
 
