@@ -144,7 +144,9 @@ fn window_level_linear(value: f64, window_width: f64, window_center: f64, y_max:
 
     // C.11.2.1.2.1
 
-    let min = wc - (ww - 1.) / 2.;
+    // c - 0.5 - (w-1) /2)
+    let min = wc - 0.5 - (ww - 1.) / 2.;
+    // c - 0.5 + (w-1) /2)
     let max = wc - 0.5 + (ww - 1.) / 2.;
 
     if value <= min {

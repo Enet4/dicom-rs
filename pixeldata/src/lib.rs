@@ -398,17 +398,27 @@ pub enum ModalityLutOption {
 #[non_exhaustive]
 pub enum VoiLutOption {
     /// _Default behavior:_
-    /// apply the first VOI LUT function transformation described in the pixel data
-    /// only when converting to an image;
-    /// no VOI LUT function is performed
-    /// when converting to an ndarray or to bare pixel values.
+    /// apply the first VOI LUT function transformation
+    /// described in the pixel data object,
+    /// but only when converting to an image;
+    /// no VOI LUT function transformation is performed
+    /// when converting to an ndarray or to a bare pixel value vector.
     ///
-    /// If both a VOI LUT table and window values are present in the pixel data,
-    /// use the VOI LUT table.
+    /// If both a VOI LUT table and window values
+    /// are present in the pixel data object,
+    /// the VOI LUT table is used.
+    /// When converting to an image,
+    /// if no transformation parameters are defined,
+    /// pixel values are min-max normalized
+    /// as described in [`Normalize`](Self::Normalize).
     #[default]
     Default,
     /// Apply the first VOI LUT function transformation
-    /// described in the pixel data.
+    /// described in the pixel data object.
+    ///
+    /// If no transformation parameters are defined,
+    /// pixel values are min-max normalized
+    /// as described in [`Normalize`](Self::Normalize).
     First,
     /// Apply a custom window level instead of the one described in the object.
     Custom(WindowLevel),
@@ -2573,8 +2583,9 @@ mod tests {
         assert_eq!(ndarray[[0, 127, 127, 0]], 0x038D);
     }
 
-    /// conversion of a 16-bit image to a vector of 16-bit processed pixel values
-    /// takes advantage of the output's full spectrum
+    /// Conversion of a 16-bit image to a vector of 16-bit processed pixel values
+    /// when the image does not provide VOI LUT transform properties
+    /// takes advantage of the output's full spectrum.
     #[test]
     fn test_to_vec_16bit_to_window() {
         let test_file = dicom_test_files::path("pydicom/CT_small.dcm").unwrap();
@@ -2582,7 +2593,9 @@ mod tests {
 
         let decoded = obj.decode_pixel_data().unwrap();
         let options = ConvertOptions::new()
+            // will default to intercept = 1 and slope = 1
             .with_modality_lut(ModalityLutOption::Default)
+            // no window levels, so it will normalize
             .with_voi_lut(VoiLutOption::First);
         let values = decoded.to_vec_with_options::<u16>(&options).unwrap();
 
