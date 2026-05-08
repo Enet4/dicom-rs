@@ -387,6 +387,61 @@ where
     }
 }
 
+impl Lut<u8> {
+    /// Create a new 8-bit LUT containing the modality rescale transformation
+    /// and the VOI transformation defined by a window level.
+    ///
+    /// The amplitude of the output values goes from 0 to `255`.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `rescale`: the rescale parameters
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_rescale_and_window_8bit(
+        bits_stored: u16,
+        signed: bool,
+        rescale: Rescale,
+        voi: WindowLevelTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| {
+            let v = rescale.apply(v);
+            voi.apply(v, 255.)
+        })
+    }
+
+    /// Create a new 8-bit LUT containing
+    /// a VOI transformation defined by a window level.
+    ///
+    /// The amplitude of the output values goes from 0 to 255.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_window_8bit(
+        bits_stored: u16,
+        signed: bool,
+        voi: WindowLevelTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v, 255.))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{VoiLutFunction, WindowLevel};
