@@ -115,9 +115,11 @@ pub trait Negotiation {
     /// the first byte in the output should be 1 if the first
     /// input byte is 1 (client requests relational queries)
     /// and the server supports relational queries, and 0
-    /// otherwise, and so on.
-    /// For reference, see
-    /// [Table C.5-2 in PS3.4 of the Standard][1].
+    /// otherwise, and so on, according to
+    /// [Table C.5-2 in PS3.4 of the Standard][1]. That link
+    /// applies to the SOP class of this example; see the
+    /// appropriate section of the standard for each SOP class
+    /// you intend to support.
     ///
     /// [1]: https://dicom.nema.org/medical/dicom/2025d/output/chtml/part04/sect_C.5.html#table_C.5-2
     ///
@@ -125,6 +127,12 @@ pub trait Negotiation {
     /// (returns `None` for all SOP Classes, therefore no Extended
     /// Negotiation items are included in the A-ASSOCIATE-AC
     /// response).
+    ///
+    /// When implementing an extended_negotiation method, never
+    /// return more bytes than the version of the standard you
+    /// support specifies. If you're using the input array as a
+    /// basis, truncate or slice it accordingly before returning
+    /// it.
     ///
     /// This is an example of a server that supports combined
     /// date/time matching and empty value matching for the
@@ -134,6 +142,7 @@ pub trait Negotiation {
     /// # use dicom_ul::association::Association;
     /// # use std::net::TcpListener;
     /// const STUDY_ROOT_QR_IM_FIND: &str = "1.2.840.10008.5.1.4.1.2.2.1";
+    ///
     /// struct FindOptions;
     ///
     /// impl Negotiation for FindOptions {
@@ -146,7 +155,8 @@ pub trait Negotiation {
     ///         if sop_class_uid != STUDY_ROOT_QR_IM_FIND {
     ///             return None;
     ///         }
-    ///         // Truncate to at most 7 elements and store in a new vector
+    ///         // Truncate to at most 7 elements (those supported by the 2025d
+    ///         // version of the standard) and store in a new vector.
     ///         let mut result = input[..input.len().min(7)].to_vec();
     ///         for index in 1..=result.len() {
     ///             match index {
@@ -192,7 +202,8 @@ pub trait Negotiation {
     }
 }
 
-/// An Extended Negotiation rule that ignores all SOP Classes
+/// A Negotiation rule that causes the server to omit the negotiation in the response, thus forcing
+/// default values for all kinds of negotiations supported, for all SOP classes.
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct DefaultNegotiation;
 
