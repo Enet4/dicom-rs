@@ -106,7 +106,7 @@ pub trait Negotiation {
     /// User-provided extended negotiation. The result of
     /// the negotiation must be returned as either None, if
     /// extended negotiation is not supported by the
-    /// application for the given SOP Class, or Some(Vec<u8>)
+    /// application for the given SOP Class, or `Some(Vec<u8>)`
     /// with the result of the negotiation, if the SOP Class is
     /// supported and negotiation is successful. The meaning
     /// is SOP Class-specific and typically index-specific. For
@@ -115,12 +115,14 @@ pub trait Negotiation {
     /// the first byte in the output should be 1 if the first
     /// input byte is 1 (client requests relational queries)
     /// and the server supports relational queries, and 0
-    /// otherwise,and so on. For reference, see Table C.5-2 in
-    /// PS3.4 of the Standard:
-    /// https://dicom.nema.org/medical/dicom/2025d/output/chtml/part04/sect_C.5.html#table_C.5-2
+    /// otherwise, and so on.
+    /// For reference, see
+    /// [Table C.5-2 in PS3.4 of the Standard][1].
+    ///
+    /// [1]: https://dicom.nema.org/medical/dicom/2025d/output/chtml/part04/sect_C.5.html#table_C.5-2
     ///
     /// The default action is to not perform extended negotiation
-    /// (returns None for all SOP Classes, therefore no Extended
+    /// (returns `None` for all SOP Classes, therefore no Extended
     /// Negotiation items are included in the A-ASSOCIATE-AC
     /// response).
     ///

@@ -290,7 +290,7 @@ pub trait Association {
     /// Retrieve the bytes associated to a specific SOP Class
     /// that was negotiated with extended negotiation.
     ///
-    /// Returns None if that SOP class was rejected or not requested.
+    /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]>;
 }
 
