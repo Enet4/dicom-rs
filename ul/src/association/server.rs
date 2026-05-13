@@ -600,6 +600,25 @@ where
                     })
                     .collect();
 
+                // Collect SCP/SCU Role Selection sub-items (type 0x54) from the
+                // requestor's user variables so we can echo them back in the AC,
+                // confirming the requested roles (required by strict SCUs such as
+                // pynetdicom >= 2.0 for C-GET where we act as SCP for storage classes).
+                let role_selection_items: Vec<UserVariableItem> = user_variables
+                    .iter()
+                    .filter(|item| matches!(item, UserVariableItem::Unknown(0x54, _)))
+                    .cloned()
+                    .collect();
+
+                let mut ac_user_variables = vec![
+                    UserVariableItem::MaxLength(self.max_pdu_length),
+                    UserVariableItem::ImplementationClassUID(IMPLEMENTATION_CLASS_UID.to_string()),
+                    UserVariableItem::ImplementationVersionName(
+                        IMPLEMENTATION_VERSION_NAME.to_string(),
+                    ),
+                ];
+                ac_user_variables.extend(role_selection_items);
+
                 let pdu = Pdu::AssociationAC(AssociationAC {
                     protocol_version: self.protocol_version,
                     application_context_name,
@@ -613,15 +632,7 @@ where
                         .collect(),
                     calling_ae_title: calling_ae_title.clone(),
                     called_ae_title: called_ae_title.clone(),
-                    user_variables: vec![
-                        UserVariableItem::MaxLength(self.max_pdu_length),
-                        UserVariableItem::ImplementationClassUID(
-                            IMPLEMENTATION_CLASS_UID.to_string(),
-                        ),
-                        UserVariableItem::ImplementationVersionName(
-                            IMPLEMENTATION_VERSION_NAME.to_string(),
-                        ),
-                    ],
+                    user_variables: ac_user_variables,
                 });
                 Ok((
                     pdu,
@@ -1504,6 +1515,72 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pdu::PresentationContextProposed;
+
+    #[test]
+    fn test_ac_echoes_role_selection_items() {
+        // SCP/SCU Role Selection sub-items are carried as User Variable items
+        // with item type 0x54. Strict SCUs (e.g. pynetdicom >= 2.0) require
+        // these items to be echoed in the Association Accept response.
+        let verification_uid = "1.2.840.10008.1.1";
+        let role_payload_a = vec![0x01, 0x02, 0x03];
+        let role_payload_b = vec![0x0A, 0x0B];
+
+        let options = ServerAssociationOptions::default().with_abstract_syntax(verification_uid);
+
+        let rq = Pdu::AssociationRQ(AssociationRQ {
+            protocol_version: 1,
+            calling_ae_title: "SCU".to_string(),
+            called_ae_title: "THIS-SCP".to_string(),
+            application_context_name: "1.2.840.10008.3.1.1.1".to_string(),
+            presentation_contexts: vec![PresentationContextProposed {
+                id: 1,
+                abstract_syntax: verification_uid.to_string(),
+                transfer_syntaxes: vec!["1.2.840.10008.1.2".to_string()],
+            }],
+            user_variables: vec![
+                UserVariableItem::MaxLength(16384),
+                UserVariableItem::Unknown(0x54, role_payload_a.clone()),
+                UserVariableItem::Unknown(0x54, role_payload_b.clone()),
+                // An unrelated unknown item must not be echoed.
+                UserVariableItem::Unknown(0x99, vec![0xFF]),
+            ],
+        });
+
+        let (pdu, _options, _called_ae) = options
+            .process_a_association_rq(rq)
+            .expect("association request should be accepted");
+
+        let ac = match pdu {
+            Pdu::AssociationAC(ac) => ac,
+            other => panic!("expected AssociationAC, got {:?}", other),
+        };
+
+        let echoed: Vec<&Vec<u8>> = ac
+            .user_variables
+            .iter()
+            .filter_map(|item| match item {
+                UserVariableItem::Unknown(0x54, data) => Some(data),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(
+            echoed.len(),
+            2,
+            "both role selection items should be echoed"
+        );
+        assert_eq!(echoed[0], &role_payload_a);
+        assert_eq!(echoed[1], &role_payload_b);
+
+        // Unrelated unknown sub-items must not be propagated.
+        assert!(
+            !ac.user_variables
+                .iter()
+                .any(|item| matches!(item, UserVariableItem::Unknown(0x99, _))),
+            "unrelated unknown sub-items must not be echoed in the AC"
+        );
+    }
 
     #[test]
     fn test_choose_supported() {
