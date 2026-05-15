@@ -197,7 +197,8 @@ pub trait Negotiation {
     /// # Ok(())
     /// # }
     /// ```
-    fn extended_negotiation(&self, _sop_class_uid: &str, _input: &[u8]) -> Option<Vec<u8>> {
+    #[allow(unused_variables)]
+    fn extended_negotiation(&self, sop_class_uid: &str, input: &[u8]) -> Option<Vec<u8>> {
         None
     }
 }

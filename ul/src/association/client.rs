@@ -499,19 +499,20 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
-    /// Add an Extended Negotiation SOP Class UID and raw data.
-    /// The data must be a byte slice with the information
+    /// Add an Extended Negotiation SOP Class UID and raw data. SCAI
+    /// stands for Service-class-application-information as defined in
+    /// PS3.7. The data must be a byte slice or vector with the information
     /// required by the standard for the given SOP Class. This is
     /// kind of a low-level function, intended to support all
     /// possible current and future use cases for this feature,
     /// so it's the caller's responsibility to fill in this field
     /// correctly.
-    pub fn with_extended_negotiation<T>(mut self, sop_class: T, scai: &[u8]) -> Self
+    pub fn with_extended_negotiation<T>(mut self, sop_class: T, scai: impl Into<Vec<u8>>) -> Self
     where
         T: Into<Cow<'a, str>>,
     {
         self.extended_negotiation
-            .push((sop_class.into(), scai.to_vec()));
+            .push((sop_class.into(), scai.into()));
         self
     }
 
