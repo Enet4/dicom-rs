@@ -41,11 +41,12 @@ pub use pdata::{PDataReader, PDataWriter};
 #[cfg(feature = "async")]
 pub use server::AsyncServerAssociation;
 pub use server::{ServerAssociation, ServerAssociationOptions};
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu, ensure};
 
 use crate::{
+    Pdu,
     pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem},
-    write_pdu, Pdu,
+    write_pdu,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -209,6 +210,14 @@ pub(crate) struct SocketOptions {
     connection_timeout: Option<Duration>,
 }
 
+/// Roles that the association requestor can adopt for a
+/// particular SOP class.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct RequestorRoles {
+    pub scu: bool,
+    pub scp: bool,
+}
+
 /// Trait to close underlying socket
 pub trait CloseSocket {
     fn close(&mut self) -> std::io::Result<()>;
@@ -293,17 +302,20 @@ pub trait Association {
     /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]>;
 
-    /// Roles that the Association-requestor may assume. Returns a pair
-    /// of booleans; the first is whether it can assume an SCU role and
-    /// the second whether it can assume an SCP role.
-    fn requestor_roles_for(&self, sop_class_uid: &str) -> (bool, bool) {
+    /// Roles that the Association-requestor may assume. Returns a
+    /// `RequestorRoles` struct. If the given SOP Class UID was not
+    /// returned by the server, the default values are returned.
+    fn requestor_roles_for(&self, sop_class_uid: &str) -> RequestorRoles {
         self.user_variables()
             .iter()
             .find_map(|uv| match uv {
                 UserVariableItem::ScuScpRoleSelectionSubItem(uid, scu_role, scp_role)
                     if uid == sop_class_uid =>
                 {
-                    Some((*scu_role, *scp_role))
+                    Some(RequestorRoles {
+                        scu: *scu_role,
+                        scp: *scp_role,
+                    })
                 }
                 _ => None,
             })
@@ -312,14 +324,17 @@ pub trait Association {
             // Association-acceptor then the role of the Association-requestor
             // shall be SCU and the role of the Association-acceptor shall be SCP.
             // These apply to the requestor only, so only SCU is set.
-            .unwrap_or((true, false))
+            .unwrap_or(RequestorRoles {
+                scu: true,
+                scp: false,
+            })
     }
 }
 
 mod private {
     use crate::{
-        pdu::{AbortRQServiceProviderReason, AbortRQSource},
         Pdu,
+        pdu::{AbortRQServiceProviderReason, AbortRQSource},
     };
     use snafu::ResultExt;
 

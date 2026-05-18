@@ -19,7 +19,7 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ResultExt, ensure};
 
-use crate::association::NegotiatedOptions;
+use crate::association::{NegotiatedOptions, RequestorRoles};
 use crate::pdu::{LARGE_PDU_SIZE, PresentationContextNegotiated};
 use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
@@ -224,7 +224,7 @@ pub trait Negotiation {
     /// to be an SCP for the Storage MR SOP Class:
     /// ```no_run
     /// # use dicom_ul::association::server::{Negotiation, ServerAssociationOptions};
-    /// # use dicom_ul::association::Association;
+    /// # use dicom_ul::association::{Association, RequestorRoles};
     /// # use std::net::TcpListener;
     /// const STORAGE_MR_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.4";
     /// struct RoleOptions;
@@ -235,13 +235,13 @@ pub trait Negotiation {
     ///         sop_class_uid: &str,
     ///         scu_role: bool,
     ///         scp_role: bool,
-    ///     ) -> Option<(bool, bool)> {
+    ///     ) -> Option<RequestorRoles> {
     ///         // Only this SOP Class is supported, so ditch the rest
     ///         if sop_class_uid != STORAGE_MR_SOP_CLASS {
     ///             return None;
     ///         }
     ///         // Always set SCP role to false
-    ///         Some((scu_role, false))
+    ///         Some(RequestorRoles { scu: scu_role, scp: false })
     ///     }
     /// }
     ///
@@ -257,16 +257,18 @@ pub trait Negotiation {
     ///
     /// // Association is established; read the flags that were negotiated
     /// // (or not) for the association requestor.
-    /// let (client_is_scu, client_is_scp) = assoc.requestor_roles_for(STORAGE_MR_SOP_CLASS);
+    /// let RequestorRoles { scu: client_is_scu, scp: client_is_scp } =
+    ///     assoc.requestor_roles_for(STORAGE_MR_SOP_CLASS);
     /// # Ok(())
     /// # }
     /// ```
+    #[allow(unused_variables)]
     fn negotiate_roles(
         &self,
-        _sop_class_uid: &str,
-        _scu_role: bool,
-        _scp_role: bool,
-    ) -> Option<(bool, bool)> {
+        sop_class_uid: &str,
+        scu_role: bool,
+        scp_role: bool,
+    ) -> Option<RequestorRoles> {
         None
     }
 }
@@ -792,9 +794,9 @@ where
                         // variables for which the user-supplied negotiation function returns
                         // Some(x).
                         ScuScpRoleSelectionSubItem(sop_class_uid, scu_role, scp_role) => {
-                            if let Some((scu, scp)) =
-                                self.negotiation
-                                    .negotiate_roles(&sop_class_uid, scu_role, scp_role)
+                            if let Some(RequestorRoles { scu, scp }) = self
+                                .negotiation
+                                .negotiate_roles(&sop_class_uid, scu_role, scp_role)
                             {
                                 new_user_variables.push(ScuScpRoleSelectionSubItem(
                                     sop_class_uid,

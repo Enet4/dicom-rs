@@ -1,16 +1,16 @@
 #[cfg(feature = "async")]
 use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::{
+    ServerAssociation,
     association::{
+        Association, Error, RequestorRoles,
         client::ClientAssociationOptions,
         server::{Negotiation, ServerAssociationOptions},
-        Association, Error,
     },
     pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
         PresentationContextResultReason,
     },
-    ServerAssociation,
 };
 use std::io::Write;
 
@@ -77,11 +77,11 @@ fn spawn_scp(
             sop_class_uid: &str,
             scu: bool,
             scp: bool,
-        ) -> Option<(bool, bool)> {
+        ) -> Option<RequestorRoles> {
             if sop_class_uid == "1.2.3.4" {
-                Some((scu, scp))
+                Some(RequestorRoles { scu, scp })
             } else if sop_class_uid == "1.2.3.5" {
-                Some((false, scp))
+                Some(RequestorRoles { scu: false, scp })
             } else {
                 None
             }
@@ -142,10 +142,34 @@ fn spawn_scp(
             association.extended_negotiation_for("1.2.3.7"), // not offered by client
             None
         );
-        assert_eq!(association.requestor_roles_for("1.2.3.4"), (true, true));
-        assert_eq!(association.requestor_roles_for("1.2.3.5"), (false, true));
-        assert_eq!(association.requestor_roles_for("1.2.3.6"), (true, false));
-        assert_eq!(association.requestor_roles_for("1.2.3.7"), (true, false));
+        assert_eq!(
+            association.requestor_roles_for("1.2.3.4"),
+            RequestorRoles {
+                scu: true,
+                scp: true
+            }
+        );
+        assert_eq!(
+            association.requestor_roles_for("1.2.3.5"),
+            RequestorRoles {
+                scu: false,
+                scp: true
+            }
+        );
+        assert_eq!(
+            association.requestor_roles_for("1.2.3.6"),
+            RequestorRoles {
+                scu: true,
+                scp: false
+            }
+        );
+        assert_eq!(
+            association.requestor_roles_for("1.2.3.7"),
+            RequestorRoles {
+                scu: true,
+                scp: false
+            }
+        );
 
         // handle one bogus payload
         let pdu = association.receive()?;
@@ -408,10 +432,34 @@ fn run_scu_scp_association_test(max_is_client: bool) {
         association.extended_negotiation_for("1.2.3.7"), // not offered by client
         None
     );
-    assert_eq!(association.requestor_roles_for("1.2.3.4"), (true, true));
-    assert_eq!(association.requestor_roles_for("1.2.3.5"), (false, true));
-    assert_eq!(association.requestor_roles_for("1.2.3.6"), (true, false));
-    assert_eq!(association.requestor_roles_for("1.2.3.7"), (true, false));
+    assert_eq!(
+        association.requestor_roles_for("1.2.3.4"),
+        RequestorRoles {
+            scu: true,
+            scp: true
+        }
+    );
+    assert_eq!(
+        association.requestor_roles_for("1.2.3.5"),
+        RequestorRoles {
+            scu: false,
+            scp: true
+        }
+    );
+    assert_eq!(
+        association.requestor_roles_for("1.2.3.6"),
+        RequestorRoles {
+            scu: true,
+            scp: false
+        }
+    );
+    assert_eq!(
+        association.requestor_roles_for("1.2.3.7"),
+        RequestorRoles {
+            scu: true,
+            scp: false
+        }
+    );
 
     // Create a bogus payload which fills the PDU to the max.
     // Take into account the PDU and PDV header lengths for that purpose.
