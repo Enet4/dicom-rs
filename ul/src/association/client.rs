@@ -18,7 +18,7 @@ use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     association::{
         Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
-        extended_negotiation_filter_impl, private::SyncAssociationSealed, read_pdu_from_wire,
+        private::SyncAssociationSealed, read_pdu_from_wire,
     },
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
@@ -1097,14 +1097,6 @@ where
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
     }
-
-    /// Given a SOP Class UID, obtain the bytes matching
-    /// that UID with the result from the negotiation, or
-    /// None if that SOP Class UID was rejected or not
-    /// proposed.
-    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
-    }
 }
 
 impl<S> ClientAssociation<S>
@@ -1623,14 +1615,6 @@ impl<S> Association for AsyncClientAssociation<S> {
 
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
-    }
-
-    /// Given a SOP Class UID, obtain the bytes matching
-    /// that UID with the result from the negotiation, or
-    /// None if that SOP Class UID was rejected or not
-    /// proposed.
-    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
     }
 }
 
