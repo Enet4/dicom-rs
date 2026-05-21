@@ -796,7 +796,7 @@ fn write_pdu_variable_presentation_context_result(
         // 2 - Reserved - This reserved field shall be sent with a value 00H but not tested to this
         // value when received.
         writer
-            .write_u8(0x40)
+            .write_u8(0x00)
             .context(WriteReservedSnafu { bytes: 1_u32 })?;
 
         write_chunk_u16(writer, |writer| {
