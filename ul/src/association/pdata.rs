@@ -87,7 +87,7 @@ fn setup_pdata_header(buffer: &mut [u8], is_last: bool) {
 pub struct PDataWriter<W: Write> {
     buffer: Vec<u8>,
     stream: W,
-    max_data_len: u32,
+    max_pdu_length: u32,
 }
 
 impl<W> PDataWriter<W>
@@ -98,7 +98,6 @@ where
     ///
     /// `max_pdu_length` is the maximum value of the PDU-length property.
     pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
-        let max_data_length = calculate_max_data_len_single(max_pdu_length);
         let mut buffer =
             Vec::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
@@ -124,7 +123,7 @@ where
 
         PDataWriter {
             stream,
-            max_data_len: max_data_length,
+            max_pdu_length,
             buffer,
         }
     }
@@ -172,7 +171,7 @@ where
     W: Write,
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let total_len = self.max_data_len as usize + PDU_PDV_HEADER_SIZE;
+        let total_len = (self.max_pdu_length + PDU_HEADER_SIZE) as usize;
         if self.buffer.len() + buf.len() <= total_len {
             // accumulate into buffer, do nothing
             self.buffer.extend(buf);
@@ -246,18 +245,18 @@ pub struct PDataReader<'a, R> {
     buffer: VecDeque<u8>,
     stream: R,
     presentation_context_id: Option<u8>,
-    max_data_length: u32,
+    max_pdu_length: u32,
     last_pdu: bool,
     read_buffer: &'a mut BytesMut,
 }
 
 impl<'a, R> PDataReader<'a, R> {
-    pub fn new(stream: R, max_data_length: u32, remaining: &'a mut BytesMut) -> Self {
+    pub fn new(stream: R, max_pdu_length: u32, remaining: &'a mut BytesMut) -> Self {
         PDataReader {
-            buffer: VecDeque::with_capacity(max_data_length.min(LARGE_PDU_SIZE) as usize),
+            buffer: VecDeque::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize),
             stream,
             presentation_context_id: None,
-            max_data_length,
+            max_pdu_length,
             last_pdu: false,
             read_buffer: remaining,
         }
@@ -288,7 +287,7 @@ where
             let mut reader = BufReader::new(&mut self.stream);
             let msg = loop {
                 let mut buf = Cursor::new(&self.read_buffer[..]);
-                match read_pdu(&mut buf, self.max_data_length, false)
+                match read_pdu(&mut buf, self.max_pdu_length, false)
                     .map_err(std::io::Error::other)?
                 {
                     Some(pdu) => {
@@ -337,14 +336,6 @@ where
     }
 }
 
-/// Determine the maximum length of actual PDV data
-/// when encapsulated in a PDU with the given length property.
-/// Does not account for the first 2 bytes (type + reserved).
-#[inline]
-fn calculate_max_data_len_single(pdu_len: u32) -> u32 {
-    pdu_len - PDV_HEADER_SIZE
-}
-
 #[cfg(feature = "async")]
 pub mod non_blocking {
     use std::{
@@ -363,7 +354,7 @@ pub mod non_blocking {
     };
 
     pub use super::PDataReader;
-    use super::{calculate_max_data_len_single, setup_pdata_header};
+    use super::setup_pdata_header;
 
     const PDU_PDV_HEADER_SIZE: usize = (PDU_HEADER_SIZE + PDV_HEADER_SIZE) as usize;
 
@@ -426,7 +417,7 @@ pub mod non_blocking {
     pub struct AsyncPDataWriter<W: AsyncWrite + Unpin> {
         buffer: Vec<u8>,
         stream: W,
-        max_data_len: u32,
+        max_pdu_length: u32,
         state: WriteState,
     }
 
@@ -441,7 +432,6 @@ pub mod non_blocking {
         pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
             use crate::pdu::LARGE_PDU_SIZE;
 
-            let max_data_length = calculate_max_data_len_single(max_pdu_length);
             let mut buffer =
                 Vec::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
             // initial buffer set up
@@ -467,7 +457,7 @@ pub mod non_blocking {
 
             AsyncPDataWriter {
                 stream,
-                max_data_len: max_data_length,
+                max_pdu_length,
                 buffer,
                 state: WriteState::Ready,
             }
@@ -513,7 +503,7 @@ pub mod non_blocking {
             match self.state {
                 WriteState::Ready => {
                     // If we're in ready state, we can prepare another PDU
-                    let total_len = self.max_data_len as usize + PDU_PDV_HEADER_SIZE;
+                    let total_len = (self.max_pdu_length + PDU_HEADER_SIZE) as usize;
                     if self.buffer.len() + buf.len() <= total_len {
                         // Still have space in `self.buffer`, accumulate into buffer
                         self.buffer.extend(buf);
@@ -620,13 +610,13 @@ pub mod non_blocking {
                 let &mut Self {
                     ref mut stream,
                     ref mut read_buffer,
-                    max_data_length,
+                    max_pdu_length,
                     ..
                 } = &mut *self;
                 let mut reader = BufReader::new(stream);
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
-                    match read_pdu(&mut buf, max_data_length + PDV_HEADER_SIZE, false)
+                    match read_pdu(&mut buf, max_pdu_length, false)
                         .map_err(std::io::Error::other)?
                     {
                         Some(pdu) => {
