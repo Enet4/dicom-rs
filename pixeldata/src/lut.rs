@@ -209,7 +209,7 @@ where
 
         // create a linear window level transform
         let voi = WindowLevelTransform::linear(crate::WindowLevel {
-            width: max - min + 1.,
+            width: max - min,
             center: (min + max) / 2.,
         });
 
@@ -387,6 +387,61 @@ where
     }
 }
 
+impl Lut<u8> {
+    /// Create a new 8-bit LUT containing the modality rescale transformation
+    /// and the VOI transformation defined by a window level.
+    ///
+    /// The amplitude of the output values goes from 0 to `255`.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `rescale`: the rescale parameters
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_rescale_and_window_8bit(
+        bits_stored: u16,
+        signed: bool,
+        rescale: Rescale,
+        voi: WindowLevelTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| {
+            let v = rescale.apply(v);
+            voi.apply(v, 255.)
+        })
+    }
+
+    /// Create a new 8-bit LUT containing
+    /// a VOI transformation defined by a window level.
+    ///
+    /// The amplitude of the output values goes from 0 to 255.
+    ///
+    /// - `bits_stored`:
+    ///   the number of bits effectively used to represent the sample values
+    ///   (the _Bits Stored_ DICOM attribute)
+    /// - `signed`:
+    ///   whether the input sample values are expected to be signed
+    ///   (_Pixel Representation_ = 1)
+    /// - `voi`: the value of interest (VOI) function and parameters
+    ///
+    /// # Panics
+    ///
+    /// Panics if `bits_stored` is 0 or too large.
+    pub fn new_window_8bit(
+        bits_stored: u16,
+        signed: bool,
+        voi: WindowLevelTransform,
+    ) -> Result<Self, CreateLutError> {
+        Self::new_with_fn(bits_stored, signed, |v| voi.apply(v, 255.))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{VoiLutFunction, WindowLevel};
@@ -520,5 +575,62 @@ mod tests {
 
         let y = lut.get(498_u16);
         assert!(y > 0 && y < 0xFFFF);
+    }
+
+    /// Validates the linear LUT function against the examples found in
+    /// [PS3.3 C.11.2.1.2.1][1].
+    /// [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html#sect_C.11.2.1.2.1
+    #[test]
+    fn lut_8bit() {
+        // c=2048, w=4096
+        let lut = Lut::new_window_8bit(16, false, WindowLevelTransform::linear(
+            WindowLevel { width: 4096., center: 2048. }
+        )).expect("should have created LUT successfully");
+
+        assert_eq!(lut.get(0_u16), 0);
+        assert_eq!(lut.get(4096_u16), 255);
+        assert_eq!(lut.get(4097_u16), 255);
+        assert_eq!(lut.get(5555_u16), 255);
+        assert_eq!(lut.get(65535_u16), 255);
+
+        let x = 500_u16;
+        let y = ((x as f64 - 2047.5) / 4095. + 0.5) * 255.;
+        assert_eq!(lut.get(x), y as u8);
+
+        // c=2048, w=1
+        let lut = Lut::new_window_8bit(16, false, WindowLevelTransform::linear(
+            WindowLevel { width: 1., center: 2048. }
+        )).expect("should have created LUT successfully");
+
+        assert_eq!(lut.get(0_u16), 0);
+        assert_eq!(lut.get(100_u16), 0);
+        assert_eq!(lut.get(1000_u16), 0);
+        assert_eq!(lut.get(2047_u16), 0);
+        assert_eq!(lut.get(2048_u16), 255);
+        assert_eq!(lut.get(2049_u16), 255);
+        assert_eq!(lut.get(5555_u16), 255);
+        assert_eq!(lut.get(65535_u16), 255);
+
+        // c=0, w=100, signed
+        let lut = Lut::new_window_8bit(8, true, WindowLevelTransform::linear(
+            WindowLevel { width: 100., center: 0. }
+        )).expect("should have created LUT successfully");
+
+        assert_eq!(lut.get((-50_i8).cast_unsigned()), 0);
+        assert_eq!(lut.get(50_u8), 255);
+
+        let x: u8 = 10;
+        let y = ((x as f64 + 0.5) / 99. + 0.5) * 255.;
+        assert_eq!(lut.get(x), y as u8);
+
+        // c=0, w=1, signed
+        let lut = Lut::new_window_8bit(8, true, WindowLevelTransform::linear(
+            WindowLevel { width: 1., center: 0. }
+        )).expect("should have created LUT successfully");
+
+        assert_eq!(lut.get((-2_i8).cast_unsigned()), 0);
+        assert_eq!(lut.get((-1_i8).cast_unsigned()), 0);
+        assert_eq!(lut.get(0_u8), 255);
+        assert_eq!(lut.get(1_u8), 255);
     }
 }
