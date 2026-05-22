@@ -57,6 +57,49 @@ fn test_read_until_pixel_data() {
 }
 
 #[test]
+fn test_read_to_pixel_data() {
+    let path =
+        dicom_test_files::path("pydicom/JPEG2000.dcm").expect("test DICOM file should exist");
+    let object = OpenFileOptions::new()
+        .read_to(tags::PIXEL_DATA)
+        .open_file(&path)
+        .expect("File should open successfully");
+
+    // contains other elements such as modality
+    let element = object.element(tags::MODALITY).unwrap();
+    assert_eq!(element.value().to_str().unwrap(), "NM");
+
+    // also contains pixel data (unlike read_until)
+    assert!(
+        object.element(tags::PIXEL_DATA).is_ok(),
+        "read_to should include the target tag"
+    );
+}
+
+#[test]
+fn test_read_to_priority_of_read_until() {
+    // When both read_until and read_to are set to the same tag,
+    // read_until takes priority and the tag is excluded.
+    let path =
+        dicom_test_files::path("pydicom/JPEG2000.dcm").expect("test DICOM file should exist");
+    let object = OpenFileOptions::new()
+        .read_to(tags::PIXEL_DATA)
+        .read_until(tags::PIXEL_DATA)
+        .open_file(&path)
+        .expect("File should open successfully");
+
+    // contains other elements such as modality
+    let element = object.element(tags::MODALITY).unwrap();
+    assert_eq!(element.value().to_str().unwrap(), "NM");
+
+    // read_until wins: pixel data is excluded
+    assert!(matches!(
+        object.element(tags::PIXEL_DATA),
+        Err(dicom_object::AccessError::NoSuchDataElementTag { .. })
+    ));
+}
+
+#[test]
 fn test_read_data_with_preamble() {
     let path = dicom_test_files::path("pydicom/liver.dcm").expect("test DICOM file should exist");
     let source = BufReader::new(File::open(path).unwrap());

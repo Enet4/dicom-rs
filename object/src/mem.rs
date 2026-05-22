@@ -410,17 +410,20 @@ where
             dict,
             ts_index,
             None,
+            None,
             ReadPreamble::Auto,
             Default::default(),
             Default::default(),
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn open_file_with_all_options<P, R>(
         path: P,
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
         mut read_preamble: ReadPreamble,
         odd_length: OddLengthStrategy,
         charset_override: CharacterSetOverride,
@@ -450,6 +453,7 @@ where
             dict,
             ts_index,
             read_until,
+            read_to,
             odd_length,
             charset_override,
         )
@@ -492,17 +496,20 @@ where
             dict,
             ts_index,
             None,
+            None,
             ReadPreamble::Auto,
             Default::default(),
             Default::default(),
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_reader_with_all_options<S, R>(
         src: S,
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
         mut read_preamble: ReadPreamble,
         odd_length: OddLengthStrategy,
         charset_override: CharacterSetOverride,
@@ -529,6 +536,7 @@ where
             dict,
             ts_index,
             read_until,
+            read_to,
             odd_length,
             charset_override,
         )
@@ -571,6 +579,7 @@ where
         dict: D,
         ts_index: R,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
         odd_length: OddLengthStrategy,
         charset_override: CharacterSetOverride,
     ) -> Result<Self, ReadError>
@@ -599,6 +608,7 @@ where
                         false,
                         Length::UNDEFINED,
                         read_until,
+                        read_to,
                     )?
                 }
                 Codec::Dataset(None) => {
@@ -629,6 +639,7 @@ where
                         false,
                         Length::UNDEFINED,
                         read_until,
+                        read_to,
                     )?
                 }
             };
@@ -769,7 +780,7 @@ where
         D: DataDictionary,
     {
         let mut dataset = DataSetReader::new(decoder, Default::default());
-        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+        InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None, None)
     }
 
     /// Read an object from a source,
@@ -811,7 +822,7 @@ where
                 let adapter = adapter.adapt_reader(Box::new(from));
                 let mut dataset =
                     DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
-                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None, None)
             }
             Codec::Dataset(None) => {
                 let uid = ts.uid();
@@ -836,7 +847,7 @@ where
             Codec::None | Codec::EncapsulatedPixelData(..) => {
                 let mut dataset =
                     DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None)
+                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None, None)
             }
         }
     }
@@ -2132,6 +2143,7 @@ where
         in_item: bool,
         len: Length,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
     ) -> Result<Self, ReadError>
     where
         I: ?Sized + Iterator<Item = ParserResult<DataToken>>,
@@ -2141,19 +2153,31 @@ where
         while let Some(token) = dataset.next() {
             let elem = match token.context(ReadTokenSnafu)? {
                 DataToken::PixelSequenceStart => {
-                    // stop reading if reached `read_until` tag
+                    let sq_start_tag = Tag(0x7fe0, 0x0010);
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until
-                        .map(|t| t <= Tag(0x7fe0, 0x0010))
+                        .map(|t| t <= sq_start_tag)
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to
+                        .map(|t| t < sq_start_tag)
                         .unwrap_or(false)
                     {
                         break;
                     }
                     let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
-                    DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
+                    DataElement::new(sq_start_tag, VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
-                    // stop reading if reached `read_until` tag
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until.map(|t| t <= header.tag).unwrap_or(false) {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to.map(|t| t < header.tag).unwrap_or(false) {
                         break;
                     }
 
@@ -2172,8 +2196,12 @@ where
                     }
                 }
                 DataToken::SequenceStart { tag, len } => {
-                    // stop reading if reached `read_until` tag
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until.map(|t| t <= tag).unwrap_or(false) {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to.map(|t| t < tag).unwrap_or(false) {
                         break;
                     }
 
@@ -2280,6 +2308,7 @@ where
                         dict.clone(),
                         true,
                         len,
+                        None,
                         None,
                     )?);
                 }
@@ -3092,6 +3121,7 @@ mod tests {
             false,
             Length::UNDEFINED,
             None,
+            None,
         )
         .unwrap();
 
@@ -3208,6 +3238,7 @@ mod tests {
             false,
             Length::UNDEFINED,
             None,
+            None,
         )
         .unwrap();
 
@@ -3315,6 +3346,7 @@ mod tests {
             StandardDataDictionary,
             false,
             Length::UNDEFINED,
+            None,
             None,
         )
         .unwrap();
@@ -4340,5 +4372,131 @@ mod tests {
             res.err().unwrap().to_string(),
             "No space available in group 0x0009"
         );
+    }
+
+    /// Helper to build the token stream used in read_to/read_until sequence tests:
+    /// - (0018,6011) SQ  (sequence with two items)
+    /// - (0020,4000) LT  "TEST"
+    fn tokens_with_sequence() -> Vec<DataToken> {
+        vec![
+            DataToken::SequenceStart {
+                tag: Tag(0x0018, 0x6011),
+                len: Length::UNDEFINED,
+            },
+            DataToken::ItemStart {
+                len: Length::UNDEFINED,
+            },
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0018, 0x6012),
+                vr: VR::US,
+                len: Length(2),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::U16([1].as_ref().into())),
+            DataToken::ItemEnd,
+            DataToken::SequenceEnd,
+            DataToken::ElementHeader(DataElementHeader {
+                tag: Tag(0x0020, 0x4000),
+                vr: VR::LT,
+                len: Length(4),
+            }),
+            DataToken::PrimitiveValue(PrimitiveValue::Str("TEST".into())),
+        ]
+    }
+
+    #[test]
+    fn build_object_read_to_sequence_tag() {
+        // read_to(0x0018,0x6011) must include the sequence and stop before (0020,4000)
+        let tokens = tokens_with_sequence();
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+            None,
+            Some(Tag(0x0018, 0x6011)),
+        )
+        .unwrap();
+
+        assert!(
+            obj.element(Tag(0x0018, 0x6011)).is_ok(),
+            "sequence should be present"
+        );
+        assert!(
+            obj.element(Tag(0x0020, 0x4000)).is_err(),
+            "element after sequence should be absent"
+        );
+    }
+
+    #[test]
+    fn build_object_read_to_element_after_sequence() {
+        // read_to(0x0020,0x4000) must include both the sequence and (0020,4000)
+        let tokens = tokens_with_sequence();
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+            None,
+            Some(Tag(0x0020, 0x4000)),
+        )
+        .unwrap();
+
+        assert!(
+            obj.element(Tag(0x0018, 0x6011)).is_ok(),
+            "sequence should be present"
+        );
+        assert!(
+            obj.element(Tag(0x0020, 0x4000)).is_ok(),
+            "element at read_to tag should be present"
+        );
+    }
+
+    #[test]
+    fn build_object_read_to_and_read_until_same_sequence_tag() {
+        // when both are the same tag, read_until wins and the tag is excluded
+        let tokens = tokens_with_sequence();
+        let obj = InMemDicomObject::build_object(
+            &mut tokens.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+            Some(Tag(0x0018, 0x6011)),
+            Some(Tag(0x0018, 0x6011)),
+        )
+        .unwrap();
+
+        assert!(
+            obj.element(Tag(0x0018, 0x6011)).is_err(),
+            "read_until takes priority: sequence should be excluded"
+        );
+    }
+
+    #[test]
+    fn build_object_read_to_sequence_equals_read_until_next() {
+        // read_to(seq) should give the same result as read_until(next element)
+        let tokens_a = tokens_with_sequence();
+        let tokens_b = tokens_with_sequence();
+
+        let obj_read_to = InMemDicomObject::build_object(
+            &mut tokens_a.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+            None,
+            Some(Tag(0x0018, 0x6011)),
+        )
+        .unwrap();
+
+        let obj_read_until = InMemDicomObject::build_object(
+            &mut tokens_b.into_iter().map(Result::Ok),
+            StandardDataDictionary,
+            false,
+            Length::UNDEFINED,
+            Some(Tag(0x0020, 0x4000)),
+            None,
+        )
+        .unwrap();
+
+        assert_obj_eq(&obj_read_to, &obj_read_until);
     }
 }

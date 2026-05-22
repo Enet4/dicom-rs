@@ -794,7 +794,7 @@ where
             self.source.parser()
         };
 
-        Self::collect_to_object(&mut self.state, parser, false, None, to, &self.dictionary)
+        Self::collect_to_object(&mut self.state, parser, false, None, None, to, &self.dictionary)
     }
 
     /// Read a DICOM data set until it reaches the given stop tag
@@ -823,6 +823,7 @@ where
             parser,
             false,
             Some(stop_tag),
+            None,
             to,
             &self.dictionary,
         )
@@ -1068,11 +1069,12 @@ where
         token_src: &mut LazyDataSetReader<DynStatefulDecoder<BufReader<S>>>,
         in_item: bool,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
         to: &mut InMemDicomObject<D>,
         dict: &D,
     ) -> Result<()> {
         let mut elements = Vec::new();
-        Self::collect_elements(state, token_src, in_item, read_until, &mut elements, dict)?;
+        Self::collect_elements(state, token_src, in_item, read_until, read_to, &mut elements, dict)?;
         to.extend(elements);
         Ok(())
     }
@@ -1083,6 +1085,7 @@ where
         token_src: &mut LazyDataSetReader<DynStatefulDecoder<BufReader<S>>>,
         in_item: bool,
         read_until: Option<Tag>,
+        read_to: Option<Tag>,
         to: &mut Vec<DataElement<InMemDicomObject<D>>>,
         dict: &D,
     ) -> Result<()> {
@@ -1091,9 +1094,16 @@ where
             let token = token.clone();
             let elem = match token {
                 DataToken::PixelSequenceStart => {
-                    // stop reading if reached `read_until` tag
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until
                         .map(|t| t <= Tag(0x7fe0, 0x0010))
+                        .unwrap_or(false)
+                    {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to
+                        .map(|t| t < Tag(0x7fe0, 0x0010))
                         .unwrap_or(false)
                     {
                         break;
@@ -1104,8 +1114,12 @@ where
                     DataElement::new(Tag(0x7fe0, 0x0010), VR::OB, value)
                 }
                 DataToken::ElementHeader(header) => {
-                    // stop reading if reached `read_until` tag
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until.map(|t| t <= header.tag).unwrap_or(false) {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to.map(|t| t < header.tag).unwrap_or(false) {
                         break;
                     }
 
@@ -1134,8 +1148,12 @@ where
                     }
                 }
                 DataToken::SequenceStart { tag, len } => {
-                    // stop reading if reached `read_until` tag
+                    // stop reading if reached `read_until` tag (exclusive)
                     if read_until.map(|t| t <= tag).unwrap_or(false) {
+                        break;
+                    }
+                    // stop reading if exceeded `read_to` tag (inclusive)
+                    if read_to.map(|t| t < tag).unwrap_or(false) {
                         break;
                     }
                     *state = CollectorState::InDataset;
@@ -1255,7 +1273,7 @@ where
             match token.context(ReadTokenSnafu)? {
                 LazyDataToken::ItemStart { len: _ } => {
                     let mut obj = InMemDicomObject::new_empty_with_dict(dict.clone());
-                    Self::collect_to_object(state, token_src, true, None, &mut obj, dict)?;
+                    Self::collect_to_object(state, token_src, true, None, None, &mut obj, dict)?;
                     items.push(obj);
                 }
                 LazyDataToken::SequenceEnd => {

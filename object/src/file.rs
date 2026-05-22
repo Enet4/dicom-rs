@@ -61,6 +61,7 @@ pub struct OpenFileOptions<D = StandardDataDictionary, T = TransferSyntaxRegistr
     data_dictionary: D,
     ts_index: T,
     read_until: Option<Tag>,
+    read_to: Option<Tag>,
     read_preamble: ReadPreamble,
     odd_length: OddLengthStrategy,
     charset_override: CharacterSetOverride,
@@ -79,8 +80,24 @@ impl<D, T> OpenFileOptions<D, T> {
     /// or any other tag that is next in the standard DICOM tag ordering,
     /// is found in the object's root data set.
     /// An element with the exact tag will be excluded from the output.
+    ///
+    /// If both `read_until` and [`read_to`](Self::read_to) are set to the same tag,
+    /// `read_until` takes priority and the tag is excluded.
     pub fn read_until(mut self, tag: Tag) -> Self {
         self.read_until = Some(tag);
+        self
+    }
+
+    /// Set the operation to read up to and including the given tag.
+    ///
+    /// The reading process ends right after the element with this tag
+    /// is read into the object's root data set.
+    /// An element with the exact tag will be included in the output.
+    ///
+    /// If both [`read_until`](Self::read_until) and `read_to` are set to the same tag,
+    /// `read_until` takes priority and the tag is excluded.
+    pub fn read_to(mut self, tag: Tag) -> Self {
+        self.read_to = Some(tag);
         self
     }
 
@@ -89,6 +106,7 @@ impl<D, T> OpenFileOptions<D, T> {
     /// This is the default behavior.
     pub fn read_all(mut self) -> Self {
         self.read_until = None;
+        self.read_to = None;
         self
     }
 
@@ -118,6 +136,7 @@ impl<D, T> OpenFileOptions<D, T> {
         OpenFileOptions {
             data_dictionary: self.data_dictionary,
             read_until: self.read_until,
+            read_to: self.read_to,
             read_preamble: self.read_preamble,
             ts_index,
             odd_length: self.odd_length,
@@ -143,6 +162,7 @@ impl<D, T> OpenFileOptions<D, T> {
         OpenFileOptions {
             data_dictionary: dict,
             read_until: self.read_until,
+            read_to: self.read_to,
             read_preamble: self.read_preamble,
             ts_index: self.ts_index,
             odd_length: self.odd_length,
@@ -163,6 +183,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.data_dictionary,
             self.ts_index,
             self.read_until,
+            self.read_to,
             self.read_preamble,
             self.odd_length,
             self.charset_override,
@@ -186,6 +207,7 @@ impl<D, T> OpenFileOptions<D, T> {
             self.data_dictionary,
             self.ts_index,
             self.read_until,
+            self.read_to,
             self.read_preamble,
             self.odd_length,
             self.charset_override,
