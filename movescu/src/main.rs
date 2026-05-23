@@ -4,8 +4,8 @@ use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::{tags, uids};
 use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
-use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
-use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
+use dicom_object::{StandardDataDictionary, mem::InMemDicomObject, open_file};
+use dicom_transfer_syntax_registry::{TransferSyntaxRegistry, entries};
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
@@ -13,13 +13,13 @@ use dicom_ul::{
 };
 use indicatif::ProgressBar;
 use query::parse_queries;
-use snafu::prelude::*;
 use snafu::Report;
-use std::io::{stderr, BufRead as _};
+use snafu::prelude::*;
+use std::io::{BufRead as _, stderr};
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
 use std::time::Duration;
-use tracing::{debug, error, info, warn, Level};
+use tracing::{Level, debug, error, info, warn};
 use transfer_syntax::TransferSyntaxIndex;
 
 mod query;
@@ -162,7 +162,8 @@ async fn run_async(args: App, progress: Option<ProgressBar>) -> Result<bool, sna
     });
 
     let listen_addr = SocketAddrV4::new(Ipv4Addr::from(0), args.port);
-    let listener = tokio::net::TcpListener::bind(listen_addr).await
+    let listener = tokio::net::TcpListener::bind(listen_addr)
+        .await
         .whatever_context("Could not bind store SCP listening address")?;
 
     if args.verbose {
@@ -172,7 +173,9 @@ async fn run_async(args: App, progress: Option<ProgressBar>) -> Result<bool, sna
         );
     }
 
-    let (socket, _addr) = listener.accept().await
+    let (socket, _addr) = listener
+        .accept()
+        .await
         .whatever_context("Failed to set up a socket connection with source AE")?;
     let args = args.clone();
     run_store_async(socket, progress, &args).await

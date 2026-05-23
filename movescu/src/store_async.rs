@@ -1,10 +1,13 @@
-use dicom_core::{dicom_value, DataElement, VR};
+use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids::*};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject, StandardDataDictionary};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::prelude::*;
-use dicom_ul::{Pdu, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{
+    Pdu,
+    pdu::{PDataValueType, PresentationContextResultReason},
+};
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, error, info, warn};
@@ -149,16 +152,20 @@ pub async fn run_store_async(
         );
     }
     if let Some(pb) = &progress {
-        pb.set_message(format!("Received C-STORE association from {client_ae_title}"));
+        pb.set_message(format!(
+            "Received C-STORE association from {client_ae_title}"
+        ));
     }
 
     // check whether some of the abstract syntaxes are not supported
-    let pcs_accepted = association.presentation_contexts()
+    let pcs_accepted = association
+        .presentation_contexts()
         .iter()
         .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
         .count();
 
-    let abstract_syntaxes_rejected = association.presentation_contexts()
+    let abstract_syntaxes_rejected = association
+        .presentation_contexts()
         .iter()
         .filter(|pc| pc.reason == PresentationContextResultReason::AbstractSyntaxNotSupported)
         .count();
@@ -174,7 +181,6 @@ pub async fn run_store_async(
         let _ = association.abort().await;
 
         return Ok(false);
-
     } else if abstract_syntaxes_rejected > 0 {
         warn!("Not all presentation contexts were accepted, some files might not be received.");
     }
