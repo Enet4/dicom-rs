@@ -8,6 +8,7 @@ use dicom_core::Tag;
 use snafu::{Backtrace, Snafu};
 use std::io::{self, Read};
 
+pub mod adaptive_le;
 pub mod basic;
 pub mod explicit_be;
 pub mod explicit_le;
