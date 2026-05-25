@@ -369,7 +369,7 @@ where
                                                 len: len.0,
                                             }
                                             .fail(),
-                                        )
+                                        );
                                     }
                                 };
                                 // entered a new item
@@ -383,7 +383,7 @@ where
                                                 bytes_read: self.parser.position(),
                                             }
                                             .fail(),
-                                        )
+                                        );
                                     }
                                 };
                                 self.push_sequence_token(
@@ -469,7 +469,9 @@ where
                         self.parser
                             .read_to_vec(len as u32, &mut value)
                             .map(|_| Ok(DataToken::ItemValue(value)))
-                            .unwrap_or_else(|e| Err(e).context(ReadItemValueSnafu { len: len as u32 })),
+                            .unwrap_or_else(|e| {
+                                Err(e).context(ReadItemValueSnafu { len: len as u32 })
+                            }),
                     )
                 }
             } else if let Some(header) = self.last_header {
@@ -490,7 +492,7 @@ where
                                                 len: len.0,
                                             }
                                             .fail(),
-                                        )
+                                        );
                                     }
                                 };
 
@@ -557,7 +559,7 @@ where
                                         bytes_read: self.parser.position(),
                                     }
                                     .fail(),
-                                )
+                                );
                             }
                         };
 
@@ -624,7 +626,7 @@ where
                                         bytes_read: self.parser.position(),
                                     }
                                     .fail(),
-                                )
+                                );
                             }
                         };
 
@@ -649,7 +651,7 @@ where
                         Some(Err(e).context(ReadHeaderSnafu))
                     }
                 }
-            }
+            };
         }
     }
 }
