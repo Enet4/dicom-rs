@@ -324,11 +324,13 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                     bytes.remaining() >= (item_length - 2) as usize,
                     InvalidPduFieldLengthSnafu {},
                 );
+                let mut data = vec![0; (item_length - 2) as usize];
+                bytes.copy_to_slice(&mut data);
                 values.push(PDataValue {
                     presentation_context_id,
                     value_type,
                     is_last,
-                    data: bytes.copy_to_bytes((item_length - 2) as usize).to_vec(),
+                    data,
                 });
             }
 
@@ -388,9 +390,11 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 bytes.remaining() >= pdu_length as usize,
                 InvalidPduFieldLengthSnafu {},
             );
+            let mut data = vec![0; pdu_length as usize];
+            bytes.copy_to_slice(&mut data);
             Ok(Some(Pdu::Unknown {
                 pdu_type,
-                data: bytes.copy_to_bytes(pdu_length as usize).to_vec(),
+                data,
             }))
         }
     }
@@ -860,10 +864,11 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         // the application information specific to the Service Class specification
                         // identified by the SOP-class-uid. The semantics and value of this field
                         // is defined in the identified Service Class specification.
-                        let data = bytes.copy_to_bytes(data_length);
+                        let mut data = vec![0; data_length];
+                        bytes.copy_to_slice(&mut data);
                         user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
                             sop_class_uid,
-                            data.to_vec(),
+                            data,
                         ));
                     }
                     0x58 => {
@@ -891,7 +896,8 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         if bytes.remaining() < primary_field_length as usize {
                             return Ok(None);
                         }
-                        let primary_field = bytes.copy_to_bytes(primary_field_length as usize);
+                        let mut primary_field = vec![0; primary_field_length as usize];
+                        bytes.copy_to_slice(&mut primary_field);
                         // n+1-n+2 - Secondary Field Length
                         // Only non-zero if user identity type is 2 (username and password)
                         if bytes.remaining() < 2 {
@@ -903,7 +909,8 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         if bytes.remaining() < secondary_field_length as usize {
                             return Ok(None);
                         }
-                        let secondary_field = bytes.copy_to_bytes(secondary_field_length as usize);
+                        let mut secondary_field = vec![0; secondary_field_length as usize];
+                        bytes.copy_to_slice(&mut secondary_field);
 
                         match UserIdentityType::from(user_identity_type) {
                             Some(user_identity_type) => {
@@ -911,8 +918,8 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                                     UserIdentity::new(
                                         positive_response_requested == 1,
                                         user_identity_type,
-                                        primary_field.to_vec(),
-                                        secondary_field.to_vec(),
+                                        primary_field,
+                                        secondary_field,
                                     ),
                                 ));
                             }
@@ -925,9 +932,11 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
                         if bytes.remaining() < item_length as usize {
                             return Ok(None);
                         }
+                        let mut data = vec![0; item_length as usize];
+                        bytes.copy_to_slice(&mut data);
                         user_variables.push(UserVariableItem::Unknown(
                             item_type,
-                            bytes.copy_to_bytes(item_length as usize).to_vec(),
+                            data,
                         ));
                     }
                 }
