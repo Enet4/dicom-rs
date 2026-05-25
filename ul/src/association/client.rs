@@ -15,20 +15,21 @@ use std::{
 #[cfg(feature = "async")]
 use crate::association::AsyncAssociation;
 use crate::{
+    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     association::{
-        encode_pdu, extended_negotiation_filter_impl, private::SyncAssociationSealed,
-        read_pdu_from_wire, Association, NegotiatedOptions, SocketOptions, SyncAssociation,
+        Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
+        extended_negotiation_filter_impl, private::SyncAssociationSealed, read_pdu_from_wire,
     },
     pdu::{
-        write_pdu, AbortRQSource, AssociationAC, AssociationRQ, Pdu, PresentationContextNegotiated,
-        PresentationContextProposed, PresentationContextResultReason, UserIdentity,
-        UserIdentityType, UserVariableItem, DEFAULT_MAX_PDU, LARGE_PDU_SIZE, PDU_HEADER_SIZE,
+        AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
+        PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed,
+        PresentationContextResultReason, RequestorRoles, UserIdentity, UserIdentityType,
+        UserVariableItem, write_pdu,
     },
-    AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
 };
-use snafu::{ensure, ResultExt};
+use snafu::{ResultExt, ensure};
 
-use super::{uid::trim_uid, Result};
+use super::{Result, uid::trim_uid};
 
 // stray module from 0.9.0, remove in 0.10.0
 #[deprecated(since = "0.9.1")]
@@ -265,6 +266,8 @@ pub struct ClientAssociationOptions<'a> {
     jwt: Option<Cow<'a, str>>,
     /// Extended Negotiation info
     extended_negotiation: Vec<(Cow<'a, str>, Vec<u8>)>,
+    /// SCU/SCP Role Selection info
+    scu_scp_role_selection: Vec<(Cow<'a, str>, bool, bool)>,
     /// Socket options for TCP connections
     socket_options: SocketOptions,
     /// TLS configuration to use for the connection
@@ -295,6 +298,7 @@ impl Default for ClientAssociationOptions<'_> {
             saml_assertion: None,
             jwt: None,
             extended_negotiation: Vec::new(),
+            scu_scp_role_selection: Vec::new(),
             socket_options: SocketOptions {
                 read_timeout: None,
                 write_timeout: None,
@@ -516,6 +520,30 @@ impl<'a> ClientAssociationOptions<'a> {
         self
     }
 
+    /// Tell the server the roles that the client is willing to assume
+    /// for a given SOP class. Normally the client's role is SCU and not
+    /// SCP, and indeed that's the default in absence of a role
+    /// selection for a particular SOP Class; however, in the case of
+    /// C-GET, the client becomes the SCP when the server starts making
+    /// C-STORE requests, so in case of using C-GET, for each SOP Class
+    /// that the client wishes to retrieve, an entry should be added
+    /// with `scp_role` set to `true`. For these cases, if the client
+    /// also wants to send files to the server via C-STORE of any of
+    /// these SOP Classes as well, the `scu_role` should also be set to
+    /// `true`. Ultimately, the server may reject any of these roles,
+    /// so the client should check the result of the negotiation for a
+    /// particular SOP Class using
+    /// [`requestor_roles_for`](Association::requestor_roles_for)
+    /// before performing any operation on that SOP class.
+    pub fn with_role_selection<T>(mut self, sop_class: T, scu_role: bool, scp_role: bool) -> Self
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        self.scu_scp_role_selection
+            .push((sop_class.into(), scu_role, scp_role));
+        self
+    }
+
     /// Set the TLS configuration to use for the connection
     #[cfg(feature = "sync-tls")]
     pub fn tls_config(mut self, config: impl Into<std::sync::Arc<rustls::ClientConfig>>) -> Self {
@@ -707,6 +735,7 @@ impl<'a> ClientAssociationOptions<'a> {
             saml_assertion,
             jwt,
             extended_negotiation,
+            scu_scp_role_selection,
             ..
         } = self;
         // fail if no presentation contexts were provided: they represent intent,
@@ -754,6 +783,15 @@ impl<'a> ClientAssociationOptions<'a> {
             user_variables.push(UserVariableItem::SopClassExtendedNegotiationSubItem(
                 sub_item.0.to_string(),
                 sub_item.1.clone(),
+            ));
+        }
+        for sub_item in scu_scp_role_selection {
+            user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
+                sub_item.0.to_string(),
+                RequestorRoles {
+                    scu: sub_item.1,
+                    scp: sub_item.2,
+                },
             ));
         }
 

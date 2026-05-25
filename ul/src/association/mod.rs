@@ -41,11 +41,15 @@ pub use pdata::{PDataReader, PDataWriter};
 #[cfg(feature = "async")]
 pub use server::AsyncServerAssociation;
 pub use server::{ServerAssociation, ServerAssociationOptions};
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ResultExt, Snafu, ensure};
 
 use crate::{
-    pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem},
-    write_pdu, Pdu,
+    Pdu,
+    pdu::{
+        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, RequestorRoles,
+        UserVariableItem,
+    },
+    write_pdu,
 };
 
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -292,12 +296,37 @@ pub trait Association {
     ///
     /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]>;
+
+    /// Roles that the Association-requestor may assume. Returns a
+    /// `RequestorRoles` struct. If the given SOP Class UID was not
+    /// returned by the server, the default values are returned.
+    fn requestor_roles_for(&self, sop_class_uid: &str) -> RequestorRoles {
+        self.user_variables()
+            .iter()
+            .find_map(|uv| match uv {
+                UserVariableItem::ScuScpRoleSelectionSubItem(uid, roles)
+                    if uid == sop_class_uid =>
+                {
+                    Some(*roles)
+                }
+                _ => None,
+            })
+            // PS3.7 D.3.3.4:
+            // If the SCP/SCU Role Selection item is not returned by the
+            // Association-acceptor then the role of the Association-requestor
+            // shall be SCU and the role of the Association-acceptor shall be SCP.
+            // These apply to the requestor only, so only SCU is set.
+            .unwrap_or(RequestorRoles {
+                scu: true,
+                scp: false,
+            })
+    }
 }
 
 mod private {
     use crate::{
-        pdu::{AbortRQServiceProviderReason, AbortRQSource},
         Pdu,
+        pdu::{AbortRQServiceProviderReason, AbortRQSource},
     };
     use snafu::ResultExt;
 

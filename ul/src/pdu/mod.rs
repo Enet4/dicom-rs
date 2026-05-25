@@ -11,7 +11,7 @@ use std::fmt::Display;
 
 pub use reader::read_pdu;
 use snafu::{Backtrace, Snafu};
-pub use writer::{write_pdu, WriteChunkError};
+pub use writer::{WriteChunkError, write_pdu};
 
 /// The length of the PDU header in bytes,
 /// comprising the PDU type (1 byte),
@@ -102,7 +102,9 @@ pub enum ReadError {
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
     InvalidItemLength { length: u32 },
 
-    #[snafu(display("SOP Class Extended Negotiation item length {length} is too short (should be >= 2 + SOP Class UID length {sop_class_uid_length})"))]
+    #[snafu(display(
+        "SOP Class Extended Negotiation item length {length} is too short (should be >= 2 + SOP Class UID length {sop_class_uid_length})"
+    ))]
     ShortSopClassExtendedNegotiationItemLength {
         length: u32,
         sop_class_uid_length: u16,
@@ -482,6 +484,14 @@ pub enum PduVariableItem {
     UserVariables(Vec<UserVariableItem>),
 }
 
+/// Roles that the association requestor can adopt for a
+/// particular SOP class.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd)]
+pub struct RequestorRoles {
+    pub scu: bool,
+    pub scp: bool,
+}
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum UserVariableItem {
     Unknown(u8, Vec<u8>),
@@ -489,6 +499,7 @@ pub enum UserVariableItem {
     ImplementationClassUID(String),
     ImplementationVersionName(String),
     SopClassExtendedNegotiationSubItem(String, Vec<u8>),
+    ScuScpRoleSelectionSubItem(String, RequestorRoles),
     UserIdentityItem(UserIdentity),
 }
 
@@ -499,6 +510,7 @@ pub struct UserIdentity {
     primary_field: Vec<u8>,
     secondary_field: Vec<u8>,
 }
+
 impl UserIdentity {
     pub fn new(
         positive_response_requested: bool,
@@ -540,6 +552,7 @@ pub enum UserIdentityType {
     SamlAssertion,
     Jwt,
 }
+
 impl UserIdentityType {
     fn from(user_identity_type: u8) -> Option<Self> {
         match user_identity_type {
