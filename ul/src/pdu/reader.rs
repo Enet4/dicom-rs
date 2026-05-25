@@ -12,7 +12,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Read a PDU from the given byte buffer.
 pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<Option<Pdu>> {
     ensure!(
-        max_pdu_length >= super::MINIMUM_PDU_SIZE && max_pdu_length <= super::MAXIMUM_PDU_SIZE,
+        (super::MINIMUM_PDU_SIZE..=super::MAXIMUM_PDU_SIZE).contains(&max_pdu_length),
         InvalidMaxPduSnafu { max_pdu_length },
     );
 

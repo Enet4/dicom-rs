@@ -35,6 +35,9 @@ pub const MINIMUM_PDU_SIZE: u32 = 1_024 - PDU_HEADER_SIZE;
 /// The largest PDU size supported. It must be an even number.
 /// Together with the PDU header, it must not exceed u32::MAX,
 /// and when adding the PDU header size, it must not overflow.
+// `clippy` complains that !1 and u32::MAX-1 are equal, but this
+// formulation expresses intent, so disable the warning
+#[allow(clippy::eq_op)]
 pub const MAXIMUM_PDU_SIZE: u32 = ((u32::MAX - 1) & !1) - PDU_HEADER_SIZE;
 
 /// A generous PDU size for internal use.
