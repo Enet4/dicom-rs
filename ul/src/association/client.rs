@@ -23,8 +23,8 @@ use crate::{
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
         PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed,
-        PresentationContextResultReason, UserIdentity, UserIdentityType, UserVariableItem,
-        write_pdu,
+        PresentationContextResultReason, RequestorRoles, UserIdentity, UserIdentityType,
+        UserVariableItem, write_pdu,
     },
 };
 use snafu::{ResultExt, ensure};
@@ -788,8 +788,7 @@ impl<'a> ClientAssociationOptions<'a> {
         for sub_item in scu_scp_role_selection {
             user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
                 sub_item.0.to_string(),
-                sub_item.1,
-                sub_item.2,
+                RequestorRoles { scu: sub_item.1, scp: sub_item.2 },
             ));
         }
 

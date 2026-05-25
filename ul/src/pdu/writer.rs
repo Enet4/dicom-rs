@@ -951,7 +951,10 @@ fn write_pdu_variable_user_variables(
                         name: "Implementation-class-uid",
                     })?;
                 }
-                UserVariableItem::ScuScpRoleSelectionSubItem(sop_class_uid, scu_role, scp_role) => {
+                UserVariableItem::ScuScpRoleSelectionSubItem(
+                    sop_class_uid,
+                    RequestorRoles { scu: scu_role, scp: scp_role },
+                ) => {
                     // 1 - Item-type - 54H
                     writer
                         .write_u8(0x54)

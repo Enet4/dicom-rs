@@ -784,8 +784,7 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
 
                         user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
                             sop_class_uid,
-                            scu_role,
-                            scp_role,
+                            RequestorRoles { scu: scu_role, scp: scp_role },
                         ));
                     }
                     0x55 => {

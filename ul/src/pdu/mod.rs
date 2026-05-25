@@ -482,6 +482,14 @@ pub enum PduVariableItem {
     UserVariables(Vec<UserVariableItem>),
 }
 
+/// Roles that the association requestor can adopt for a
+/// particular SOP class.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd)]
+pub struct RequestorRoles {
+    pub scu: bool,
+    pub scp: bool,
+}
+
 #[derive(Clone, Eq, PartialEq, PartialOrd, Hash, Debug)]
 pub enum UserVariableItem {
     Unknown(u8, Vec<u8>),
@@ -489,7 +497,7 @@ pub enum UserVariableItem {
     ImplementationClassUID(String),
     ImplementationVersionName(String),
     SopClassExtendedNegotiationSubItem(String, Vec<u8>),
-    ScuScpRoleSelectionSubItem(String, bool, bool),
+    ScuScpRoleSelectionSubItem(String, RequestorRoles),
     UserIdentityItem(UserIdentity),
 }
 
@@ -500,6 +508,7 @@ pub struct UserIdentity {
     primary_field: Vec<u8>,
     secondary_field: Vec<u8>,
 }
+
 impl UserIdentity {
     pub fn new(
         positive_response_requested: bool,
@@ -541,6 +550,7 @@ pub enum UserIdentityType {
     SamlAssertion,
     Jwt,
 }
+
 impl UserIdentityType {
     fn from(user_identity_type: u8) -> Option<Self> {
         match user_identity_type {

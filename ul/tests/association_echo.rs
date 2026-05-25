@@ -3,13 +3,13 @@ use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::{
     ServerAssociation,
     association::{
-        Association, Error, RequestorRoles,
+        Association, Error,
         client::ClientAssociationOptions,
         server::{Negotiation, ServerAssociationOptions},
     },
     pdu::{
         PDataValue, PDataValueType, Pdu, PresentationContextNegotiated,
-        PresentationContextResultReason,
+        PresentationContextResultReason, RequestorRoles,
     },
 };
 use std::io::Write;

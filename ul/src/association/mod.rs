@@ -45,7 +45,10 @@ use snafu::{ResultExt, Snafu, ensure};
 
 use crate::{
     Pdu,
-    pdu::{self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem},
+    pdu::{
+        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem,
+        RequestorRoles,
+    },
     write_pdu,
 };
 
@@ -210,14 +213,6 @@ pub(crate) struct SocketOptions {
     connection_timeout: Option<Duration>,
 }
 
-/// Roles that the association requestor can adopt for a
-/// particular SOP class.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct RequestorRoles {
-    pub scu: bool,
-    pub scp: bool,
-}
-
 /// Trait to close underlying socket
 pub trait CloseSocket {
     fn close(&mut self) -> std::io::Result<()>;
@@ -309,13 +304,10 @@ pub trait Association {
         self.user_variables()
             .iter()
             .find_map(|uv| match uv {
-                UserVariableItem::ScuScpRoleSelectionSubItem(uid, scu_role, scp_role)
+                UserVariableItem::ScuScpRoleSelectionSubItem(uid, roles)
                     if uid == sop_class_uid =>
                 {
-                    Some(RequestorRoles {
-                        scu: *scu_role,
-                        scp: *scp_role,
-                    })
+                    Some(*roles)
                 }
                 _ => None,
             })

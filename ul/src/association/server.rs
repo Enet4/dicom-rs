@@ -224,7 +224,8 @@ pub trait Negotiation {
     /// to be an SCP for the Storage MR SOP Class:
     /// ```no_run
     /// # use dicom_ul::association::server::{Negotiation, ServerAssociationOptions};
-    /// # use dicom_ul::association::{Association, RequestorRoles};
+    /// # use dicom_ul::association::Association;
+    /// # use dicom_ul::pdu::RequestorRoles;
     /// # use std::net::TcpListener;
     /// const STORAGE_MR_SOP_CLASS: &str = "1.2.840.10008.5.1.4.1.1.4";
     /// struct RoleOptions;
@@ -793,15 +794,18 @@ where
                         // SCU/SCP Role Selection negotiation is performed here: add only the
                         // variables for which the user-supplied negotiation function returns
                         // Some(x).
-                        ScuScpRoleSelectionSubItem(sop_class_uid, scu_role, scp_role) => {
-                            if let Some(RequestorRoles { scu, scp }) = self
-                                .negotiation
-                                .negotiate_roles(&sop_class_uid, scu_role, scp_role)
+                        ScuScpRoleSelectionSubItem(
+                            sop_class_uid,
+                            RequestorRoles { scu: scu_requested, scp: scp_requested },
+                        ) => {
+                            if let Some(RequestorRoles { scu: scu_accepted, scp: scp_accepted }) =
+                                self
+                                    .negotiation
+                                    .negotiate_roles(&sop_class_uid, scu_requested, scp_requested)
                             {
                                 new_user_variables.push(ScuScpRoleSelectionSubItem(
                                     sop_class_uid,
-                                    scu,
-                                    scp,
+                                    RequestorRoles { scu: scu_accepted, scp: scp_accepted },
                                 ));
                             }
                         }
