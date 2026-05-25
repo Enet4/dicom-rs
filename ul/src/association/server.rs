@@ -796,16 +796,25 @@ where
                         // Some(x).
                         ScuScpRoleSelectionSubItem(
                             sop_class_uid,
-                            RequestorRoles { scu: scu_requested, scp: scp_requested },
+                            RequestorRoles {
+                                scu: scu_requested,
+                                scp: scp_requested,
+                            },
                         ) => {
-                            if let Some(RequestorRoles { scu: scu_accepted, scp: scp_accepted }) =
-                                self
-                                    .negotiation
-                                    .negotiate_roles(&sop_class_uid, scu_requested, scp_requested)
-                            {
+                            if let Some(RequestorRoles {
+                                scu: scu_accepted,
+                                scp: scp_accepted,
+                            }) = self.negotiation.negotiate_roles(
+                                &sop_class_uid,
+                                scu_requested,
+                                scp_requested,
+                            ) {
                                 new_user_variables.push(ScuScpRoleSelectionSubItem(
                                     sop_class_uid,
-                                    RequestorRoles { scu: scu_accepted, scp: scp_accepted },
+                                    RequestorRoles {
+                                        scu: scu_accepted,
+                                        scp: scp_accepted,
+                                    },
                                 ));
                             }
                         }

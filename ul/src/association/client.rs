@@ -788,7 +788,10 @@ impl<'a> ClientAssociationOptions<'a> {
         for sub_item in scu_scp_role_selection {
             user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
                 sub_item.0.to_string(),
-                RequestorRoles { scu: sub_item.1, scp: sub_item.2 },
+                RequestorRoles {
+                    scu: sub_item.1,
+                    scp: sub_item.2,
+                },
             ));
         }
 

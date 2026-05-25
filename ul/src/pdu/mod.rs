@@ -11,7 +11,7 @@ use std::fmt::Display;
 
 pub use reader::read_pdu;
 use snafu::{Backtrace, Snafu};
-pub use writer::{write_pdu, WriteChunkError};
+pub use writer::{WriteChunkError, write_pdu};
 
 /// The length of the PDU header in bytes,
 /// comprising the PDU type (1 byte),
@@ -102,7 +102,9 @@ pub enum ReadError {
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
     InvalidItemLength { length: u32 },
 
-    #[snafu(display("SOP Class Extended Negotiation item length {length} is too short (should be >= 2 + SOP Class UID length {sop_class_uid_length})"))]
+    #[snafu(display(
+        "SOP Class Extended Negotiation item length {length} is too short (should be >= 2 + SOP Class UID length {sop_class_uid_length})"
+    ))]
     ShortSopClassExtendedNegotiationItemLength {
         length: u32,
         sop_class_uid_length: u16,

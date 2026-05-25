@@ -2,7 +2,7 @@
 use crate::pdu::*;
 use bytes::Buf;
 use dicom_encoding::text::{DefaultCharacterSetCodec, TextCodec};
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, ensure};
 use tracing::warn;
 
 pub type Error = crate::pdu::ReadError;
@@ -784,7 +784,10 @@ fn read_pdu_variable(mut buf: impl Buf, codec: &dyn TextCodec) -> Result<Option<
 
                         user_variables.push(UserVariableItem::ScuScpRoleSelectionSubItem(
                             sop_class_uid,
-                            RequestorRoles { scu: scu_role, scp: scp_role },
+                            RequestorRoles {
+                                scu: scu_role,
+                                scp: scp_role,
+                            },
                         ));
                     }
                     0x55 => {

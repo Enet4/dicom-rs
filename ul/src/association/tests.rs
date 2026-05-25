@@ -1,4 +1,4 @@
-use dicom_core::{dicom_value, DataElement, VR};
+use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids::VERIFICATION};
 use dicom_object::InMemDicomObject;
 use dicom_transfer_syntax_registry::entries::IMPLICIT_VR_LITTLE_ENDIAN;
@@ -32,8 +32,8 @@ mod successive_pdus_during_client_association {
 
     use super::*;
     use crate::{
-        pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType},
         ClientAssociationOptions, Pdu,
+        pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType},
     };
 
     use crate::association::server::*;
@@ -424,8 +424,8 @@ mod successive_pdus_during_server_association {
     use super::*;
     use crate::association::server::*;
     use crate::{
-        pdu::{PDataValue, PDataValueType},
         AeAddr, ClientAssociationOptions, Pdu,
+        pdu::{PDataValue, PDataValueType},
     };
     use std::net::TcpListener;
 

@@ -46,8 +46,8 @@ use snafu::{ResultExt, Snafu, ensure};
 use crate::{
     Pdu,
     pdu::{
-        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, UserVariableItem,
-        RequestorRoles,
+        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, RequestorRoles,
+        UserVariableItem,
     },
     write_pdu,
 };
