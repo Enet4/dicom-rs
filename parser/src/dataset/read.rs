@@ -331,6 +331,8 @@ where
     type Item = Result<DataToken>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        loop {
+
         if self.hard_break {
             return None;
         }
@@ -351,7 +353,8 @@ where
             }
         }
 
-        if self.in_sequence {
+        // This will always return unless we do a `continue`.
+        return if self.in_sequence {
             // at sequence level, expecting item header
 
             match self.parser.decode_item_header() {
@@ -578,8 +581,8 @@ where
                         "Item delimitation item outside of a sequence in position {}",
                         self.parser.position()
                     );
-                    // return a new token by calling the method again
-                    self.next()
+                    // return a new token by repeating the method again
+                    continue;
                 }
                 Ok(DataElementHeader {
                     tag: Tag(0xFFFE, 0xE00D),
@@ -647,6 +650,8 @@ where
                     Some(Err(e).context(ReadHeaderSnafu))
                 }
             }
+        }
+
         }
     }
 }
