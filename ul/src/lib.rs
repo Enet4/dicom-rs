@@ -43,7 +43,7 @@ pub mod prelude;
 ///
 /// This UID may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.239162405814983375278132849753143205923";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.175220362680028036156011002668768058626";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
