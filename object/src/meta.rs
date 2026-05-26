@@ -10,13 +10,13 @@ use dicom_core::value::{
 };
 use dicom_core::{Length, Tag, VR};
 use dicom_dictionary_std::tags;
-use dicom_encoding::decode::{self, DecodeFrom};
-use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
-use dicom_encoding::encode::EncoderFor;
-use dicom_encoding::text::{self, TextCodec};
 use dicom_encoding::TransferSyntax;
+use dicom_encoding::decode::{self, DecodeFrom};
+use dicom_encoding::encode::EncoderFor;
+use dicom_encoding::encode::explicit_le::ExplicitVRLittleEndianEncoder;
+use dicom_encoding::text::{self, TextCodec};
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu, ensure};
 use std::borrow::Cow;
 use std::io::{Read, Write};
 
@@ -129,7 +129,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// [1]: http://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
 /// [2]: FileMetaTable::update_information_group_length
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct FileMetaTable {
     /// File Meta Information Group Length
     pub information_group_length: u32,
@@ -170,6 +170,52 @@ pub struct FileMetaTable {
     (0002,0037) RTV Flow RTP Sampling Rate RTV​Flow​RTP​Sampling​Rate UL 1
     (0002,0038) RTV Flow Actual Frame Duration RTV​Flow​Actual​Frame​Duration FD 1
     */
+}
+
+/// This comparison ignores trailing white space in strings and binary vectors,
+/// so that any padding to even length does not affect the result.
+/// For instance, a table with the transfer syntax UID `"1.2.840.10008.1.2.​4.​110"`
+/// can be equal to a table with the transfer syntax `"1.2.840.10008.1.2.​4.​110\0"`,
+/// as long as the remaining fields are semantically equal.
+impl std::cmp::PartialEq for FileMetaTable {
+    fn eq(&self, other: &Self) -> bool {
+        self.information_group_length == other.information_group_length
+            && self.information_version == other.information_version
+            && self.media_storage_sop_class_uid() == other.media_storage_sop_class_uid()
+            && self.media_storage_sop_instance_uid() == other.media_storage_sop_instance_uid()
+            && self.transfer_syntax() == other.transfer_syntax()
+            && self.implementation_class_uid() == other.implementation_class_uid()
+            && self.implementation_version_name() == other.implementation_version_name()
+            && self.source_application_entity_title() == other.source_application_entity_title()
+            && self.sending_application_entity_title() == other.sending_application_entity_title()
+            && self.receiving_application_entity_title()
+                == other.receiving_application_entity_title()
+            && self.private_information_creator_uid() == other.private_information_creator_uid()
+            && match (&self.private_information, &other.private_information) {
+                (None, None) => true,
+                (Some(private_info_1), Some(private_info_2)) => {
+                    bytes_eq_without_trailing_byte(private_info_1, private_info_2)
+                }
+                (Some(_), None) | (None, Some(_)) => false,
+            }
+    }
+}
+
+/// Given two byte slices check whether they are equal
+/// but without considering the padding to even length.
+fn bytes_eq_without_trailing_byte(v1: &[u8], v2: &[u8]) -> bool {
+    let v1 = if v1.len() % 2 == 0 && v1.last().copied() == Some(0) {
+        &v1[..v1.len() - 1]
+    } else {
+        v1
+    };
+    let v2 = if v2.len() % 2 == 0 && v2.last().copied() == Some(0) {
+        &v2[..v2.len() - 1]
+    } else {
+        v2
+    };
+
+    v1 == v2
 }
 
 /// Utility function for reading the body of the DICOM element as a UID.
@@ -224,6 +270,38 @@ impl FileMetaTable {
     pub fn implementation_class_uid(&self) -> &str {
         self.implementation_class_uid
             .trim_end_matches(|c: char| c.is_whitespace() || c == '\0')
+    }
+
+    /// Getter for the implementation version name,
+    /// with trailing characters already excluded.
+    pub fn implementation_version_name(&self) -> Option<&str> {
+        self.implementation_version_name
+            .as_ref()
+            .map(|s| s.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
+    }
+
+    /// Getter for the source application entity title,
+    /// with trailing characters already excluded.
+    pub fn source_application_entity_title(&self) -> Option<&str> {
+        self.source_application_entity_title
+            .as_ref()
+            .map(|s| s.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
+    }
+
+    /// Getter for the sending application entity title,
+    /// with trailing characters already excluded.
+    pub fn sending_application_entity_title(&self) -> Option<&str> {
+        self.sending_application_entity_title
+            .as_ref()
+            .map(|s| s.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
+    }
+
+    /// Getter for the receiving application entity title,
+    /// with trailing characters already excluded.
+    pub fn receiving_application_entity_title(&self) -> Option<&str> {
+        self.receiving_application_entity_title
+            .as_ref()
+            .map(|s| s.trim_end_matches(|c: char| c.is_whitespace() || c == '\0'))
     }
 
     /// Getter for the private information creator UID,
@@ -1365,10 +1443,10 @@ fn dicom_len<T: AsRef<str>>(x: T) -> u32 {
 mod tests {
     use crate::{IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME};
 
-    use super::{dicom_len, FileMetaTable, FileMetaTableBuilder};
+    use super::{FileMetaTable, FileMetaTableBuilder, dicom_len};
     use dicom_core::ops::{AttributeAction, AttributeOp};
     use dicom_core::value::Value;
-    use dicom_core::{dicom_value, DataElement, PrimitiveValue, Tag, VR};
+    use dicom_core::{DataElement, PrimitiveValue, Tag, VR, dicom_value};
     use dicom_dictionary_std::tags;
 
     const TEST_META_1: &[u8] = &[
@@ -1608,6 +1686,53 @@ mod tests {
 
         let elems: Vec<_> = table.into_element_iter().collect();
         assert_eq!(elems, gt);
+    }
+
+    /// Test `PartialEq` impl for `FileMetaTable`
+    #[test]
+    fn meta_table_eq() {
+        let mut table = FileMetaTable {
+            information_group_length: 200,
+            information_version: [0u8, 1u8],
+            media_storage_sop_class_uid: "1.2.840.10008.5.1.4.1.1.1\0".to_owned(),
+            media_storage_sop_instance_uid:
+                "1.2.3.4.5.12345678.1234567890.1234567.123456789.1234567\0".to_owned(),
+            transfer_syntax: "1.2.840.10008.1.2.1\0".to_owned(),
+            implementation_class_uid: "1.2.345.6.7890.1.234".to_owned(),
+            implementation_version_name: Some("RUSTY_DICOM_001".to_owned()),
+            source_application_entity_title: Some("".to_owned()),
+            sending_application_entity_title: None,
+            receiving_application_entity_title: None,
+            private_information_creator_uid: None,
+            private_information: None,
+        };
+
+        // it equals itself
+        assert_eq!(&table, &table);
+
+        let mut table2 = table.clone();
+        table2.implementation_version_name = Some("RUSTY_DICOM_002".to_owned());
+
+        // Implementation Version Name mismatch
+        assert_ne!(&table, &table2);
+
+        // it ignores trailing whitespace (padding to even length)
+        table2.implementation_version_name = Some("RUSTY_DICOM_001 ".to_owned());
+        assert_eq!(&table, &table2);
+
+        // media storage SOP class UID also ignores trailing whitespace
+        table2.media_storage_sop_class_uid = "1.2.840.10008.5.1.4.1.1.1".to_owned();
+        assert_eq!(&table, &table2);
+
+        // private information creator UID also ignores trailing whitespace
+        table.private_information_creator_uid = Some("xxx".to_owned());
+        table2.private_information_creator_uid = Some("xxx\0".to_owned());
+        assert_eq!(&table, &table2);
+
+        // private information ignores single trailing zero
+        table.private_information = Some(vec![1, 2, 5]);
+        table2.private_information = Some(vec![1, 2, 5, 0]);
+        assert_eq!(&table, &table2);
     }
 
     #[test]
