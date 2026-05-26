@@ -381,8 +381,10 @@ impl<'a> ClientAssociationOptions<'a> {
 
     /// Override the maximum PDU length
     /// that this application entity will admit.
+    /// Values larger than MAXIMUM_PDU_SIZE will
+    /// be silently truncated to MAXIMUM_PDU_SIZE.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
-        self.max_pdu_length = value;
+        self.max_pdu_length = value.min(MAXIMUM_PDU_SIZE);
         self
     }
 
