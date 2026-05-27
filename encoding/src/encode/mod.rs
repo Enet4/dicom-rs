@@ -88,6 +88,11 @@ pub enum Error {
         backtrace: Backtrace,
         source: io::Error,
     },
+    #[snafu(display("Item too long ({} bytes) for a 16-bit length", length))]
+    WriteHeaderTooLong {
+        length: u32,
+        backtrace: Backtrace,
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

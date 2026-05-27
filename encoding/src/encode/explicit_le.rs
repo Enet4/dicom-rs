@@ -2,8 +2,8 @@
 
 use crate::encode::basic::LittleEndianBasicEncoder;
 use crate::encode::{
-    BasicEncode, Encode, Result, WriteHeaderSnafu, WriteItemDelimiterSnafu, WriteItemHeaderSnafu,
-    WriteOffsetTableSnafu, WriteSequenceDelimiterSnafu, WriteTagSnafu,
+    BasicEncode, Encode, Result, WriteHeaderSnafu, WriteHeaderTooLongSnafu, WriteItemDelimiterSnafu,
+    WriteItemHeaderSnafu, WriteOffsetTableSnafu, WriteSequenceDelimiterSnafu, WriteTagSnafu,
 };
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
@@ -123,13 +123,19 @@ impl Encode for ExplicitVRLittleEndianEncoder {
             | VR::UI
             | VR::UL
             | VR::US => {
+                let length = de.length().0;
+                if length > u16::MAX as u32 {
+                    return WriteHeaderTooLongSnafu {
+                        length,
+                    }.fail();
+                }
                 let mut buf = [0u8; 8];
                 LittleEndian::write_u16(&mut buf[0..], de.tag().group());
                 LittleEndian::write_u16(&mut buf[2..], de.tag().element());
                 let vr_bytes = de.vr().to_bytes();
                 buf[4] = vr_bytes[0];
                 buf[5] = vr_bytes[1];
-                LittleEndian::write_u16(&mut buf[6..], de.length().0 as u16);
+                LittleEndian::write_u16(&mut buf[6..], length as u16);
                 to.write_all(&buf).context(WriteHeaderSnafu)?;
                 Ok(8)
             }
