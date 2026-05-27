@@ -13,7 +13,7 @@ use crate::association::private::SyncAssociationSealed;
 use crate::association::{
     AbortedSnafu, Association, CloseSocket, MissingAbstractSyntaxSnafu, RejectedSnafu,
     SendPduSnafu, SocketOptions, SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu,
-    WireSendSnafu, encode_pdu, extended_negotiation_filter_impl, read_pdu_from_wire,
+    WireSendSnafu, encode_pdu, read_pdu_from_wire,
 };
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -1250,13 +1250,6 @@ where
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
     }
-
-    /// Given a SOP Class UID, obtain a slice of bytes
-    /// with the extended negotiation result for that
-    /// SOP Class, if it exists.
-    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
-    }
 }
 
 impl<S> SyncAssociationSealed<S> for ServerAssociation<S>
@@ -1604,13 +1597,6 @@ where
 
     fn user_variables(&self) -> &[UserVariableItem] {
         &self.user_variables
-    }
-
-    /// Given a SOP Class UID, obtain a slice of bytes
-    /// with the extended negotiation result for that
-    /// SOP Class, if it exists.
-    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        extended_negotiation_filter_impl(&self.user_variables, sop_class_uid)
     }
 }
 

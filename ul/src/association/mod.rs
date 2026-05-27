@@ -238,19 +238,6 @@ impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::Tcp
     }
 }
 
-// Local function to not repeat the same code in every implementation
-pub(crate) fn extended_negotiation_filter_impl<'a>(
-    user_vars: &'a [UserVariableItem],
-    sop_class_uid: &str,
-) -> Option<&'a [u8]> {
-    user_vars.iter().find_map(|uv| match uv {
-        UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data) if uid == sop_class_uid => {
-            Some(data.as_slice())
-        }
-        _ => None,
-    })
-}
-
 /// Trait that represents common properties of an association
 pub trait Association {
     /// Obtain the remote DICOM node's application entity title.
@@ -295,7 +282,18 @@ pub trait Association {
     /// that was negotiated with extended negotiation.
     ///
     /// Returns `None` if that SOP class was rejected or not requested.
-    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]>;
+    fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
+        self.user_variables()
+            .iter()
+            .find_map(|uv| match uv {
+                UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data)
+                    if uid == sop_class_uid =>
+                {
+                    Some(data.as_slice())
+                }
+                _ => None,
+            })
+    }
 
     /// Roles that the Association-requestor may assume. Returns a
     /// `RequestorRoles` struct. If the given SOP Class UID was not
