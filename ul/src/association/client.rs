@@ -22,9 +22,9 @@ use crate::{
     },
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
-        PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated, PresentationContextProposed,
-        PresentationContextResultReason, RequestorRoles, UserIdentity, UserIdentityType,
-        UserVariableItem, write_pdu,
+        MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
+        PresentationContextProposed, PresentationContextResultReason, RequestorRoles, UserIdentity,
+        UserIdentityType, UserVariableItem, write_pdu,
     },
 };
 use snafu::{ResultExt, ensure};
@@ -381,8 +381,10 @@ impl<'a> ClientAssociationOptions<'a> {
 
     /// Override the maximum PDU length
     /// that this application entity will admit.
+    /// Values larger than MAXIMUM_PDU_SIZE will
+    /// be silently truncated to MAXIMUM_PDU_SIZE.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
-        self.max_pdu_length = value;
+        self.max_pdu_length = value.min(MAXIMUM_PDU_SIZE);
         self
     }
 
@@ -851,11 +853,11 @@ impl<'a> ClientAssociationOptions<'a> {
                     })
                     .unwrap_or(DEFAULT_MAX_PDU);
 
-                // treat 0 as practically unlimited
                 let acceptor_max_pdu_length = if acceptor_max_pdu_length == 0 {
-                    u32::MAX
+                    // treat 0 as the largest we support
+                    MAXIMUM_PDU_SIZE
                 } else {
-                    acceptor_max_pdu_length
+                    acceptor_max_pdu_length.min(MAXIMUM_PDU_SIZE)
                 };
 
                 let presentation_contexts: Vec<_> = presentation_contexts_scp

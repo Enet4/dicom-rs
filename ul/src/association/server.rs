@@ -20,7 +20,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use snafu::{ResultExt, ensure};
 
 use crate::association::{NegotiatedOptions, RequestorRoles};
-use crate::pdu::{LARGE_PDU_SIZE, PresentationContextNegotiated};
+use crate::pdu::{LARGE_PDU_SIZE, MAXIMUM_PDU_SIZE, PresentationContextNegotiated};
 use crate::{
     IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     pdu::{
@@ -612,8 +612,10 @@ where
     }
 
     /// Override the maximum expected PDU length.
+    /// Values greater than MAXIMUM_PDU_SIZE will be
+    /// silently truncated to MAXIMUM_PDU_SIZE.
     pub fn max_pdu_length(mut self, value: u32) -> Self {
-        self.max_pdu_length = value;
+        self.max_pdu_length = value.min(MAXIMUM_PDU_SIZE);
         self
     }
 
@@ -770,11 +772,12 @@ where
 
                         MaxLength(len) => {
                             requestor_max_pdu_length = if len == 0 {
-                                // treat 0 as practically unlimited,
-                                // so use the largest 32-bit unsigned number
-                                u32::MAX
+                                // treat 0 as the largest we support
+                                MAXIMUM_PDU_SIZE
                             } else {
-                                len
+                                // Don't accept more than MAXIMUM_PDU_SIZE
+                                // as max_pdu_length.
+                                len.min(MAXIMUM_PDU_SIZE)
                             };
                         }
 
