@@ -56,7 +56,6 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
             .establish_tls(scu_stream)
             .whatever_context("could not establish association")?;
         info!("New association from {}", association.peer_ae_title());
-        info!("New association from {}", association.peer_ae_title());
         if args.verbose {
             debug!(
                 "> Presentation contexts: {:?}",

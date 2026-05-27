@@ -970,7 +970,7 @@ where
     ///         VR::LO,
     ///         PrimitiveValue::from("CREATOR 1"),
     ///     ),
-    ///     DataElement::new(Tag(0x0009, 0x01001), VR::DS, "1.0"),
+    ///     DataElement::new(Tag(0x0009, 0x1001), VR::DS, "1.0"),
     /// ]);
     /// assert_eq!(
     ///     ds.private_element(0x0009, "CREATOR 1", 0x01)?

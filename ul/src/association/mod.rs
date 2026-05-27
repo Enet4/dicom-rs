@@ -60,7 +60,7 @@ pub enum Error {
     /// missing abstract syntax to begin negotiation
     MissingAbstractSyntax { backtrace: Backtrace },
 
-    /// could not convert to sockeDUt address
+    /// could not convert to socket address
     ToAddress {
         source: std::io::Error,
         backtrace: Backtrace,

@@ -240,8 +240,9 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
                 .context(InvalidRejectSourceOrReasonSnafu)?;
 
             // 9 - Source - This Source field shall contain an integer value encoded as an unsigned
-            // binary number. One of the following values shall be used:   1 - DICOM UL
-            // service-user   2 - DICOM UL service-provider (ACSE related function)
+            // binary number. One of the following values shall be used:
+            //   1 - DICOM UL service-user
+            //   2 - DICOM UL service-provider (ACSE related function)
             //   3 - DICOM UL service-provider (Presentation related function)
             // 10 - Reason/Diag. - This field shall contain an integer value encoded as an unsigned
             // binary number.   If the Source field has the value (1) "DICOM UL
@@ -253,11 +254,13 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             //     7 - called-AE-title-not-recognized
             //     8-10 - reserved
             //   If the Source field has the value (2) "DICOM UL service provided (ACSE related
-            // function)", it shall take one of the following:     1 - no-reason-given
+            // function)", it shall take one of the following:
+            //     1 - no-reason-given
             //     2 - protocol-version-not-supported
             //   If the Source field has the value (3) "DICOM UL service provided (Presentation
-            // related function)", it shall take one of the following:     0 - reserved
-            //     1 - temporary-congestio
+            // related function)", it shall take one of the following:
+            //     0 - reserved
+            //     1 - temporary-congestion
             //     2 - local-limit-exceeded
             //     3-7 - reserved
             let source = AssociationRJSource::from(bytes.get_u8(), bytes.get_u8())
