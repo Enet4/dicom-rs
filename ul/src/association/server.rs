@@ -950,7 +950,8 @@ where
             self.max_pdu_length,
             self.strict,
         )?;
-        let mut write_buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
         match self.process_a_association_rq(msg) {
             Ok((
                 pdu,
@@ -1018,7 +1019,8 @@ where
             self.max_pdu_length,
             self.strict,
         )?;
-        let mut write_buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
         match self.process_a_association_rq(msg) {
             Ok((
                 pdu,
@@ -1937,22 +1939,20 @@ mod tests {
             ) = self
                 .process_a_association_rq(msg)
                 .expect("Could not parse association req");
-            let mut buffer: Vec<u8> = Vec::with_capacity(
-                (peer_max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-            );
-            write_pdu(&mut buffer, &pdu).context(SendPduSnafu)?;
-            socket.write_all(&buffer).context(WireSendSnafu)?;
+            let mut write_buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
+            write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+            socket.write_all(&write_buffer).context(WireSendSnafu)?;
+            read_buffer.clear();
             Ok(ServerAssociation {
                 presentation_contexts,
                 requestor_max_pdu_length: peer_max_pdu_length,
                 acceptor_max_pdu_length: self.max_pdu_length,
                 socket,
                 client_ae_title: peer_ae_title,
-                write_buffer: buffer,
+                write_buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(
-                    (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-                ),
+                read_buffer,
                 user_variables,
                 called_ae_title,
             })
@@ -1990,22 +1990,23 @@ mod tests {
             ) = self
                 .process_a_association_rq(msg)
                 .expect("Could not parse association req");
-            let mut buffer: Vec<u8> = Vec::with_capacity(
-                (peer_max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-            );
-            write_pdu(&mut buffer, &pdu).context(SendPduSnafu)?;
-            socket.write_all(&buffer).await.context(WireSendSnafu)?;
+            let mut write_buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
+            write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+            socket
+                .write_all(&write_buffer)
+                .await
+                .context(WireSendSnafu)?;
+            read_buffer.clear();
             Ok(AsyncServerAssociation {
                 presentation_contexts,
                 requestor_max_pdu_length: peer_max_pdu_length,
                 acceptor_max_pdu_length: self.max_pdu_length,
                 socket,
                 client_ae_title: peer_ae_title,
-                write_buffer: buffer,
+                write_buffer,
                 strict: self.strict,
-                read_buffer: BytesMut::with_capacity(
-                    (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-                ),
+                read_buffer,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
                 user_variables,
