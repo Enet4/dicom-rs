@@ -46,8 +46,8 @@ use snafu::{ResultExt, Snafu, ensure};
 use crate::{
     Pdu,
     pdu::{
-        self, AbortRQSource, AbortRQServiceProviderReason, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, RequestorRoles,
-        UserVariableItem,
+        self, AbortRQServiceProviderReason, AbortRQSource, AssociationRJ,
+        PresentationContextNegotiated, ReadPduSnafu, RequestorRoles, UserVariableItem,
     },
     write_pdu,
 };
@@ -283,16 +283,14 @@ pub trait Association {
     ///
     /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        self.user_variables()
-            .iter()
-            .find_map(|uv| match uv {
-                UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data)
-                    if uid == sop_class_uid =>
-                {
-                    Some(data.as_slice())
-                }
-                _ => None,
-            })
+        self.user_variables().iter().find_map(|uv| match uv {
+            UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data)
+                if uid == sop_class_uid =>
+            {
+                Some(data.as_slice())
+            }
+            _ => None,
+        })
     }
 
     /// Roles that the Association-requestor may assume. Returns a
@@ -322,8 +320,7 @@ pub trait Association {
 }
 
 /// Trait that represents methods that can be made on a synchronous association.
-pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Association
-{
+pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Association {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -420,7 +417,8 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Asso
 
 #[cfg(feature = "async")]
 /// Trait that represents methods that can be made on an asynchronous association.
-pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>: Association
+pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>:
+    Association
 {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
