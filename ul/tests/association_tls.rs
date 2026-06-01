@@ -7,8 +7,26 @@ use std::sync::Arc;
 
 #[cfg(any(feature = "sync-tls", feature = "async-tls"))]
 type Result<T, E = Box<dyn std::error::Error + Send + Sync + 'static>> = std::result::Result<T, E>;
+// Tests run in parallel and all share the same `certs/` directory. Without
+// coordination, two threads can simultaneously decide to regenerate the certs
+// and `remove_dir_all` / rewrite files out from under each other, causing a
+// thread that just wrote `ca.pem` to read back an empty/partial file
+// (`NoItemsFound`). `get_or_init` runs the generation exactly once across all
+// parallel test threads; the rest block until it finishes and then observe the
+// completed files.
+#[cfg(any(feature = "sync-tls", feature = "async-tls"))]
+static CERTS: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+
 #[cfg(any(feature = "sync-tls", feature = "async-tls"))]
 fn ensure_test_certs() -> Result<()> {
+    CERTS
+        .get_or_init(|| generate_test_certs().map_err(|e| e.to_string()))
+        .clone()
+        .map_err(Into::into)
+}
+
+#[cfg(any(feature = "sync-tls", feature = "async-tls"))]
+fn generate_test_certs() -> Result<()> {
     use rcgen::SanType;
     use rustls_cert_gen::CertificateBuilder;
     use std::{convert::TryInto, net::IpAddr, path::PathBuf, str::FromStr};
