@@ -6,7 +6,7 @@ use dicom_object::{InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     ClientAssociation, Pdu,
-    association::CloseSocket,
+    association::{CloseSocket, SyncAssociation},
     pdu::{PDataValue, PDataValueType},
 };
 use indicatif::ProgressBar;
