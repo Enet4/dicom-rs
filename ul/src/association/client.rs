@@ -18,7 +18,7 @@ use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     association::{
         Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
-        private::SyncAssociationSealed, read_pdu_from_wire,
+        read_pdu_from_wire,
     },
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
@@ -1211,10 +1211,23 @@ where
     }
 }
 
-impl<S> SyncAssociationSealed<S> for ClientAssociation<S>
+impl<S> SyncAssociation<S> for ClientAssociation<S>
 where
     S: CloseSocket + std::io::Read + std::io::Write,
 {
+    fn inner_stream(&mut self) -> &mut S {
+        &mut self.socket
+    }
+
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
+        (socket, read_buffer)
+    }
+
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
         self.write_buffer.clear();
@@ -1243,35 +1256,17 @@ where
     }
 }
 
-impl<S> SyncAssociation<S> for ClientAssociation<S>
-where
-    S: CloseSocket + std::io::Read + std::io::Write,
-{
-    fn inner_stream(&mut self) -> &mut S {
-        &mut self.socket
-    }
-
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
-        let Self {
-            socket,
-            read_buffer,
-            ..
-        } = self;
-        (socket, read_buffer)
-    }
-}
-
 /// Trait with the behavior to synchronously release an association
 #[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
 pub trait Release {
     #[deprecated(since = "0.9.1", note = "Call `SyncAssociation::release` instead")]
-    fn release(&mut self) -> Result<()>;
+    fn release(self) -> Result<()>;
 }
 
 #[allow(deprecated)]
 impl Release for ClientAssociation<std::net::TcpStream> {
-    fn release(&mut self) -> Result<()> {
-        SyncAssociationSealed::release(self)
+    fn release(self) -> Result<()> {
+        SyncAssociation::release(self)
     }
 }
 
@@ -1731,10 +1726,23 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> super::private::AsyncAssociationSealed<S> for AsyncClientAssociation<S>
+impl<S> AsyncAssociation<S> for AsyncClientAssociation<S>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
+    fn inner_stream(&mut self) -> &mut S {
+        &mut self.socket
+    }
+
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
+        (socket, read_buffer)
+    }
+
     async fn send(&mut self, msg: &Pdu) -> Result<()> {
         use tokio::io::AsyncWriteExt;
 
@@ -1770,25 +1778,6 @@ where
     async fn close(&mut self) -> std::io::Result<()> {
         use tokio::io::AsyncWriteExt;
         self.socket.shutdown().await
-    }
-}
-
-#[cfg(feature = "async")]
-impl<S> AsyncAssociation<S> for AsyncClientAssociation<S>
-where
-    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
-    fn inner_stream(&mut self) -> &mut S {
-        &mut self.socket
-    }
-
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
-        let Self {
-            socket,
-            read_buffer,
-            ..
-        } = self;
-        (socket, read_buffer)
     }
 }
 
