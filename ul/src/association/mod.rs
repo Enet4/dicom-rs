@@ -46,8 +46,8 @@ use snafu::{ResultExt, Snafu, ensure};
 use crate::{
     Pdu,
     pdu::{
-        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, RequestorRoles,
-        UserVariableItem,
+        self, AbortRQServiceProviderReason, AbortRQSource, AssociationRJ,
+        PresentationContextNegotiated, ReadPduSnafu, RequestorRoles, UserVariableItem,
     },
     write_pdu,
 };
@@ -342,127 +342,8 @@ pub trait Association {
     }
 }
 
-mod private {
-    use crate::{
-        Pdu,
-        pdu::{AbortRQServiceProviderReason, AbortRQSource},
-    };
-    use snafu::ResultExt;
-
-    /// Private trait which exposes "unsafe" methods that should not be called by the user
-    ///
-    /// `close` and `release` _should_ take ownership, and in the public interface, they
-    /// do. However, in order to implement `Drop` we need to expose a version of these
-    /// methods that don't take ownership.
-    ///
-    /// `send` and `receive` implementations are needed in order to provide
-    /// the implementation for `release`
-    pub trait SyncAssociationSealed<S: std::io::Read + std::io::Write + super::CloseSocket> {
-        fn close(&mut self) -> std::io::Result<()>;
-        fn send(&mut self, pdu: &Pdu) -> super::Result<()>;
-        fn receive(&mut self) -> super::Result<Pdu>;
-        fn release(&mut self) -> super::Result<()> {
-            let pdu = Pdu::ReleaseRQ;
-            self.send(&pdu)?;
-            let pdu = self.receive()?;
-
-            match pdu {
-                Pdu::ReleaseRP => {}
-                pdu @ Pdu::AbortRQ { .. }
-                | pdu @ Pdu::AssociationAC { .. }
-                | pdu @ Pdu::AssociationRJ { .. }
-                | pdu @ Pdu::AssociationRQ { .. }
-                | pdu @ Pdu::PData { .. }
-                | pdu @ Pdu::ReleaseRQ => return super::UnexpectedPduSnafu { pdu }.fail(),
-                pdu @ Pdu::Unknown { .. } => return super::UnknownPduSnafu { pdu }.fail(),
-            }
-            self.close().context(super::CloseSnafu)?;
-            Ok(())
-        }
-
-        fn abort(&mut self) -> super::Result<()>
-        where
-            Self: Sized,
-        {
-            let pdu = Pdu::AbortRQ {
-                source: AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecified,
-                ),
-            };
-            let out = self.send(&pdu);
-            let _ = self.close();
-            out
-        }
-    }
-
-    /// Private trait which exposes "unsafe" methods that should not be called by the user
-    ///
-    /// `close` and `release` _should_ take ownership, and in the public interface, they
-    /// do. However, in order to implement `Drop` we need to expose a version of these
-    /// methods that don't take ownership.
-    ///
-    /// `send` and `receive` implementations are needed in order to provide
-    /// the implementation for `release`
-    #[cfg(feature = "async")]
-    pub trait AsyncAssociationSealed<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin> {
-        fn close(&mut self) -> impl std::future::Future<Output = std::io::Result<()>> + Send
-        where
-            Self: Send;
-        fn send(
-            &mut self,
-            pdu: &Pdu,
-        ) -> impl std::future::Future<Output = super::Result<()>> + Send
-        where
-            Self: Send;
-        fn receive(&mut self) -> impl std::future::Future<Output = super::Result<Pdu>> + Send
-        where
-            Self: Send;
-        fn release(&mut self) -> impl std::future::Future<Output = super::Result<()>> + Send
-        where
-            Self: Send,
-        {
-            async move {
-                let pdu = Pdu::ReleaseRQ;
-                self.send(&pdu).await?;
-                let pdu = self.receive().await?;
-
-                match pdu {
-                    Pdu::ReleaseRP => {}
-                    pdu @ Pdu::AbortRQ { .. }
-                    | pdu @ Pdu::AssociationAC { .. }
-                    | pdu @ Pdu::AssociationRJ { .. }
-                    | pdu @ Pdu::AssociationRQ { .. }
-                    | pdu @ Pdu::PData { .. }
-                    | pdu @ Pdu::ReleaseRQ => return super::UnexpectedPduSnafu { pdu }.fail(),
-                    pdu @ Pdu::Unknown { .. } => return super::UnknownPduSnafu { pdu }.fail(),
-                }
-                self.close().await.context(super::CloseSnafu)?;
-                Ok(())
-            }
-        }
-
-        fn abort(&mut self) -> impl std::future::Future<Output = super::Result<()>> + Send
-        where
-            Self: Sized + Send,
-        {
-            let pdu = Pdu::AbortRQ {
-                source: AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecified,
-                ),
-            };
-            async move {
-                let out = self.send(&pdu).await;
-                let _ = self.close().await;
-                out
-            }
-        }
-    }
-}
-
 /// Trait that represents methods that can be made on a synchronous association.
-pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
-    private::SyncAssociationSealed<S> + Association
-{
+pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Association {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -478,14 +359,10 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut);
 
     /// Send a PDU message to the other intervenient.
-    fn send(&mut self, pdu: &Pdu) -> Result<()> {
-        private::SyncAssociationSealed::send(self, pdu)
-    }
+    fn send(&mut self, pdu: &Pdu) -> Result<()>;
 
     /// Read a PDU message from the other intervenient.
-    fn receive(&mut self) -> Result<Pdu> {
-        private::SyncAssociationSealed::receive(self)
-    }
+    fn receive(&mut self) -> Result<Pdu>;
 
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
@@ -494,7 +371,14 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
     where
         Self: Sized,
     {
-        private::SyncAssociationSealed::abort(&mut self)
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::ReasonNotSpecified,
+            ),
+        };
+        let out = self.send(&pdu);
+        let _ = self.close();
+        out
     }
 
     /// Iniate a graceful release of the association.
@@ -510,7 +394,22 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
     where
         Self: Sized,
     {
-        private::SyncAssociationSealed::release(&mut self)
+        let pdu = Pdu::ReleaseRQ;
+        self.send(&pdu)?;
+        let pdu = self.receive()?;
+
+        match pdu {
+            Pdu::ReleaseRP => {}
+            pdu @ Pdu::AbortRQ { .. }
+            | pdu @ Pdu::AssociationAC { .. }
+            | pdu @ Pdu::AssociationRJ { .. }
+            | pdu @ Pdu::AssociationRQ { .. }
+            | pdu @ Pdu::PData { .. }
+            | pdu @ Pdu::ReleaseRQ => return UnexpectedPduSnafu { pdu }.fail(),
+            pdu @ Pdu::Unknown { .. } => return UnknownPduSnafu { pdu }.fail(),
+        }
+        self.close().context(CloseSnafu)?;
+        Ok(())
     }
 
     /// Prepare a P-Data writer for sending
@@ -533,12 +432,14 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
         let (socket, read_buffer) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
     }
+
+    fn close(&mut self) -> std::io::Result<()>;
 }
 
 #[cfg(feature = "async")]
 /// Trait that represents methods that can be made on an asynchronous association.
 pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>:
-    private::AsyncAssociationSealed<S> + Association
+    Association
 {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
@@ -557,18 +458,12 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send
     where
-        Self: Send,
-    {
-        async move { private::AsyncAssociationSealed::send(self, pdu).await }
-    }
+        Self: Send;
 
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> impl std::future::Future<Output = Result<Pdu>> + Send
     where
-        Self: Send,
-    {
-        async move { private::AsyncAssociationSealed::receive(self).await }
-    }
+        Self: Send;
 
     /// Send a provider initiated abort message
     /// and shut down the TCP connection,
@@ -577,7 +472,16 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     where
         Self: Sized + Send,
     {
-        async move { private::AsyncAssociationSealed::abort(&mut self).await }
+        let pdu = Pdu::AbortRQ {
+            source: AbortRQSource::ServiceProvider(
+                AbortRQServiceProviderReason::ReasonNotSpecified,
+            ),
+        };
+        async move {
+            let out = self.send(&pdu).await;
+            let _ = self.close().await;
+            out
+        }
     }
 
     /// Iniate a graceful release of the association.
@@ -593,7 +497,24 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     where
         Self: Sized + Send,
     {
-        async move { private::AsyncAssociationSealed::release(&mut self).await }
+        async move {
+            let pdu = Pdu::ReleaseRQ;
+            self.send(&pdu).await?;
+            let pdu = self.receive().await?;
+
+            match pdu {
+                Pdu::ReleaseRP => {}
+                pdu @ Pdu::AbortRQ { .. }
+                | pdu @ Pdu::AssociationAC { .. }
+                | pdu @ Pdu::AssociationRJ { .. }
+                | pdu @ Pdu::AssociationRQ { .. }
+                | pdu @ Pdu::PData { .. }
+                | pdu @ Pdu::ReleaseRQ => return UnexpectedPduSnafu { pdu }.fail(),
+                pdu @ Pdu::Unknown { .. } => return UnknownPduSnafu { pdu }.fail(),
+            }
+            self.close().await.context(CloseSnafu)?;
+            Ok(())
+        }
     }
 
     /// Prepare a P-Data writer for sending
@@ -616,6 +537,10 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         let (socket, read_buffer) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
     }
+
+    fn close(&mut self) -> impl std::future::Future<Output = std::io::Result<()>> + Send
+    where
+        Self: Send;
 }
 
 // Helper function to perform an operation with timeout
@@ -628,7 +553,7 @@ async fn timeout<T>(
         tokio::time::timeout(timeout, block)
             .await
             .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))
-            .context(crate::association::TimeoutSnafu)?
+            .context(TimeoutSnafu)?
     } else {
         block.await
     }

@@ -11,7 +11,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{io::Write, net::TcpStream};
 
-use crate::association::private::SyncAssociationSealed;
 use crate::association::{
     AbortedSnafu, Association, CloseSocket, MissingAbstractSyntaxSnafu, RejectedSnafu,
     SendPduSnafu, SocketOptions, SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu,
@@ -1349,10 +1348,23 @@ where
     }
 }
 
-impl<S> SyncAssociationSealed<S> for ServerAssociation<S>
+impl<S> SyncAssociation<S> for ServerAssociation<S>
 where
     S: std::io::Read + std::io::Write + CloseSocket,
 {
+    fn inner_stream(&mut self) -> &mut S {
+        &mut self.socket
+    }
+
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
+        (socket, read_buffer)
+    }
+
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
         self.write_buffer.clear();
         encode_pdu(
@@ -1376,24 +1388,6 @@ where
 
     fn close(&mut self) -> std::io::Result<()> {
         self.socket.close()
-    }
-}
-
-impl<S> SyncAssociation<S> for ServerAssociation<S>
-where
-    S: std::io::Read + std::io::Write + CloseSocket,
-{
-    fn inner_stream(&mut self) -> &mut S {
-        &mut self.socket
-    }
-
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
-        let Self {
-            socket,
-            read_buffer,
-            ..
-        } = self;
-        (socket, read_buffer)
     }
 }
 
@@ -1737,10 +1731,23 @@ where
 }
 
 #[cfg(feature = "async")]
-impl<S> crate::association::private::AsyncAssociationSealed<S> for AsyncServerAssociation<S>
+impl<S> crate::association::AsyncAssociation<S> for AsyncServerAssociation<S>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
+    fn inner_stream(&mut self) -> &mut S {
+        &mut self.socket
+    }
+
+    fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
+        let Self {
+            socket,
+            read_buffer,
+            ..
+        } = self;
+        (socket, read_buffer)
+    }
+
     /// Send a PDU message to the other intervenient.
     async fn send(&mut self, msg: &Pdu) -> Result<()> {
         use tokio::io::AsyncWriteExt;
@@ -1776,25 +1783,6 @@ where
     async fn close(&mut self) -> std::io::Result<()> {
         use tokio::io::AsyncWriteExt;
         self.socket.shutdown().await
-    }
-}
-
-#[cfg(feature = "async")]
-impl<S> crate::association::AsyncAssociation<S> for AsyncServerAssociation<S>
-where
-    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-{
-    fn inner_stream(&mut self) -> &mut S {
-        &mut self.socket
-    }
-
-    fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
-        let Self {
-            socket,
-            read_buffer,
-            ..
-        } = self;
-        (socket, read_buffer)
     }
 }
 
