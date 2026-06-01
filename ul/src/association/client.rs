@@ -16,10 +16,7 @@ use std::{
 use crate::association::AsyncAssociation;
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
-    association::{
-        Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
-        read_pdu_from_wire,
-    },
+    association::{Association, NegotiatedOptions, SocketOptions, SyncAssociation},
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
         MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
@@ -927,7 +924,8 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buf = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict);
+        let resp =
+            super::read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict);
         // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
         // could be because the server expects TLS but we sent a
         // plaintext request.  In that case, we make a best effort to
@@ -1192,31 +1190,26 @@ where
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
+            write_buffer,
             ..
         } = self;
-        (socket, read_buffer)
+        (socket, read_buffer, write_buffer)
     }
 
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
-        self.write_buffer.clear();
-        encode_pdu(
-            &mut self.write_buffer,
-            pdu,
-            self.acceptor_max_pdu_length + PDU_HEADER_SIZE,
-        )?;
-        self.socket
-            .write_all(&self.write_buffer)
-            .context(super::WireSendSnafu)
+        let max_pdu = self.acceptor_max_pdu_length;
+        let (socket, _, write_buffer) = self.get_mut();
+        super::write_pdu_to_wire(socket, write_buffer, pdu, max_pdu)
     }
 
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(
+        super::read_pdu_from_wire(
             &mut self.socket,
             &mut self.read_buffer,
             self.requestor_max_pdu_length,
@@ -1667,37 +1660,26 @@ where
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
+            write_buffer,
             ..
         } = self;
-        (socket, read_buffer)
+        (socket, read_buffer, write_buffer)
     }
 
-    async fn send(&mut self, msg: &Pdu) -> Result<()> {
-        use tokio::io::AsyncWriteExt;
-
-        self.write_buffer.clear();
-        encode_pdu(
-            &mut self.write_buffer,
-            msg,
-            self.acceptor_max_pdu_length + PDU_HEADER_SIZE,
-        )?;
-        super::timeout(self.write_timeout, async {
-            self.socket
-                .write_all(&self.write_buffer)
-                .await
-                .context(crate::association::WireSendSnafu)
-        })
-        .await
+    fn send(&mut self, msg: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send {
+        let write_timeout = self.write_timeout;
+        let max_pdu = self.acceptor_max_pdu_length;
+        let (socket, _, write_buffer) = self.get_mut();
+        super::write_pdu_to_wire_async(socket, write_buffer, msg, max_pdu, write_timeout)
     }
 
     async fn receive(&mut self) -> Result<Pdu> {
-        use crate::association::read_pdu_from_wire_async;
         super::timeout(self.read_timeout, async {
-            read_pdu_from_wire_async(
+            super::read_pdu_from_wire_async(
                 &mut self.socket,
                 &mut self.read_buffer,
                 self.requestor_max_pdu_length,
@@ -1717,6 +1699,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::association::read_pdu_from_wire;
     #[cfg(feature = "async")]
     use crate::association::read_pdu_from_wire_async;
     use std::io::Write;

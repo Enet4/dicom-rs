@@ -14,7 +14,7 @@ use std::{io::Write, net::TcpStream};
 use crate::association::{
     AbortedSnafu, Association, CloseSocket, MissingAbstractSyntaxSnafu, RejectedSnafu,
     SendPduSnafu, SocketOptions, SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu,
-    WireSendSnafu, encode_pdu, read_pdu_from_wire,
+    WireSendSnafu,
 };
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -1017,7 +1017,7 @@ where
         let mut read_buffer = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let msg = read_pdu_from_wire(
+        let msg = super::read_pdu_from_wire(
             &mut socket,
             &mut read_buffer,
             self.max_pdu_length,
@@ -1100,7 +1100,7 @@ where
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
 
-        let msg = read_pdu_from_wire(
+        let msg = super::read_pdu_from_wire(
             &mut tls_stream,
             &mut read_buffer,
             self.max_pdu_length,
@@ -1323,29 +1323,24 @@ where
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut) {
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
+            write_buffer,
             ..
         } = self;
-        (socket, read_buffer)
+        (socket, read_buffer, write_buffer)
     }
 
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
-        self.write_buffer.clear();
-        encode_pdu(
-            &mut self.write_buffer,
-            pdu,
-            self.requestor_max_pdu_length + PDU_HEADER_SIZE,
-        )?;
-        self.socket
-            .write_all(&self.write_buffer)
-            .context(WireSendSnafu)
+        let max_pdu = self.requestor_max_pdu_length;
+        let (socket, _, write_buffer) = self.get_mut();
+        super::write_pdu_to_wire(socket, write_buffer, pdu, max_pdu)
     }
 
     fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(
+        super::read_pdu_from_wire(
             &mut self.socket,
             &mut self.read_buffer,
             self.acceptor_max_pdu_length,
@@ -1714,31 +1709,22 @@ where
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut bytes::BytesMut) {
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
+            write_buffer,
             ..
         } = self;
-        (socket, read_buffer)
+        (socket, read_buffer, write_buffer)
     }
 
     /// Send a PDU message to the other intervenient.
-    async fn send(&mut self, msg: &Pdu) -> Result<()> {
-        use tokio::io::AsyncWriteExt;
-        self.write_buffer.clear();
-        super::timeout(self.write_timeout, async {
-            encode_pdu(
-                &mut self.write_buffer,
-                msg,
-                self.requestor_max_pdu_length + PDU_HEADER_SIZE,
-            )?;
-            self.socket
-                .write_all(&self.write_buffer)
-                .await
-                .context(WireSendSnafu)
-        })
-        .await
+    fn send(&mut self, msg: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send {
+        let write_timeout = self.write_timeout;
+        let max_pdu = self.requestor_max_pdu_length;
+        let (socket, _, write_buffer) = self.get_mut();
+        super::write_pdu_to_wire_async(socket, write_buffer, msg, max_pdu, write_timeout)
     }
 
     /// Read a PDU message from the other intervenient.
@@ -1764,6 +1750,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::association::read_pdu_from_wire;
+    #[cfg(feature = "async")]
+    use crate::association::read_pdu_from_wire_async;
 
     #[test]
     fn test_choose_supported() {
@@ -1848,8 +1837,6 @@ mod tests {
             extra_pdus: Vec<Pdu>,
         ) -> Result<AsyncServerAssociation<tokio::net::TcpStream>> {
             use tokio::io::AsyncWriteExt;
-
-            use crate::association::read_pdu_from_wire_async;
 
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
@@ -1953,8 +1940,6 @@ mod tests {
             mut socket: tokio::net::TcpStream,
         ) -> Result<AsyncServerAssociation<tokio::net::TcpStream>> {
             use tokio::io::AsyncWriteExt;
-
-            use crate::association::read_pdu_from_wire_async;
 
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
