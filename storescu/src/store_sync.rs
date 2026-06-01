@@ -7,7 +7,8 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    ClientAssociation, Pdu, association::CloseSocket, pdu::{PDataValue, PDataValueType}
+    ClientAssociation, Pdu, association::CloseSocket, pdu::{PDataValue, PDataValueType},
+    association::SyncAssociation,
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt};
