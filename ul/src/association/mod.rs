@@ -27,7 +27,7 @@ pub(crate) mod pdata;
 
 use std::{
     backtrace::Backtrace,
-    io::{BufRead, BufReader, Cursor, Read},
+    io::{BufRead, BufReader, Cursor, Read, Write},
     time::Duration,
 };
 
@@ -320,7 +320,7 @@ pub trait Association {
 }
 
 /// Trait that represents methods that can be made on a synchronous association.
-pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Association {
+pub trait SyncAssociation<S: Read + Write + CloseSocket>: Association {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -332,8 +332,8 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Asso
     /// Do not call `send` and `receive` while not in a PDU boundary.
     fn inner_stream(&mut self) -> &mut S;
 
-    /// Obtain mutable access to the inner stream and read buffer
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut);
+    /// Obtain mutable access to the inner stream, read and write buffers
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>);
 
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> Result<()>;
@@ -408,7 +408,7 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>: Asso
     /// receives more data PDUs once the bytes collected are consumed.
     fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
+        let (socket, read_buffer, _) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
     }
 
@@ -432,7 +432,7 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     fn inner_stream(&mut self) -> &mut S;
 
     /// Obtain mutable access to the inner stream and read buffer
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut);
+    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>);
 
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send
@@ -513,7 +513,7 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// receives more data PDUs once the bytes collected are consumed.
     fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
-        let (socket, read_buffer) = self.get_mut();
+        let (socket, read_buffer, _) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
     }
 
@@ -548,6 +548,24 @@ pub(crate) fn encode_pdu(buffer: &mut Vec<u8>, pdu: &Pdu, peer_max_pdu_length: u
         .fail();
     }
     Ok(())
+}
+
+/// Helper function to send a PDU to a writer
+pub fn write_pdu_to_wire<W: Write>(
+    writer: &mut W,
+    write_buffer: &mut Vec<u8>,
+    msg: &Pdu,
+    max_pdu_length: u32,
+) -> Result<()> {
+    write_buffer.clear();
+    encode_pdu(
+        write_buffer,
+        msg,
+        max_pdu_length + pdu::PDU_HEADER_SIZE,
+    )?;
+    writer
+        .write_all(write_buffer)
+        .context(crate::association::WireSendSnafu)
 }
 
 /// Helper function to get a PDU from a reader.
@@ -589,6 +607,32 @@ where
         ensure!(bytes_read != 0, ConnectionClosedSnafu);
     };
     Ok(msg)
+}
+
+/// Helper function to send a PDU to an async writer
+#[cfg(feature = "async")]
+pub async fn write_pdu_to_wire_async<W: tokio::io::AsyncWrite + Unpin>(
+    writer: &mut W,
+    write_buffer: &mut Vec<u8>,
+    msg: &Pdu,
+    max_pdu_length: u32,
+    write_timeout: Option<Duration>,
+) -> Result<()> {
+    use tokio::io::AsyncWriteExt;
+
+    write_buffer.clear();
+    encode_pdu(
+        write_buffer,
+        msg,
+        max_pdu_length + pdu::PDU_HEADER_SIZE,
+    )?;
+    timeout(write_timeout, async {
+        writer
+            .write_all(write_buffer)
+            .await
+            .context(WireSendSnafu)
+    })
+    .await
 }
 
 /// Helper function to get a PDU from an async reader.
