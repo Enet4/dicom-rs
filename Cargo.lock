@@ -904,6 +904,7 @@ dependencies = [
  "byteordered",
  "bytes",
  "cfg-if",
+ "dicom-app-common",
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-encoding",
