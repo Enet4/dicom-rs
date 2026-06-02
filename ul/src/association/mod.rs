@@ -52,6 +52,9 @@ use crate::{
     write_pdu,
 };
 
+/// Default timeout in seconds to wait for the peer to close the connection
+pub const DEFAULT_FINALIZATION_TIMEOUT: f32 = 30.0;
+
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Snafu)]
@@ -286,6 +289,14 @@ pub trait Association {
     /// for client objects.
     fn peer_max_pdu_length(&self) -> u32;
 
+    /// Retrieve the association finalization timeout
+    /// defined for this association
+    fn finalization_timeout(&self) -> Duration;
+
+    /// Change the association finalization timeout
+    /// defined for this association
+    fn set_finalization_timeout(&mut self, timeout: Duration);
+
     /// Obtain a view of the negotiated presentation contexts.
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated];
 
@@ -337,7 +348,7 @@ pub trait Association {
 }
 
 /// Trait that represents methods that can be made on a synchronous association.
-pub trait SyncAssociation<S: Read + Write + CloseSocket>: Association {
+pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Association {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
     ///
@@ -358,22 +369,44 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket>: Association {
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> Result<Pdu>;
 
-    /// Send a provider initiated abort message
+    /// Send an abort message with a source/reason
     /// and shut down the TCP connection,
     /// terminating the association.
-    fn abort(self) -> Result<()>
+    /// This function may take up to a time defined by
+    /// `finalization_timeout()` to complete, depending
+    /// on how long the peer takes to close the socket.
+    fn abort_with_source(self, source: AbortRQSource) -> Result<()>
     where
         Self: Sized,
     {
         let mut assoc = self;
-        let pdu = Pdu::AbortRQ {
-            source: AbortRQSource::ServiceProvider(
-                AbortRQServiceProviderReason::ReasonNotSpecified,
-            ),
-        };
-        let out = assoc.send(&pdu);
-        let _ = assoc.close();
-        out
+        let pdu = Pdu::AbortRQ { source };
+        let local_max_pdu_length = assoc.local_max_pdu_length();
+        let peer_max_pdu_length = assoc.peer_max_pdu_length();
+        let close_assoc_timeout = assoc.finalization_timeout();
+        let (socket, read_buffer, write_buffer) = assoc.get_mut();
+        write_pdu_to_wire(socket, write_buffer, &pdu, peer_max_pdu_length)?;
+        sta13(
+            socket,
+            read_buffer,
+            write_buffer,
+            local_max_pdu_length,
+            peer_max_pdu_length,
+            close_assoc_timeout,
+        )
+    }
+
+    /// Send a user-initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    /// This function may take up to a time defined by
+    /// `finalization_timeout()` to complete, depending
+    /// on how long the peer takes to close the socket.
+    fn abort(self) -> Result<()>
+    where
+        Self: Sized,
+    {
+        self.abort_with_source(AbortRQSource::ServiceUser)
     }
 
     /// Iniate a graceful release of the association.

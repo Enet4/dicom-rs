@@ -5,7 +5,7 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket}, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket, SetReadTimeout}, pdu::{PDataValueType, PresentationContextResultReason}};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
@@ -115,7 +115,7 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
 
 fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
 where
-    T: std::io::Read + std::io::Write + CloseSocket,
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;
