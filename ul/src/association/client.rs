@@ -17,12 +17,12 @@ use crate::association::AsyncAssociation;
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     association::{
-        Association, DEFAULT_FINALIZATION_TIMEOUT, NegotiatedOptions, SocketOptions,
+        Association, DEFAULT_FINALIZATION_TIMEOUT, Error, NegotiatedOptions, SocketOptions,
         SyncAssociation,
     },
     pdu::{
-        AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
-        MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
+        AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU,
+        LARGE_PDU_SIZE, MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
         PresentationContextProposed, PresentationContextResultReason, RequestorRoles, UserIdentity,
         UserIdentityType, UserVariableItem, write_pdu,
     },
@@ -833,6 +833,8 @@ impl<'a> ClientAssociationOptions<'a> {
         msg: Pdu,
         presentation_contexts_proposed: &[PresentationContextProposed],
     ) -> Result<NegotiatedOptions> {
+        // We enter this function in state Sta5, after we've already
+        // sent an A-ASSOCIATE-RQ in Sta4.
         match msg {
             Pdu::AssociationAC(AssociationAC {
                 protocol_version: protocol_version_scp,
@@ -842,6 +844,7 @@ impl<'a> ClientAssociationOptions<'a> {
                 called_ae_title,
                 user_variables,
             }) => {
+                // Action AE-3: association confirmed, signaled by Ok(_)
                 ensure!(
                     self.protocol_version == protocol_version_scp,
                     crate::association::ProtocolVersionMismatchSnafu {
@@ -885,7 +888,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     })
                     .collect();
                 if presentation_contexts.is_empty() {
-                    return crate::association::NoAcceptedPresentationContextsSnafu.fail();
+                    return super::NoAcceptedPresentationContextsSnafu.fail();
                 }
                 Ok(NegotiatedOptions {
                     presentation_contexts,
@@ -895,14 +898,29 @@ impl<'a> ClientAssociationOptions<'a> {
                 })
             }
             Pdu::AssociationRJ(association_rj) => {
-                crate::association::RejectedSnafu { association_rj }.fail()
+                // Action AE-4: send rejection notification and
+                // close connection. The connection will be closed
+                // by our caller, since we don't have the socket.
+                super::RejectedSnafu { association_rj }.fail()
             }
-            pdu @ Pdu::AbortRQ { .. }
-            | pdu @ Pdu::ReleaseRQ
-            | pdu @ Pdu::AssociationRQ { .. }
+            Pdu::AbortRQ { .. } => {
+                // Action AA-3: issue abort indication and close
+                // the connection (done by caller)
+                super::AbortedSnafu {}.fail()
+            }
+            pdu @ Pdu::AssociationRQ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRP => crate::association::UnexpectedPduSnafu { pdu }.fail(),
-            pdu @ Pdu::Unknown { .. } => crate::association::UnknownPduSnafu { pdu }.fail(),
+            | pdu @ Pdu::ReleaseRQ
+            | pdu @ Pdu::ReleaseRP => {
+                // Action AA-8: send service-provided A-ABORT PDU
+                // (done by caller)
+                super::UnexpectedPduSnafu { pdu }.fail()
+            }
+            pdu @ Pdu::Unknown { .. } => {
+                // Action AA-8: send service-provided A-ABORT PDU
+                // (done by caller)
+                super::UnknownPduSnafu { pdu }.fail()
+            }
         }
     }
 
@@ -914,33 +932,70 @@ impl<'a> ClientAssociationOptions<'a> {
     ) -> Result<ClientAssociation<S>>
     where
         T: ToSocketAddrs,
-        S: CloseSocket + std::io::Read + std::io::Write,
+        S: CloseSocket + SetReadTimeout + std::io::Read + std::io::Write,
     {
+        // Entered in state Sta4 after transport connection confirmation
+        // (transition from Sta1 to Sta4 happened in one of the various
+        // establish_* methods).
+        // Action is AE-2 (send A-ASSOCIATE-RQ); next state is Sta5
         let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
-        let mut buffer: Vec<u8> = Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
 
-        write_pdu(&mut buffer, &a_associate).context(super::SendPduSnafu)?;
-        socket.write_all(&buffer).context(super::WireSendSnafu)?;
-        buffer.clear();
+        write_pdu(&mut write_buffer, &a_associate).context(super::SendPduSnafu)?;
+        socket
+            .write_all(&write_buffer)
+            .context(super::WireSendSnafu)?;
+        write_buffer.clear();
 
-        let mut buf = BytesMut::with_capacity(
+        // We're now in state Sta5 (waiting for response from server)
+
+        let mut read_buffer = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let resp =
-            super::read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
+        let resp = super::read_pdu_from_wire(
+            &mut socket,
+            &mut read_buffer,
+            self.max_pdu_length,
+            self.strict,
+        )?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
-            Err(e) => {
-                // abort connection
+            Err(err @ Error::Rejected { .. }) | Err(err @ Error::Aborted { .. }) => {
+                // Association was rejected or aborted.
+                // Close transport connection and return to Sta1.
+                // Note that since Error::Aborted does not have any info
+                // on the AbortRQSource, we can't relay it, so we don't
+                // distinguish an A-ABORT indication from A-P-ABORT one.
+                let _ = socket.close();
+                Err(err)
+            }
+            Err(err) => {
+                // Other errors - send A-ABORT (service provider)
+                // and go to Sta13
                 let _ = write_pdu(
-                    &mut buffer,
+                    &mut write_buffer,
                     &Pdu::AbortRQ {
-                        source: AbortRQSource::ServiceUser,
+                        source: AbortRQSource::ServiceProvider(
+                            if let Error::UnknownPdu { .. } = err {
+                                AbortRQServiceProviderReason::UnrecognizedPdu
+                            } else {
+                                AbortRQServiceProviderReason::UnexpectedPdu
+                            },
+                        ),
                     },
                 );
-                let _ = socket.write_all(&buffer);
-                buffer.clear();
-                Err(e)
+                let _ = socket.write_all(&write_buffer);
+                write_buffer.clear();
+                super::sta13(
+                    &mut socket,
+                    &mut read_buffer,
+                    &mut write_buffer,
+                    self.max_pdu_length,
+                    DEFAULT_MAX_PDU,
+                    self.finalization_timeout,
+                )?;
+                Err(err)
             }
             Ok(NegotiatedOptions {
                 presentation_contexts,
@@ -948,15 +1003,17 @@ impl<'a> ClientAssociationOptions<'a> {
                 user_variables,
                 peer_ae_title,
             }) => {
+                // Action AE-3, next state is Sta6. We indicate both
+                // by returning Ok(_).
                 Ok(ClientAssociation {
                     presentation_contexts,
                     requestor_max_pdu_length: self.max_pdu_length,
                     acceptor_max_pdu_length: peer_max_pdu_length,
                     socket,
-                    write_buffer: buffer,
+                    write_buffer,
                     strict: self.strict,
                     // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
-                    read_buffer: buf,
+                    read_buffer,
                     read_timeout: self.socket_options.read_timeout,
                     write_timeout: self.socket_options.write_timeout,
                     finalization_timeout: self.finalization_timeout,
