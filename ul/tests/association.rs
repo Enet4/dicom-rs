@@ -1,8 +1,6 @@
 use dicom_dictionary_std::uids::{self, VERIFICATION};
-#[cfg(feature = "sync-tls")]
 use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions};
 use rstest::rstest;
-#[cfg(feature = "sync-tls")]
 use std::time::Instant;
 
 type Result<T, E = Box<dyn std::error::Error + Send + Sync + 'static>> = std::result::Result<T, E>;

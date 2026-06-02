@@ -1495,11 +1495,20 @@ impl<'a> ClientAssociationOptions<'a> {
                             error!("Recieved TLS response to non-TLS request!");
                             return super::TlsNotSupportedSnafu.fail();
                         }
-                        Err(e) => {
+                        Err(rustls::Error::InvalidMessage(..)) => return Err(e),
+                        _ => {
+                            // If we get any error other than `InvalidMessage`,
+                            // it could be because the server expects TLS but we
+                            // sent a plaintext request.  In that case, we
+                            // return a more specific error message.
                             error!(err=?e, "Server expects TLS, client sent plaintext");
-                            return super::TlsNotSupportedSnafu.fail();
+                            return super::TlsNotSupportedSnafu.fail()
                         }
                     }
+                }
+                #[cfg(not(feature = "async-tls"))]
+                {
+                    return e
                 }
             }
         };

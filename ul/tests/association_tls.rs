@@ -578,22 +578,61 @@ mod async_tls_mismatch {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_non_tls_client_handles_bogus_pdu(){
+    async fn test_non_tls_server_handles_bogus_pdu(){
+        use tokio::io::AsyncWriteExt;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let server_addr = listener.local_addr().unwrap();
+        let server_options = ServerAssociationOptions::new()
+            .accept_called_ae_title()
+            .ae_title("TLS-SCP")
+            .with_abstract_syntax(VERIFICATION);
         let server_handle: tokio::task::JoinHandle<Result<_>> = tokio::spawn(async move {
             let (stream, _) = listener
                 .accept()
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
             let association = server_options
-                .establish_tls_async(stream)
+                .establish_async(stream)
                 .await;
             assert!(association.is_err());
-            assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+            // Shouldn't get a TLS handshake error in this case
+            assert!(!matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
             Result::Ok(())
         });
         // Give server time to start
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let mut stream = tokio::net::TcpStream::connect(server_addr).await.unwrap();
+        stream.write_all(b"Bogus PDU").await.unwrap();
+        // Wait for server to complete
+        server_handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_non_tls_client_handles_bogus_pdu(){
+        use tokio::io::AsyncWriteExt;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = listener.local_addr().unwrap();
+        let server_handle: tokio::task::JoinHandle<Result<_>> = tokio::spawn(async move {
+            let (mut stream, _) = listener
+                .accept()
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
+            stream.write_all(b"Bogus PDU").await.unwrap();
+            Result::Ok(())
+        });
+        // Give server time to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+        let client_options = ClientAssociationOptions::new()
+            .calling_ae_title("ASYNC-TLS-SCU")
+            .called_ae_title("ASYNC-TLS-SCP")
+            .with_abstract_syntax(VERIFICATION)
+            .server_name("localhost");
+
+        // Establish TLS connection
+        let association = client_options.establish_async(server_addr).await;
+
+        assert!(association.is_err());
+        assert!(!matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+        server_handle.await.unwrap().unwrap();
     }
 }
