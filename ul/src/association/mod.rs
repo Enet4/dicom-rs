@@ -28,7 +28,7 @@ pub(crate) mod pdata;
 use std::{
     backtrace::Backtrace,
     io::{BufRead, BufReader, Cursor, Read, Write},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use bytes::{Buf, BytesMut};
@@ -235,6 +235,23 @@ impl CloseSocket for rustls::StreamOwned<rustls::ClientConnection, std::net::Tcp
 impl CloseSocket for rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream> {
     fn close(&mut self) -> std::io::Result<()> {
         self.get_mut().shutdown(std::net::Shutdown::Both)
+    }
+}
+
+pub trait SetReadTimeout {
+    fn set_read_timeout(&self, dur: Option<Duration>) -> std::io::Result<()>;
+}
+
+impl SetReadTimeout for std::net::TcpStream {
+    fn set_read_timeout(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        std::net::TcpStream::set_read_timeout(self, dur)
+    }
+}
+
+#[cfg(feature = "sync-tls")]
+impl<C> SetReadTimeout for rustls::StreamOwned<C, std::net::TcpStream> {
+    fn set_read_timeout(&self, dur: Option<Duration>) -> std::io::Result<()> {
+        self.sock.set_read_timeout(dur)
     }
 }
 
@@ -558,11 +575,7 @@ pub fn write_pdu_to_wire<W: Write>(
     max_pdu_length: u32,
 ) -> Result<()> {
     write_buffer.clear();
-    encode_pdu(
-        write_buffer,
-        msg,
-        max_pdu_length + pdu::PDU_HEADER_SIZE,
-    )?;
+    encode_pdu(write_buffer, msg, max_pdu_length + pdu::PDU_HEADER_SIZE)?;
     writer
         .write_all(write_buffer)
         .context(crate::association::WireSendSnafu)
@@ -621,16 +634,9 @@ pub async fn write_pdu_to_wire_async<W: tokio::io::AsyncWrite + Unpin>(
     use tokio::io::AsyncWriteExt;
 
     write_buffer.clear();
-    encode_pdu(
-        write_buffer,
-        msg,
-        max_pdu_length + pdu::PDU_HEADER_SIZE,
-    )?;
+    encode_pdu(write_buffer, msg, max_pdu_length + pdu::PDU_HEADER_SIZE)?;
     timeout(write_timeout, async {
-        writer
-            .write_all(write_buffer)
-            .await
-            .context(WireSendSnafu)
+        writer.write_all(write_buffer).await.context(WireSendSnafu)
     })
     .await
 }
@@ -670,4 +676,108 @@ pub async fn read_pdu_from_wire_async<R: tokio::io::AsyncRead + Unpin>(
         ensure!(recv > 0, ConnectionClosedSnafu);
     };
     Ok(msg)
+}
+
+/// Helper function that handles state Sta13 of the Association
+/// State Machine. It is entered when we're waiting for the peer
+/// to close the connection. In normal conditions, that happens
+/// when we have sent the last PDU of an association (normally
+/// A-ASSOCIATE-RJ, A-RELEASE-RP, or A-ABORT); then it's the
+/// peer's responsibility to close the socket, but just in
+/// case the peer does not respond, we close it after a timeout
+/// if that didn't happen. The response dictated by the ASM in
+/// case certain PDUs are received in the meantime is also
+/// handled here.
+///
+/// Returns with the connection closed either way. THe return
+/// value is `Ok(())` if the peer closed the association
+/// before the timer expired; `Err(Error::Timeout)` if the
+/// peer didn't close the connection in time,
+/// `Err(Error::Aborted)` if the peer sent us an abort request
+/// while waiting, or other errors from intermediate functions.
+///
+/// For reference See [PS3.8 (2025d) section 9.2.3][1]
+/// [1] https://dicom.nema.org/medical/dicom/2025d/output/html/part08.html
+pub(crate) fn sta13<S: Read + Write + CloseSocket + SetReadTimeout>(
+    socket: &mut S,
+    read_buffer: &mut BytesMut,
+    write_buffer: &mut Vec<u8>,
+    local_max_pdu_length: u32,
+    peer_max_pdu_length: u32,
+    close_wait_timeout: Duration,
+) -> Result<()> {
+    // Start ARTIM timer. All actions that lead to Sta13 (except some that
+    // happen in Sta13 itself) start it, or restart it if running.
+    let deadline = Instant::now() + close_wait_timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        // ARTIM expired?
+        if remaining.is_zero() {
+            // Action AA-2 (stop timer and close socket); next state is
+            // Sta1.
+            let _ = socket.close();
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "Timed out while waiting for peer to close the connection",
+            ))
+            .context(TimeoutSnafu);
+        }
+
+        socket
+            .set_read_timeout(Some(remaining))
+            .context(SetReadTimeoutSnafu)?;
+
+        match read_pdu_from_wire(socket, read_buffer, local_max_pdu_length, false) {
+            Err(Error::ConnectionClosed) => {
+                // Peer did the correct thing and closed the socket;
+                // action is AR-5 (nothing in our case) and next state
+                // is Sta1.
+                return Ok(());
+            }
+
+            Ok(Pdu::AbortRQ { .. }) => {
+                // Peer requested an abort while we waited for peer to
+                // close the connection, so we close it ourselves
+                // instead and return Aborted (action AA-2, next state Sta1).
+                socket.close().context(CloseSnafu)?;
+                return AbortedSnafu {}.fail();
+            }
+
+            Ok(Pdu::AssociationAC(_))
+            | Ok(Pdu::AssociationRJ(_))
+            | Ok(Pdu::PData { .. })
+            | Ok(Pdu::ReleaseRQ)
+            | Ok(Pdu::ReleaseRP) => {
+                // Action AA-6: Ignore PDU; remain in Sta13 without
+                // restarting the timer
+            }
+
+            Ok(pdu) => {
+                // A-ASSOCIATE-RQ or invalid PDU
+                // Action AA-7: Send A-ABORT PDU; remain in Sta13
+                // without restarting the timer
+                write_pdu_to_wire(
+                    socket,
+                    write_buffer,
+                    &Pdu::AbortRQ {
+                        source: AbortRQSource::ServiceProvider(if let Pdu::Unknown { .. } = pdu {
+                            AbortRQServiceProviderReason::UnrecognizedPdu
+                        } else {
+                            AbortRQServiceProviderReason::UnexpectedPdu
+                        }),
+                    },
+                    peer_max_pdu_length,
+                )?;
+            }
+
+            Err(Error::Timeout { .. }) => {
+                // Do nothing; we will catch it when the timer expires
+            }
+
+            Err(e) => {
+                let _ = socket.close().context(CloseSnafu);
+                return Err(e);
+            }
+        }
+    }
 }
