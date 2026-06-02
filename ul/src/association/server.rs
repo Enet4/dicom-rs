@@ -805,7 +805,8 @@ where
     fn process_a_association_rq(
         &self,
         msg: Pdu,
-    ) -> std::result::Result<(Pdu, NegotiatedOptions, String), (Pdu, Error)> {
+    ) -> std::result::Result<(Pdu, NegotiatedOptions, String), (Option<Pdu>, Error)> {
+        // Entered in state Sta2
         match msg {
             Pdu::AssociationRQ(AssociationRQ {
                 protocol_version,
@@ -815,6 +816,13 @@ where
                 presentation_contexts,
                 user_variables,
             }) => {
+                // Action AE-6; we always switch to Sta3 at this point,
+                // because we consider that the Service Provider deems
+                // it as acceptable.
+                // The various checks will result in action AE-8
+                // (send A-ASSOCIATE-RJ) if failed,
+                // or in action AE-7 (send A-ASSOCIATE-AC) if accepted.
+                // Since we're not receiving, other actions are not possible.
                 if protocol_version != self.protocol_version {
                     let association_rj = AssociationRJ {
                         result: AssociationRJResult::Permanent,
@@ -823,7 +831,7 @@ where
                         ),
                     };
                     let pdu = Pdu::AssociationRJ(association_rj.clone());
-                    return Err((pdu, RejectedSnafu { association_rj }.build()));
+                    return Err((Some(pdu), RejectedSnafu { association_rj }.build()));
                 }
 
                 if application_context_name != self.application_context_name {
@@ -834,7 +842,7 @@ where
                         ),
                     };
                     let pdu = Pdu::AssociationRJ(association_rj.clone());
-                    return Err((pdu, RejectedSnafu { association_rj }.build()));
+                    return Err((Some(pdu), RejectedSnafu { association_rj }.build()));
                 }
 
                 // User variables resulting from the negotiation are stored here
@@ -926,7 +934,7 @@ where
                             source: AssociationRJSource::ServiceUser(reason),
                         };
                         let pdu = Pdu::AssociationRJ(association_rj.clone());
-                        Err((pdu, RejectedSnafu { association_rj }.build()))
+                        Err((Some(pdu), RejectedSnafu { association_rj }.build()))
                     })?;
 
                 let presentation_contexts_negotiated: Vec<_> = presentation_contexts
@@ -989,31 +997,32 @@ where
                     called_ae_title,
                 ))
             }
-            Pdu::ReleaseRQ => Err((Pdu::ReleaseRP, AbortedSnafu.build())),
-            pdu @ Pdu::AssociationAC { .. }
+            Pdu::AbortRQ { .. } => Err((None, AbortedSnafu {}.build())),
+            pdu @ Pdu::ReleaseRQ
+            | pdu @ Pdu::AssociationAC { .. }
             | pdu @ Pdu::AssociationRJ { .. }
             | pdu @ Pdu::PData { .. }
-            | pdu @ Pdu::ReleaseRP
-            | pdu @ Pdu::AbortRQ { .. } => Err((
-                Pdu::AbortRQ {
+            | pdu @ Pdu::ReleaseRP => Err((
+                Some(Pdu::AbortRQ {
                     source: AbortRQSource::ServiceProvider(
                         AbortRQServiceProviderReason::UnexpectedPdu,
                     ),
-                },
+                }),
                 UnexpectedPduSnafu { pdu }.build(),
             )),
             pdu @ Pdu::Unknown { .. } => Err((
-                Pdu::AbortRQ {
+                Some(Pdu::AbortRQ {
                     source: AbortRQSource::ServiceProvider(
                         AbortRQServiceProviderReason::UnrecognizedPdu,
                     ),
-                },
+                }),
                 UnknownPduSnafu { pdu }.build(),
             )),
         }
     }
 
     /// Negotiate an association with the given TCP stream.
+    /// In case of an `Err` return value, the socket is closed.
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation<TcpStream>> {
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
@@ -1030,27 +1039,38 @@ where
         let mut read_buffer = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let msg = super::read_pdu_from_wire(
+        let msg = match super::read_pdu_from_wire(
             &mut socket,
             &mut read_buffer,
             self.max_pdu_length,
             self.strict,
-        );
-        // If we're compiling with the sync-tls feature, check to see if the error
-        // may have been caused by the client associating with TLS but the server
-        // not being run with TLS support
-        #[cfg(feature = "sync-tls")]
-        let msg = msg.map_err(|e| {
-            // read_pdu_from_wire consumes bytes on the socket, but puts them into read_buffer
-            let mut cursor = std::io::Cursor::new(read_buffer.to_vec());
-            if let Ok(Ok(_)) = accept_tls(&mut cursor) {
-                // If the connection was accepted, return an error, TLS
-                // client attempting to connect with non-TLS server
-                return super::TlsNotSupportedSnafu.build();
+        ) {
+            Ok(msg) => msg,
+            Err(err) => {
+                // This covers "ARTIM timer expired" (socket read timeout)
+                // and "Transport connection closed".
+                // Action AA-2 or AA-5: Close connection or do nothing,
+                // then return to Sta1 (the connection may already be closed
+                // but we close it nevertheless).
+                let _ = socket.close();
+                // If we're compiling with the sync-tls feature, check to see if the error
+                // may have been caused by the client associating with TLS but the server
+                // not being run with TLS support
+                #[cfg(feature = "sync-tls")]
+                {
+                    // read_pdu_from_wire consumes bytes on the socket, but puts them into
+                    // read_buffer
+                    let mut cursor = std::io::Cursor::new(read_buffer.to_vec());
+                    if let Ok(Ok(_)) = accept_tls(&mut cursor) {
+                        // If the connection was accepted, return an error, TLS
+                        // client attempting to connect with non-TLS server
+                        return super::TlsNotSupportedSnafu.fail();
+                    }
+                }
+
+                return Err(err);
             }
-            e
-        });
-        let msg = msg?;
+        };
         let mut write_buffer: Vec<u8> =
             Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
         match self.process_a_association_rq(msg) {
@@ -1072,18 +1092,33 @@ where
                     acceptor_max_pdu_length: self.max_pdu_length,
                     socket,
                     client_ae_title: peer_ae_title,
+                    read_buffer,
                     write_buffer,
                     strict: self.strict,
                     finalization_timeout: self.finalization_timeout,
-                    read_buffer,
                     user_variables,
                     called_ae_title,
                 })
             }
             Err((pdu, err)) => {
-                // send the rejection/abort PDU
-                write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                socket.write_all(&write_buffer).context(WireSendSnafu)?;
+                if let Some(pdu) = pdu {
+                    // Send the rejection/abort PDU and switch to Sta13
+                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                    socket.write_all(&write_buffer).context(WireSendSnafu)?;
+
+                    super::sta13(
+                        &mut socket,
+                        &mut read_buffer,
+                        &mut write_buffer,
+                        self.max_pdu_length,
+                        DEFAULT_MAX_PDU,
+                        self.finalization_timeout,
+                    )?;
+                } else {
+                    // No PDU to send means it's our turn to close the socket
+                    // (this is most likely in response to an A-ABORT request)
+                    let _ = socket.close();
+                }
                 Err(err)
             }
         }
@@ -1150,9 +1185,24 @@ where
                 })
             }
             Err((pdu, err)) => {
-                // send the rejection/abort PDU
-                write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                tls_stream.write_all(&write_buffer).context(WireSendSnafu)?;
+                if let Some(pdu) = pdu {
+                    // Send the rejection/abort PDU and switch to Sta13
+                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                    tls_stream.write_all(&write_buffer).context(WireSendSnafu)?;
+
+                    super::sta13(
+                        &mut tls_stream,
+                        &mut read_buffer,
+                        &mut write_buffer,
+                        self.max_pdu_length,
+                        DEFAULT_MAX_PDU,
+                        self.finalization_timeout,
+                    )?;
+                } else {
+                    // No PDU to send means it's our turn to close the socket
+                    // (this is most likely in response to an A-ABORT request)
+                    let _ = tls_stream.close();
+                }
                 Err(err)
             }
         }
@@ -1551,12 +1601,19 @@ where
                     })
                 }
                 Err((pdu, err)) => {
-                    // send the rejection/abort PDU
-                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                    socket
-                        .write_all(&write_buffer)
-                        .await
-                        .context(WireSendSnafu)?;
+                    if let Some(pdu) = pdu {
+                        // Send the rejection/abort PDU and switch to Sta13
+                        write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                        socket
+                            .write_all(&write_buffer)
+                            .await
+                            .context(WireSendSnafu)?;
+                        // TODO: Async Sta13 implementation
+                    } else {
+                        // No PDU to send means it's our turn to close the socket
+                        // (this is most likely in response to an A-ABORT request)
+                        let _ = socket.shutdown().await;
+                    }
                     Err(err)
                 }
             }
@@ -1629,12 +1686,19 @@ where
                     })
                 }
                 Err((pdu, err)) => {
-                    // send the rejection/abort PDU
-                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                    socket
-                        .write_all(&write_buffer)
-                        .await
-                        .context(WireSendSnafu)?;
+                    if let Some(pdu) = pdu {
+                        // Send the rejection/abort PDU and switch to Sta13
+                        write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                        socket
+                            .write_all(&write_buffer)
+                            .await
+                            .context(WireSendSnafu)?;
+                        // TODO: Async Sta13 implementation
+                    } else {
+                        // No PDU to send means it's our turn to close the socket
+                        // (this is most likely in response to an A-ABORT request)
+                        let _ = socket.shutdown().await;
+                    }
                     Err(err)
                 }
             }
