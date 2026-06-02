@@ -67,7 +67,7 @@ rustls = "0.23.31"
 async = ["dep:tokio"]
 sync-tls = ["dep:rustls", "dep:dicom-app-common"]
 async-tls=["async", "sync-tls", "dep:tokio-rustls"]
-default = []
+default = ["sync-tls"]
 full = ["async-tls"]
 
 [package.metadata.docs.rs]

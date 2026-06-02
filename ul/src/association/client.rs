@@ -96,6 +96,7 @@ where
 
     let mut conn = rustls::ClientConnection::new(tls_config.clone(), server_name)
         .context(super::TlsConnectionSnafu)?;
+    // Ensure that the handshake completes before returning the stream.
     let (read, wrote) = conn.complete_io(&mut socket)
         .context(super::TlsHandshakeSnafu)?;
     debug!(read_bytes=read, write_bytes=wrote, "Client handshake completed");
@@ -926,8 +927,15 @@ impl<'a> ClientAssociationOptions<'a> {
         );
         let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)
             .map_err(|e| {
+                // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
+                // could be because the server expects TLS but we sent a
+                // plaintext request.  In that case, we make a best effort to
+                // detect that and return a more specific error message.
                 #[cfg(feature = "sync-tls")]
                 {
+                    // There does not seem to be an analog of
+                    // `rustls::server::Acceptor` for client side, so we need to
+                    // create a full `ClientConfig`
                     let options = dicom_app_common::TlsOptions::default();
                     let config =  match options.client_config().map(std::sync::Arc::new){
                         Ok(c) => c,
@@ -951,7 +959,12 @@ impl<'a> ClientAssociationOptions<'a> {
                             error!("Recieved TLS response to non-TLS request!");
                             super::TlsNotSupportedSnafu.build()
                         }
-                        Err(e) => {
+                        Err(rustls::Error::InvalidMessage(..)) => e,
+                        _ => {
+                            // If we get any error other than `InvalidMessage`,
+                            // it could be because the server expects TLS but we
+                            // sent a plaintext request.  In that case, we
+                            // return a more specific error message.
                             error!(err=?e, "Server expects TLS, client sent plaintext");
                             super::TlsNotSupportedSnafu.build()
                         }

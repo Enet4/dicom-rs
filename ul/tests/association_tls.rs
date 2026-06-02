@@ -401,6 +401,70 @@ mod sync_tls_mismatch {
         server_handle.join().expect("Server thread failed");
     }
 
+
+    // Test that the `read_pdu_from_wire` doesn't report a false-positive "TLS"
+    // error when its actually just bogus data
+    #[test]
+    fn test_non_tls_client_handles_bogus_pdu(){
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
+        let server_addr = listener.local_addr().expect("Failed to get local address");
+
+        // Spawn server thread
+        let server_handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("Failed to accept connection");
+            stream.write(b"not valid PDU").expect("Failed to write bogus PDU");
+        });
+
+        // Give server time to start
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // Client configuration
+        let client_options = ClientAssociationOptions::new()
+            .calling_ae_title("TLS-SCU")
+            .called_ae_title("TLS-SCP")
+            .with_abstract_syntax(VERIFICATION)
+            .server_name("localhost");
+
+        // Establish TLS connection
+        let association = client_options
+            .establish(server_addr);
+        // Assert that its not a TLS not support error
+        assert!(!matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+        server_handle.join().expect("Server handle failed");
+
+    }
+
+    // Test that the `read_pdu_from_wire` doesn't report a false-positive "TLS"
+    // error when its actually just bogus data
+    #[test]
+    fn test_non_tls_server_handles_bogus_pdu(){
+        use std::io::Write;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
+        let server_addr = listener.local_addr().expect("Failed to get local address");
+
+        let server_options = ServerAssociationOptions::new()
+            .accept_called_ae_title()
+            .ae_title("TLS-SCP")
+            .with_abstract_syntax(VERIFICATION);
+
+        // Spawn server thread
+        let server_handle = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().expect("Failed to accept connection");
+            let association = server_options
+                .establish(stream);
+            assert!(association.is_err());
+            assert!(!matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+        });
+
+        // Give server time to start
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let mut stream = std::net::TcpStream::connect(server_addr).expect("Failed to connect to server");
+        stream.write(b"not valid PDU").expect("Failed to write bogus PDU");
+
+        server_handle.join().expect("Server handle failed");
+
+    }
 }
 
 #[cfg(feature = "async-tls")]
@@ -411,7 +475,6 @@ mod async_tls_mismatch {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_tls_client_non_tls_server(){
         // set up crypto provider -- Just use the default provider which is aws_lc_rs
-
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -514,4 +577,23 @@ mod async_tls_mismatch {
         server_handle.await.unwrap().unwrap();
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_non_tls_client_handles_bogus_pdu(){
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = listener.local_addr().unwrap();
+        let server_handle: tokio::task::JoinHandle<Result<_>> = tokio::spawn(async move {
+            let (stream, _) = listener
+                .accept()
+                .await
+                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
+            let association = server_options
+                .establish_tls_async(stream)
+                .await;
+            assert!(association.is_err());
+            assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+            Result::Ok(())
+        });
+        // Give server time to start
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
 }
