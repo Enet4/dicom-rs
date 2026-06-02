@@ -16,7 +16,10 @@ use std::{
 use crate::association::AsyncAssociation;
 use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
-    association::{Association, NegotiatedOptions, SocketOptions, SyncAssociation},
+    association::{
+        Association, DEFAULT_FINALIZATION_TIMEOUT, NegotiatedOptions, SocketOptions,
+        SyncAssociation,
+    },
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
         MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
@@ -35,7 +38,7 @@ pub type TlsStream = rustls::StreamOwned<rustls::ClientConnection, std::net::Tcp
 #[cfg(feature = "async-tls")]
 pub type AsyncTlsStream = tokio_rustls::client::TlsStream<tokio::net::TcpStream>;
 
-pub use crate::association::CloseSocket;
+pub use crate::association::{CloseSocket, SetReadTimeout};
 
 /// Helper function to establish a TCP client connection
 fn tcp_connection<T>(ae_address: &AeAddr<T>, opts: &SocketOptions) -> Result<TcpStream>
@@ -261,6 +264,8 @@ pub struct ClientAssociationOptions<'a> {
     username: Option<Cow<'a, str>>,
     /// User identity password
     password: Option<Cow<'a, str>>,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// User identity Kerberos service ticket
     kerberos_service_ticket: Option<Cow<'a, str>>,
     /// User identity SAML assertion
@@ -295,6 +300,7 @@ impl Default for ClientAssociationOptions<'_> {
             protocol_version: 1,
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
+            finalization_timeout: Duration::from_secs_f32(DEFAULT_FINALIZATION_TIMEOUT),
             username: None,
             password: None,
             kerberos_service_ticket: None,
@@ -722,6 +728,12 @@ impl<'a> ClientAssociationOptions<'a> {
         }
     }
 
+    /// Set the timeout for the peer to close the socket
+    pub fn finalization_timeout(mut self, timeout: Duration) -> Self {
+        self.finalization_timeout = timeout;
+        self
+    }
+
     /// Construct the A-ASSOCIATE-RQ PDU given the options and the AE title.
     fn create_a_associate_req(
         &'a self,
@@ -994,6 +1006,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     read_buffer: buf,
                     read_timeout: self.socket_options.read_timeout,
                     write_timeout: self.socket_options.write_timeout,
+                    finalization_timeout: self.finalization_timeout,
                     user_variables,
                     peer_ae_title,
                 })
@@ -1093,6 +1106,8 @@ pub struct ClientAssociation<S> {
     read_timeout: Option<Duration>,
     /// Timeout for individual socket Writes.
     write_timeout: Option<Duration>,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// Buffer to assemble PDU before parsing
     read_buffer: BytesMut,
     /// User variables that were taken from the server
@@ -1133,6 +1148,18 @@ where
         self.acceptor_max_pdu_length
     }
 
+    /// Retrieve the association finalization timeout defined
+    /// for this association.
+    fn finalization_timeout(&self) -> Duration {
+        self.finalization_timeout
+    }
+
+    /// Change the association finalization timeout defined
+    /// for this association.
+    fn set_finalization_timeout(&mut self, timeout: Duration) {
+        self.finalization_timeout = timeout;
+    }
+
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
@@ -1144,7 +1171,7 @@ where
 
 impl<S> ClientAssociation<S>
 where
-    S: CloseSocket + std::io::Read + std::io::Write,
+    S: CloseSocket + SetReadTimeout + std::io::Read + std::io::Write,
 {
     /// Retrieve read timeout for the association
     pub fn read_timeout(&self) -> Option<Duration> {
@@ -1184,7 +1211,7 @@ where
 
 impl<S> SyncAssociation<S> for ClientAssociation<S>
 where
-    S: CloseSocket + std::io::Read + std::io::Write,
+    S: CloseSocket + SetReadTimeout + std::io::Read + std::io::Write,
 {
     fn inner_stream(&mut self) -> &mut S {
         &mut self.socket
@@ -1308,6 +1335,8 @@ pub struct AsyncClientAssociation<S> {
     read_timeout: Option<Duration>,
     /// Timeout for individual socket Writes.
     write_timeout: Option<Duration>,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// Buffer to assemble PDU before parsing
     read_buffer: BytesMut,
     /// User variables that were taken from the server
@@ -1428,6 +1457,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     read_buffer,
                     read_timeout: self.socket_options.read_timeout,
                     write_timeout: self.socket_options.write_timeout,
+                    finalization_timeout: self.finalization_timeout,
                     user_variables,
                     peer_ae_title,
                 })
@@ -1598,6 +1628,18 @@ impl<S> Association for AsyncClientAssociation<S> {
         self.requestor_max_pdu_length
     }
 
+    /// Retrieve the association finalization timeout defined
+    /// for this association.
+    fn finalization_timeout(&self) -> Duration {
+        self.finalization_timeout
+    }
+
+    /// Change the association finalization timeout defined
+    /// for this association.
+    fn set_finalization_timeout(&mut self, timeout: Duration) {
+        self.finalization_timeout = timeout;
+    }
+
     /// Retrieve the maximum PDU length that the peer application entity
     /// (the association acceptor) is expecting to receive.
     fn peer_max_pdu_length(&self) -> u32 {
@@ -1756,6 +1798,7 @@ mod tests {
                 read_buffer,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 peer_ae_title,
             })
@@ -1813,6 +1856,7 @@ mod tests {
                 read_buffer: buf,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 peer_ae_title,
             })
@@ -1861,6 +1905,7 @@ mod tests {
                 ),
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 peer_ae_title,
             })
@@ -1915,6 +1960,7 @@ mod tests {
                 ),
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 peer_ae_title,
             })

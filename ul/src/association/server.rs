@@ -12,9 +12,9 @@ use std::time::Duration;
 use std::{io::Write, net::TcpStream};
 
 use crate::association::{
-    AbortedSnafu, Association, CloseSocket, MissingAbstractSyntaxSnafu, RejectedSnafu,
-    SendPduSnafu, SocketOptions, SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu,
-    WireSendSnafu,
+    AbortedSnafu, Association, CloseSocket, DEFAULT_FINALIZATION_TIMEOUT,
+    MissingAbstractSyntaxSnafu, RejectedSnafu, SendPduSnafu, SetReadTimeout, SocketOptions,
+    SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu, WireSendSnafu,
 };
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -553,6 +553,8 @@ pub struct ServerAssociationOptions<'a, A, N> {
     strict: bool,
     /// whether to accept unknown abstract syntaxes
     promiscuous: bool,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// extended negotiation handler
     negotiation: N,
     /// Options for the underlying TCP socket
@@ -574,6 +576,7 @@ impl Default for ServerAssociationOptions<'_, AcceptAny, DefaultNegotiation> {
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
             promiscuous: false,
+            finalization_timeout: Duration::from_secs_f32(DEFAULT_FINALIZATION_TIMEOUT),
             negotiation: DefaultNegotiation,
             socket_options: SocketOptions::default(),
             #[cfg(feature = "sync-tls")]
@@ -628,6 +631,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
+            finalization_timeout,
             ae_access_control: _,
             negotiation,
             socket_options,
@@ -645,6 +649,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
+            finalization_timeout,
             negotiation,
             socket_options,
             #[cfg(feature = "sync-tls")]
@@ -733,6 +738,12 @@ where
         }
     }
 
+    /// Set the timeout for the peer to close the socket
+    pub fn finalization_timeout(mut self, timeout: Duration) -> Self {
+        self.finalization_timeout = timeout;
+        self
+    }
+
     /// Set the extended negotiation handler
     pub fn with_negotiation<NN>(self, negotiation: NN) -> ServerAssociationOptions<'a, A, NN>
     where
@@ -748,6 +759,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
+            finalization_timeout,
             negotiation: _,
             socket_options,
             #[cfg(feature = "sync-tls")]
@@ -764,6 +776,7 @@ where
             max_pdu_length,
             strict,
             promiscuous,
+            finalization_timeout,
             negotiation,
             socket_options,
             #[cfg(feature = "sync-tls")]
@@ -1061,6 +1074,7 @@ where
                     client_ae_title: peer_ae_title,
                     write_buffer,
                     strict: self.strict,
+                    finalization_timeout: self.finalization_timeout,
                     read_buffer,
                     user_variables,
                     called_ae_title,
@@ -1129,6 +1143,7 @@ where
                     client_ae_title: peer_ae_title,
                     write_buffer,
                     strict: self.strict,
+                    finalization_timeout: self.finalization_timeout,
                     read_buffer,
                     user_variables,
                     called_ae_title,
@@ -1201,6 +1216,8 @@ pub struct ServerAssociation<S> {
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// Read buffer from the socket
     read_buffer: bytes::BytesMut,
     /// User variables received from the peer
@@ -1209,7 +1226,7 @@ pub struct ServerAssociation<S> {
 
 impl<S> ServerAssociation<S>
 where
-    S: std::io::Read + std::io::Write + CloseSocket,
+    S: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     /// Send a PDU message to the other intervenient.
     pub fn send(&mut self, msg: &Pdu) -> Result<()> {
@@ -1270,7 +1287,7 @@ where
 
 impl<S> Association for ServerAssociation<S>
 where
-    S: std::io::Read + std::io::Write + CloseSocket,
+    S: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     /// Obtain a view of the negotiated presentation contexts.
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
@@ -1306,6 +1323,18 @@ where
         &self.client_ae_title
     }
 
+    /// Retrieve the association finalization timeout defined
+    /// for this association.
+    fn finalization_timeout(&self) -> Duration {
+        self.finalization_timeout
+    }
+
+    /// Change the association finalization timeout defined
+    /// for this association.
+    fn set_finalization_timeout(&mut self, timeout: Duration) {
+        self.finalization_timeout = timeout;
+    }
+
     /// Retrieve the user variables that were taken from the server.
     ///
     /// It usually contains the maximum PDU length,
@@ -1317,7 +1346,7 @@ where
 
 impl<S> SyncAssociation<S> for ServerAssociation<S>
 where
-    S: std::io::Read + std::io::Write + CloseSocket,
+    S: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     fn inner_stream(&mut self) -> &mut S {
         &mut self.socket
@@ -1512,6 +1541,7 @@ where
                         read_buffer,
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
+                        finalization_timeout: self.finalization_timeout,
                         user_variables,
                         called_ae_title,
                     })
@@ -1589,6 +1619,7 @@ where
                         read_buffer,
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
+                        finalization_timeout: self.finalization_timeout,
                         user_variables,
                         called_ae_title,
                     })
@@ -1644,6 +1675,8 @@ pub struct AsyncServerAssociation<S> {
     read_timeout: Option<std::time::Duration>,
     /// Timeout for individual send operations
     write_timeout: Option<std::time::Duration>,
+    /// Timeout to wait for the peer to close the connection
+    finalization_timeout: Duration,
     /// User variables received from the peer
     user_variables: Vec<UserVariableItem>,
 }
@@ -1693,6 +1726,18 @@ where
     /// Obtain the remote DICOM node's application entity title.
     fn peer_ae_title(&self) -> &str {
         &self.client_ae_title
+    }
+
+    /// Retrieve the association finalization timeout defined
+    /// for this association.
+    fn finalization_timeout(&self) -> Duration {
+        self.finalization_timeout
+    }
+
+    /// Change the association finalization timeout defined
+    /// for this association.
+    fn set_finalization_timeout(&mut self, timeout: Duration) {
+        self.finalization_timeout = timeout;
     }
 
     fn user_variables(&self) -> &[UserVariableItem] {
@@ -1824,6 +1869,7 @@ mod tests {
                 write_buffer,
                 read_buffer,
                 strict: self.strict,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 called_ae_title,
             })
@@ -1884,6 +1930,7 @@ mod tests {
                 user_variables,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 called_ae_title,
             })
         }
@@ -1928,6 +1975,7 @@ mod tests {
                 write_buffer,
                 strict: self.strict,
                 read_buffer,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 called_ae_title,
             })
@@ -1982,6 +2030,7 @@ mod tests {
                 read_buffer,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,
+                finalization_timeout: self.finalization_timeout,
                 user_variables,
                 called_ae_title,
             })

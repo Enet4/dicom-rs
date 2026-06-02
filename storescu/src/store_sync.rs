@@ -6,7 +6,7 @@ use dicom_object::{InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     ClientAssociation, Pdu,
-    association::{CloseSocket, SyncAssociation},
+    association::{CloseSocket, SetReadTimeout, SyncAssociation},
     pdu::{PDataValue, PDataValueType},
 };
 use indicatif::ProgressBar;
@@ -28,7 +28,7 @@ pub fn send_file<T>(
     fail_first: bool,
 ) -> Result<ClientAssociation<T>, Error>
 where
-    T: std::io::Read + std::io::Write + CloseSocket,
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
@@ -215,7 +215,7 @@ pub fn inner<T>(
     ignore_sop_class: bool,
 ) -> Result<(), Error>
 where
-    T: std::io::Read + std::io::Write + CloseSocket,
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     for (message_id, mut file) in (1..).zip(d_files) {
         // identify the right transfer syntax to use
