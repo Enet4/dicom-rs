@@ -912,7 +912,7 @@ impl<'a> ClientAssociationOptions<'a> {
         S: CloseSocket + std::io::Read + std::io::Write,
     {
         let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
-        let mut buffer: Vec<u8> = Vec::with_capacity(self.max_pdu_length as usize);
+        let mut buffer: Vec<u8> = Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
 
         write_pdu(&mut buffer, &a_associate).context(super::SendPduSnafu)?;
         socket.write_all(&buffer).context(super::WireSendSnafu)?;
@@ -1373,7 +1373,8 @@ impl<'a> ClientAssociationOptions<'a> {
     {
         use tokio::io::AsyncWriteExt;
         let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
-        let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
 
         // send request
         write_pdu(&mut write_buffer, &a_associate).context(crate::association::SendPduSnafu)?;
@@ -1809,7 +1810,8 @@ mod tests {
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = tcp_connection(&ae_address, &self.socket_options)?;
-            let mut write_buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
+            let mut write_buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
             // send request
 
             write_pdu(&mut write_buffer, &a_associate).context(crate::association::SendPduSnafu)?;
@@ -1867,7 +1869,8 @@ mod tests {
 
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = async_connection(&ae_address, &self.socket_options).await?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
+            let mut buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
             // send request
 
             write_pdu(&mut buffer, &a_associate).context(crate::association::SendPduSnafu)?;
@@ -1920,7 +1923,8 @@ mod tests {
         {
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = tcp_connection(&ae_address, &self.socket_options)?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
+            let mut buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(crate::association::SendPduSnafu)?;
             socket
@@ -1970,7 +1974,8 @@ mod tests {
 
             let (pc_proposed, a_associate) = self.create_a_associate_req(ae_address.ae_title())?;
             let mut socket = async_connection(&ae_address, &self.socket_options).await?;
-            let mut buffer: Vec<u8> = Vec::with_capacity(DEFAULT_MAX_PDU as usize);
+            let mut buffer: Vec<u8> =
+                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
             // send request
             write_pdu(&mut buffer, &a_associate).context(crate::association::SendPduSnafu)?;
             socket
