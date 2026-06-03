@@ -850,7 +850,7 @@ where
 /// `Err(Error::Aborted)` if the peer sent us an abort request
 /// while waiting, or other errors from intermediate functions.
 ///
-/// For reference See [PS3.8 (2025d) section 9.2.3][1]
+/// For reference see [PS3.8 (2025d) section 9.2.3][1]
 /// [1] https://dicom.nema.org/medical/dicom/2025d/output/html/part08.html
 pub(crate) fn sta13<S: Read + Write + CloseSocket + SetReadTimeout>(
     socket: &mut S,
@@ -931,6 +931,117 @@ pub(crate) fn sta13<S: Read + Write + CloseSocket + SetReadTimeout>(
             Err(e) => {
                 let _ = socket.close().context(CloseSnafu);
                 return Err(e);
+            }
+        }
+    }
+}
+
+/// Helper function that handles state Sta13 of the Association
+/// State Machine. It is entered when we're waiting for the peer
+/// to close the connection. In normal conditions, that happens
+/// when we have sent the last PDU of an association (normally
+/// A-ASSOCIATE-RJ, A-RELEASE-RP, or A-ABORT); then it's the
+/// peer's responsibility to close the socket, but just in
+/// case the peer does not respond, we close it after a timeout
+/// if that didn't happen. The response dictated by the ASM in
+/// case certain PDUs are received in the meantime is also
+/// handled here.
+///
+/// Returns with the connection closed either way. The return
+/// value is `Ok(())` if the peer closed the association
+/// before the timer expired; `Err(Error::Timeout)` if the
+/// peer didn't close the connection in time,
+/// `Err(Error::Aborted)` if the peer sent us an abort request
+/// while waiting, or other errors from intermediate functions.
+///
+/// For reference see [PS3.8 (2025d) section 9.2.3][1]
+/// [1] https://dicom.nema.org/medical/dicom/2025d/output/html/part08.html
+///
+/// This is the asynchronous version.
+#[cfg(feature = "async")]
+pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+    socket: &mut S,
+    read_buffer: &mut BytesMut,
+    write_buffer: &mut Vec<u8>,
+    local_max_pdu_length: u32,
+    peer_max_pdu_length: u32,
+    close_wait_timeout: Duration,
+) -> Result<()> {
+    use tokio::io::AsyncWriteExt;
+
+    let timer = tokio::time::sleep(close_wait_timeout);
+    tokio::pin!(timer);
+
+    loop {
+        tokio::select! {
+            biased;
+
+            _ = &mut timer => {
+                // Action AA-2 (stop timer and close socket); next state is
+                // Sta1.
+                let _ = socket.shutdown().await;
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "Timed out while waiting for peer to close the connection",
+                ))
+                .context(TimeoutSnafu);
+            }
+
+            result = read_pdu_from_wire_async(socket, read_buffer, local_max_pdu_length, false) => {
+
+                match result {
+                    Err(Error::ConnectionClosed) => {
+                        // Peer did the correct thing and closed the socket;
+                        // action is AR-5 (nothing in our case) and next state
+                        // is Sta1.
+                        return Ok(());
+                    }
+
+                    Ok(Pdu::AbortRQ { .. }) => {
+                        // Peer requested an abort while we waited for peer to
+                        // close the connection, so we close it ourselves
+                        // instead and return Aborted (action AA-2, next state Sta1).
+                        socket.shutdown().await.context(CloseSnafu)?;
+                        return AbortedSnafu {}.fail();
+                    }
+
+                    Ok(Pdu::AssociationAC(_))
+                    | Ok(Pdu::AssociationRJ(_))
+                    | Ok(Pdu::PData { .. })
+                    | Ok(Pdu::ReleaseRQ)
+                    | Ok(Pdu::ReleaseRP) => {
+                        // Action AA-6: Ignore PDU; remain in Sta13 without
+                        // restarting the timer
+                    }
+
+                    Ok(pdu) => {
+                        // A-ASSOCIATE-RQ or invalid PDU
+                        // Action AA-7: Send A-ABORT PDU; remain in Sta13
+                        // without restarting the timer
+                        write_pdu_to_wire_async(
+                            socket,
+                            write_buffer,
+                            &Pdu::AbortRQ {
+                                source: AbortRQSource::ServiceProvider(if let Pdu::Unknown { .. } = pdu {
+                                    AbortRQServiceProviderReason::UnrecognizedPdu
+                                } else {
+                                    AbortRQServiceProviderReason::UnexpectedPdu
+                                }),
+                            },
+                            peer_max_pdu_length,
+                            Some(close_wait_timeout),
+                        ).await?;
+                    }
+
+                    Err(Error::Timeout { .. }) => {
+                        // Do nothing; we will catch it when the timer expires
+                    }
+
+                    Err(e) => {
+                        let _ = socket.shutdown().await.context(CloseSnafu);
+                        return Err(e);
+                    }
+                }
             }
         }
     }
