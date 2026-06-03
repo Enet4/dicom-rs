@@ -26,7 +26,7 @@ pub const PDU_HEADER_SIZE: u32 = 6;
 pub const PDV_HEADER_SIZE: u32 = 6;
 
 /// The default maximum PDU size
-pub const DEFAULT_MAX_PDU: u32 = 16_384 - PDU_HEADER_SIZE;
+pub const DEFAULT_MAX_PDU: u32 = 32_768 - PDU_HEADER_SIZE;
 
 /// The smallest maximum PDU length negotiable
 /// by this implementation
@@ -35,10 +35,10 @@ pub const MINIMUM_PDU_SIZE: u32 = 1_024 - PDU_HEADER_SIZE;
 /// The largest PDU size supported. It must be an even number.
 /// Together with the PDU header, it must not exceed u32::MAX,
 /// and when adding the PDU header size, it must not overflow.
-// `clippy` complains that !1 and u32::MAX-1 are equal, but this
+// `clippy` complains that !1 already equals u32::MAX & !1, but this
 // formulation expresses intent, so disable the warning
-#[allow(clippy::eq_op)]
-pub const MAXIMUM_PDU_SIZE: u32 = ((u32::MAX - 1) & !1) - PDU_HEADER_SIZE;
+#[allow(clippy::identity_op)]
+pub const MAXIMUM_PDU_SIZE: u32 = (u32::MAX & !1) - PDU_HEADER_SIZE;
 
 /// A generous PDU size for internal use.
 /// Prefer to initialize buffers no larger than this size
