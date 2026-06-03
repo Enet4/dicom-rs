@@ -1197,6 +1197,10 @@ where
         )
     }
 
+    fn release(self) -> Result<()> {
+        super::release_impl(self, true)
+    }
+
     fn close(&mut self) -> std::io::Result<()> {
         self.socket.close()
     }
