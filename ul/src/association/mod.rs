@@ -456,6 +456,9 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
 {
     /// Obtain access to the inner stream
     /// connected to the association acceptor.
+    /// The value will be `None` when the stream was
+    /// deliberately closed by this side of the wire,
+    /// for example in response to an A-ABORT PDU.
     ///
     /// This can be used to send the PDU in semantic fragments of the message,
     /// thus using less memory.
@@ -463,10 +466,10 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// **Note:** reading and writing should be done with care
     /// to avoid inconsistencies in the association state.
     /// Do not call `send` and `receive` while not in a PDU boundary.
-    fn inner_stream(&mut self) -> &mut S;
+    fn inner_stream(&mut self) -> &mut Option<S>;
 
-    /// Obtain mutable access to the inner stream and read buffer
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>);
+    /// Obtain mutable access to the inner stream, read and write buffer
+    fn get_mut(&mut self) -> (&mut Option<S>, &mut BytesMut, &mut Vec<u8>);
 
     /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> impl std::future::Future<Output = Result<()>> + Send
@@ -492,7 +495,7 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
         };
         async move {
             let out = self.send(&pdu).await;
-            let _ = self.close().await;
+            self.close();
             out
         }
     }
@@ -525,7 +528,7 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
                 | pdu @ Pdu::ReleaseRQ => return UnexpectedPduSnafu { pdu }.fail(),
                 pdu @ Pdu::Unknown { .. } => return UnknownPduSnafu { pdu }.fail(),
             }
-            self.close().await.context(CloseSnafu)?;
+            self.close();
             Ok(())
         }
     }
@@ -535,9 +538,15 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ///
     /// Returns a writer which automatically
     /// splits the inner data into separate PDUs if necessary.
+    ///
+    /// Panics if used when the socket has been destroyed.
     fn send_pdata(&mut self, presentation_context_id: u8) -> AsyncPDataWriter<&mut S> {
         let max_pdu_length = self.peer_max_pdu_length();
-        AsyncPDataWriter::new(self.inner_stream(), presentation_context_id, max_pdu_length)
+        AsyncPDataWriter::new(
+            self.inner_stream().as_mut().expect("Stream was destroyed"),
+            presentation_context_id,
+            max_pdu_length,
+        )
     }
 
     /// Prepare a P-Data reader for receiving
@@ -545,15 +554,21 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     ///
     /// Returns a reader which automatically
     /// receives more data PDUs once the bytes collected are consumed.
+    ///
+    /// Panics if used when the socket has been destroyed.
     fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
         let (socket, read_buffer, _) = self.get_mut();
-        PDataReader::new(socket, max_pdu_length, read_buffer)
+        PDataReader::new(
+            socket.as_mut().expect("Stream was destroyed"),
+            max_pdu_length,
+            read_buffer,
+        )
     }
 
-    fn close(&mut self) -> impl std::future::Future<Output = std::io::Result<()>> + Send
-    where
-        Self: Send;
+    fn close(&mut self) {
+        drop(self.inner_stream().take());
+    }
 }
 
 // Helper function to perform an operation with timeout
@@ -642,7 +657,7 @@ where
 /// Helper function to send a PDU to an async writer
 #[cfg(feature = "async")]
 pub async fn write_pdu_to_wire_async<W: tokio::io::AsyncWrite + Unpin>(
-    writer: &mut W,
+    writer: Option<&mut W>,
     write_buffer: &mut Vec<u8>,
     msg: &Pdu,
     max_pdu_length: u32,
@@ -650,6 +665,9 @@ pub async fn write_pdu_to_wire_async<W: tokio::io::AsyncWrite + Unpin>(
 ) -> Result<()> {
     use tokio::io::AsyncWriteExt;
 
+    let Some(writer) = writer else {
+        return ConnectionClosedSnafu.fail();
+    };
     write_buffer.clear();
     encode_pdu(write_buffer, msg, max_pdu_length + pdu::PDU_HEADER_SIZE)?;
     timeout(write_timeout, async {
@@ -665,13 +683,17 @@ pub async fn write_pdu_to_wire_async<W: tokio::io::AsyncWrite + Unpin>(
 /// to receive more PDUs from the same stream.
 #[cfg(feature = "async")]
 pub async fn read_pdu_from_wire_async<R: tokio::io::AsyncRead + Unpin>(
-    reader: &mut R,
+    reader: Option<&mut R>,
     read_buffer: &mut BytesMut,
     max_pdu_length: u32,
     strict: bool,
 ) -> Result<Pdu> {
     use tokio::io::AsyncReadExt;
     // receive response
+
+    let Some(reader) = reader else {
+        return ConnectionClosedSnafu.fail();
+    };
 
     let msg = loop {
         let mut buf = Cursor::new(&read_buffer[..]);
@@ -960,15 +982,13 @@ pub(crate) fn sta13<S: Read + Write + CloseSocket + SetReadTimeout>(
 /// This is the asynchronous version.
 #[cfg(feature = "async")]
 pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
-    socket: &mut S,
+    socket: &mut Option<S>,
     read_buffer: &mut BytesMut,
     write_buffer: &mut Vec<u8>,
     local_max_pdu_length: u32,
     peer_max_pdu_length: u32,
     close_wait_timeout: Duration,
 ) -> Result<()> {
-    use tokio::io::AsyncWriteExt;
-
     let timer = tokio::time::sleep(close_wait_timeout);
     tokio::pin!(timer);
 
@@ -979,7 +999,7 @@ pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite 
             _ = &mut timer => {
                 // Action AA-2 (stop timer and close socket); next state is
                 // Sta1.
-                let _ = socket.shutdown().await;
+                drop(socket.take());
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     "Timed out while waiting for peer to close the connection",
@@ -987,7 +1007,7 @@ pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite 
                 .context(TimeoutSnafu);
             }
 
-            result = read_pdu_from_wire_async(socket, read_buffer, local_max_pdu_length, false) => {
+            result = read_pdu_from_wire_async(socket.as_mut(), read_buffer, local_max_pdu_length, false) => {
 
                 match result {
                     Err(Error::ConnectionClosed) => {
@@ -1001,7 +1021,7 @@ pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite 
                         // Peer requested an abort while we waited for peer to
                         // close the connection, so we close it ourselves
                         // instead and return Aborted (action AA-2, next state Sta1).
-                        socket.shutdown().await.context(CloseSnafu)?;
+                        drop(socket.take());
                         return AbortedSnafu {}.fail();
                     }
 
@@ -1019,7 +1039,7 @@ pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite 
                         // Action AA-7: Send A-ABORT PDU; remain in Sta13
                         // without restarting the timer
                         write_pdu_to_wire_async(
-                            socket,
+                            socket.as_mut(),
                             write_buffer,
                             &Pdu::AbortRQ {
                                 source: AbortRQSource::ServiceProvider(if let Pdu::Unknown { .. } = pdu {
@@ -1038,7 +1058,7 @@ pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite 
                     }
 
                     Err(e) => {
-                        let _ = socket.shutdown().await.context(CloseSnafu);
+                        drop(socket.take());
                         return Err(e);
                     }
                 }

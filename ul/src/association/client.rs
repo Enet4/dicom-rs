@@ -1330,8 +1330,9 @@ pub struct AsyncClientAssociation<S> {
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that the remote application entity accepts
     acceptor_max_pdu_length: u32,
-    /// The TCP stream to the other DICOM node
-    socket: S,
+    /// The TCP stream to the other DICOM node, or `None` if the socket was
+    /// closed by this application entity.
+    socket: Option<S>,
     /// Buffer to assemble PDU before sending it on wire
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
@@ -1384,7 +1385,7 @@ impl<'a> ClientAssociationOptions<'a> {
         );
         let resp = super::timeout(self.socket_options.read_timeout, async {
             super::read_pdu_from_wire_async(
-                &mut socket,
+                Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
@@ -1419,7 +1420,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     presentation_contexts,
                     requestor_max_pdu_length: self.max_pdu_length,
                     acceptor_max_pdu_length: peer_max_pdu_length,
-                    socket,
+                    socket: Some(socket),
                     write_buffer,
                     strict: self.strict,
                     // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
@@ -1667,11 +1668,11 @@ impl<S> AsyncAssociation<S> for AsyncClientAssociation<S>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
-    fn inner_stream(&mut self) -> &mut S {
+    fn inner_stream(&mut self) -> &mut Option<S> {
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
+    fn get_mut(&mut self) -> (&mut Option<S>, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
@@ -1685,13 +1686,14 @@ where
         let write_timeout = self.write_timeout;
         let max_pdu = self.acceptor_max_pdu_length;
         let (socket, _, write_buffer) = self.get_mut();
-        super::write_pdu_to_wire_async(socket, write_buffer, msg, max_pdu, write_timeout)
+
+        super::write_pdu_to_wire_async(socket.as_mut(), write_buffer, msg, max_pdu, write_timeout)
     }
 
     async fn receive(&mut self) -> Result<Pdu> {
         super::timeout(self.read_timeout, async {
             super::read_pdu_from_wire_async(
-                &mut self.socket,
+                self.socket.as_mut(),
                 &mut self.read_buffer,
                 self.requestor_max_pdu_length,
                 self.strict,
@@ -1699,11 +1701,6 @@ where
             .await
         })
         .await
-    }
-
-    async fn close(&mut self) -> std::io::Result<()> {
-        use tokio::io::AsyncWriteExt;
-        self.socket.shutdown().await
     }
 }
 
@@ -1803,9 +1800,13 @@ mod tests {
             let mut buf = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp =
-                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
-                    .await?;
+            let resp = read_pdu_from_wire_async(
+                Some(&mut socket),
+                &mut buf,
+                self.max_pdu_length,
+                self.strict,
+            )
+            .await?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -1818,7 +1819,7 @@ mod tests {
                 presentation_contexts,
                 requestor_max_pdu_length: self.max_pdu_length,
                 acceptor_max_pdu_length: peer_max_pdu_length,
-                socket,
+                socket: Some(socket),
                 write_buffer: buffer,
                 strict: self.strict,
                 // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
@@ -1906,9 +1907,13 @@ mod tests {
             let mut buf = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp =
-                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
-                    .await?;
+            let resp = read_pdu_from_wire_async(
+                Some(&mut socket),
+                &mut buf,
+                self.max_pdu_length,
+                self.strict,
+            )
+            .await?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -1921,7 +1926,7 @@ mod tests {
                 presentation_contexts,
                 requestor_max_pdu_length: self.max_pdu_length,
                 acceptor_max_pdu_length: peer_max_pdu_length,
-                socket,
+                socket: Some(socket),
                 write_buffer: buffer,
                 strict: self.strict,
                 read_buffer: BytesMut::with_capacity(
