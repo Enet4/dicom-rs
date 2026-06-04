@@ -572,6 +572,12 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Initiate simple TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta1 (no connection established).
+    /// If the return value is `Ok`, the new state is Sta6
+    /// (ready to send/receive data); if it is `Err`, the new
+    /// state is Sta1.
     pub fn establish<A: ToSocketAddrs>(
         self,
         address: A,
@@ -584,6 +590,12 @@ impl<'a> ClientAssociationOptions<'a> {
     /// Initiate simple TCP connection to the given address
     /// and request a new DICOM association,
     /// negotiating the presentation contexts in the process.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta1 (no connection established).
+    /// If the return value is `Ok`, the new state is Sta6
+    /// (ready to send/receive data); if it is `Err`, the new
+    /// state is Sta1.
     #[cfg(feature = "sync-tls")]
     pub fn establish_tls<A: ToSocketAddrs>(
         self,
@@ -610,6 +622,12 @@ impl<'a> ClientAssociationOptions<'a> {
     /// However, the AE title in this parameter
     /// is overridden by any `called_ae_title` option
     /// previously received.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta1 (no connection established).
+    /// If the return value is `Ok`, the new state is Sta6
+    /// (ready to send/receive data); if it is `Err`, the new
+    /// state is Sta1.
     ///
     /// # Example
     ///
@@ -648,6 +666,12 @@ impl<'a> ClientAssociationOptions<'a> {
     /// However, the AE title in this parameter
     /// is overridden by any `called_ae_title` option
     /// previously received.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta1 (no connection established).
+    /// If the return value is `Ok`, the new state is Sta6
+    /// (ready to send/receive data); if it is `Err`, the new
+    /// state is Sta1.
     ///
     /// # Example
     ///
@@ -1284,14 +1308,12 @@ where
         (socket, read_buffer, write_buffer)
     }
 
-    /// Send a PDU message to the other intervenient.
     fn send(&mut self, pdu: &Pdu) -> Result<()> {
         let max_pdu = self.acceptor_max_pdu_length;
         let (socket, _, write_buffer) = self.get_mut();
         super::write_pdu_to_wire(socket, write_buffer, pdu, max_pdu)
     }
 
-    /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> Result<Pdu> {
         super::read_pdu_from_wire(
             &mut self.socket,
