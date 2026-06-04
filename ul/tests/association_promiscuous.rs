@@ -110,7 +110,7 @@ async fn spawn_scp_async(
             association.send(&Pdu::ReleaseRP).await?;
         } else {
             let _ = association.receive().await;
-            association.close().await.unwrap();
+            association.close();
         }
 
         Ok(association)

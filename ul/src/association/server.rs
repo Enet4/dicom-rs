@@ -1538,7 +1538,7 @@ where
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
             let pdu = match super::read_pdu_from_wire_async(
-                &mut socket,
+                Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
@@ -1588,7 +1588,7 @@ where
                         presentation_contexts,
                         requestor_max_pdu_length: peer_max_pdu_length,
                         acceptor_max_pdu_length: self.max_pdu_length,
-                        socket,
+                        socket: Some(socket),
                         client_ae_title: peer_ae_title,
                         write_buffer,
                         strict: self.strict,
@@ -1612,7 +1612,7 @@ where
                     } else {
                         // No PDU to send means it's our turn to close the socket
                         // (this is most likely in response to an A-ABORT request)
-                        let _ = socket.shutdown().await;
+                        drop(socket);
                     }
                     Err(err)
                 }
@@ -1644,7 +1644,7 @@ where
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
             let pdu = super::read_pdu_from_wire_async(
-                &mut socket,
+                Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
@@ -1673,7 +1673,7 @@ where
                         presentation_contexts,
                         requestor_max_pdu_length: peer_max_pdu_length,
                         acceptor_max_pdu_length: self.max_pdu_length,
-                        socket,
+                        socket: Some(socket),
                         client_ae_title: peer_ae_title,
                         write_buffer,
                         strict: self.strict,
@@ -1697,7 +1697,7 @@ where
                     } else {
                         // No PDU to send means it's our turn to close the socket
                         // (this is most likely in response to an A-ABORT request)
-                        let _ = socket.shutdown().await;
+                        drop(socket);
                     }
                     Err(err)
                 }
@@ -1727,8 +1727,9 @@ pub struct AsyncServerAssociation<S> {
     requestor_max_pdu_length: u32,
     /// The maximum PDU length that this application entity is expecting to receive
     acceptor_max_pdu_length: u32,
-    /// The TCP stream to the other DICOM node
-    socket: S,
+    /// The TCP stream to the other DICOM node, or `None` if the socket was
+    /// closed by this application entity.
+    socket: Option<S>,
     /// The application entity title of the other DICOM node
     client_ae_title: String,
     /// The AE title the calling client used.
@@ -1818,11 +1819,11 @@ impl<S> AsyncAssociation<S> for AsyncServerAssociation<S>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
 {
-    fn inner_stream(&mut self) -> &mut S {
+    fn inner_stream(&mut self) -> &mut Option<S> {
         &mut self.socket
     }
 
-    fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>) {
+    fn get_mut(&mut self) -> (&mut Option<S>, &mut BytesMut, &mut Vec<u8>) {
         let Self {
             socket,
             read_buffer,
@@ -1837,14 +1838,15 @@ where
         let write_timeout = self.write_timeout;
         let max_pdu = self.requestor_max_pdu_length;
         let (socket, _, write_buffer) = self.get_mut();
-        super::write_pdu_to_wire_async(socket, write_buffer, msg, max_pdu, write_timeout)
+
+        super::write_pdu_to_wire_async(socket.as_mut(), write_buffer, msg, max_pdu, write_timeout)
     }
 
     /// Read a PDU message from the other intervenient.
     async fn receive(&mut self) -> Result<Pdu> {
         super::timeout(self.read_timeout, async {
             super::read_pdu_from_wire_async(
-                &mut self.socket,
+                self.socket.as_mut(),
                 &mut self.read_buffer,
                 self.acceptor_max_pdu_length,
                 self.strict,
@@ -1852,11 +1854,6 @@ where
             .await
         })
         .await
-    }
-
-    async fn close(&mut self) -> std::io::Result<()> {
-        use tokio::io::AsyncWriteExt;
-        self.socket.shutdown().await
     }
 }
 
@@ -1956,7 +1953,7 @@ mod tests {
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
             let pdu = read_pdu_from_wire_async(
-                &mut socket,
+                Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
@@ -1988,7 +1985,7 @@ mod tests {
                 presentation_contexts,
                 requestor_max_pdu_length: peer_max_pdu_length,
                 acceptor_max_pdu_length: self.max_pdu_length,
-                socket,
+                socket: Some(socket),
                 client_ae_title: peer_ae_title,
                 write_buffer: buffer,
                 strict: self.strict,
@@ -2061,7 +2058,7 @@ mod tests {
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
             let msg = read_pdu_from_wire_async(
-                &mut socket,
+                Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
@@ -2091,7 +2088,7 @@ mod tests {
                 presentation_contexts,
                 requestor_max_pdu_length: peer_max_pdu_length,
                 acceptor_max_pdu_length: self.max_pdu_length,
-                socket,
+                socket: Some(socket),
                 client_ae_title: peer_ae_title,
                 write_buffer,
                 strict: self.strict,

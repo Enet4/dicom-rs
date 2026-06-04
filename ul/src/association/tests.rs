@@ -426,7 +426,7 @@ mod successive_pdus_during_client_association {
         );
 
         // Currently receive() doesn't handle aborts; we need to close the assoc ourselves
-        association.close().await.unwrap();
+        association.close();
 
         // Wait until server has finished
         server_handle.await.unwrap();
