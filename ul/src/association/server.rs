@@ -1313,57 +1313,6 @@ impl<S> ServerAssociation<S>
 where
     S: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
-    /// Send a PDU message to the other intervenient.
-    pub fn send(&mut self, msg: &Pdu) -> Result<()> {
-        SyncAssociation::send(self, msg)
-    }
-
-    /// Read a PDU message from the other intervenient.
-    pub fn receive(&mut self) -> Result<Pdu> {
-        SyncAssociation::receive(self)
-    }
-
-    /// Send a provider initiated abort message
-    /// and shut down the TCP connection,
-    /// terminating the association.
-    pub fn abort(self) -> Result<()> {
-        SyncAssociation::abort(self)
-    }
-
-    /// Prepare a P-Data writer for sending
-    /// one or more data item PDUs.
-    ///
-    /// Returns a writer which automatically
-    /// splits the inner data into separate PDUs if necessary.
-    pub fn send_pdata(
-        &mut self,
-        presentation_context_id: u8,
-    ) -> crate::association::pdata::PDataWriter<&mut S> {
-        SyncAssociation::send_pdata(self, presentation_context_id)
-    }
-
-    /// Prepare a P-Data reader for receiving
-    /// one or more data item PDUs.
-    ///
-    /// Returns a reader which automatically
-    /// receives more data PDUs once the bytes collected are consumed.
-    pub fn receive_pdata(&mut self) -> crate::association::pdata::PDataReader<'_, &mut S> {
-        SyncAssociation::receive_pdata(self)
-    }
-
-    /// Obtain access to the inner stream
-    /// connected to the association acceptor.
-    ///
-    /// This can be used to send the PDU in semantic fragments of the message,
-    /// thus using less memory.
-    ///
-    /// **Note:** reading and writing should be done with care
-    /// to avoid inconsistencies in the association state.
-    /// Do not call `send` and `receive` while not in a PDU boundary.
-    pub fn inner_stream(&mut self) -> &mut S {
-        SyncAssociation::inner_stream(self)
-    }
-
     /// Obtain the application entity title called by the client.
     pub fn called_ae_title(&self) -> &str {
         &self.called_ae_title

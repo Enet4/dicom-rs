@@ -7,7 +7,7 @@ use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     Pdu, ServerAssociation,
-    association::{Association, CloseSocket, SetReadTimeout},
+    association::{Association, CloseSocket, SetReadTimeout, SyncAssociation},
     pdu::{PDataValueType, PresentationContextResultReason},
 };
 use snafu::{OptionExt, Report, ResultExt, Whatever};
