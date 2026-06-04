@@ -364,9 +364,27 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Assoc
     fn get_mut(&mut self) -> (&mut S, &mut BytesMut, &mut Vec<u8>);
 
     /// Send a PDU message to the other intervenient.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// If the return value is `Ok`, the new state is still Sta6;
+    /// if it is `Err`, the new state is Sta1 (no connection), and
+    /// the association object should be considered no longer valid.
+    // FIXME: Will that be the case, or only for certain Err values?
+    //        e.g. a SendTooLongPdu error should probably not close
+    //        the connection.
+    // TODO: Actually implement state machine handling.
     fn send(&mut self, pdu: &Pdu) -> Result<()>;
 
     /// Read a PDU message from the other intervenient.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// If the return value is `Ok`, the new state is still Sta6;
+    /// if it is `Err`, the new state is Sta1 (no connection), and
+    /// the association object should be considered no longer valid.
+    // FIXME: Will that be the case, or only for certain Err values?
+    // TODO: Actually implement state machine handling.
     fn receive(&mut self) -> Result<Pdu>;
 
     /// Send an abort message with a source/reason
@@ -375,6 +393,11 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Assoc
     /// This function may take up to a time defined by
     /// `finalization_timeout()` to complete, depending
     /// on how long the peer takes to close the socket.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// It will return in state Sta1 (no connection) regardless of
+    /// the return value, which serves to identify what happened.
     fn abort_with_source(self, source: AbortRQSource) -> Result<()>
     where
         Self: Sized,
@@ -402,6 +425,11 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Assoc
     /// This function may take up to a time defined by
     /// `finalization_timeout()` to complete, depending
     /// on how long the peer takes to close the socket.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// It will return in state Sta1 (no connection) regardless of
+    /// the return value, which serves to identify what happened.
     fn abort(self) -> Result<()>
     where
         Self: Sized,
@@ -421,6 +449,11 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Assoc
     ///
     /// This function may take an indefinite time to continue, if receive
     /// timeout is not defined and the peer does not respond.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// It will return in state Sta1 (no connection) regardless of
+    /// the return value, which serves to identify what happened.
     fn release(self) -> Result<()>
     where
         Self: Sized;

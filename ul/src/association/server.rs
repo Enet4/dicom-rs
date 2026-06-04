@@ -944,7 +944,12 @@ where
     }
 
     /// Negotiate an association with the given TCP stream.
-    /// In case of an `Err` return value, the socket is closed.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta2 (transport connection open,
+    /// waiting for A-ASSOCIATE-RQ). If the return value is `Ok`,
+    /// the new state is Sta6 (ready to send/receive data);
+    /// if it is `Err`, the new state is Sta1 (connection closed).
     pub fn establish(&self, mut socket: TcpStream) -> Result<ServerAssociation<TcpStream>> {
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
@@ -992,6 +997,14 @@ where
                 },
                 called_ae_title,
             )) => {
+                // A-ASSOCIATE-RQ received, association accepted.
+                // The function `process_a_association_rq` has
+                // transitioned to state Sta3 and sends us (via
+                // returning Ok(_)) an "A-ASSOCIATE response
+                // primitive (accept)".
+                // Action AE-7: send A-ASSOCIATE-AC PDU. New state
+                // is Sta6 (association established, ready to send
+                // data).
                 write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                 socket.write_all(&write_buffer).context(WireSendSnafu)?;
                 Ok(ServerAssociation {
@@ -1010,6 +1023,10 @@ where
             }
             Err((pdu, err)) => {
                 if let Some(pdu) = pdu {
+                    // Either the association was rejected and the PDU
+                    // is A-ASSOCIATE-RJ (action AE-6, send A-ASSOCIATE-RJ)
+                    // or an unexpected/unknown PDU was received (action
+                    // AA-1: send A-ABORT). Either way, new state is Sta13.
                     // Send the rejection/abort PDU and switch to Sta13
                     write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                     socket.write_all(&write_buffer).context(WireSendSnafu)?;
@@ -1024,7 +1041,7 @@ where
                     )?;
                 } else {
                     // No PDU to send means it's our turn to close the socket
-                    // (this is most likely in response to an A-ABORT request)
+                    // (action AA-2: close socket, or AA-5: do nothing).
                     let _ = socket.close();
                 }
                 Err(err)
@@ -1033,6 +1050,12 @@ where
     }
 
     /// Negotiate an association with the given TCP stream using TLS.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta2 (transport connection open,
+    /// waiting for A-ASSOCIATE-RQ). If the return value is `Ok`,
+    /// the new state is Sta6 (ready to send/receive data);
+    /// if it is `Err`, the new state is Sta1 (connection closed).
     #[cfg(feature = "sync-tls")]
     pub fn establish_tls(&self, socket: TcpStream) -> Result<ServerAssociation<TlsStream>> {
         ensure!(
@@ -1077,6 +1100,14 @@ where
                 },
                 called_ae_title,
             )) => {
+                // A-ASSOCIATE-RQ received, association accepted.
+                // The function `process_a_association_rq` has
+                // transitioned to state Sta3 and sends us (via
+                // returning Ok(_)) an "A-ASSOCIATE response
+                // primitive (accept)".
+                // Action AE-7: send A-ASSOCIATE-AC PDU. New state
+                // is Sta6 (association established, ready to send
+                // data).
                 write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                 tls_stream.write_all(&write_buffer).context(WireSendSnafu)?;
                 Ok(ServerAssociation {
@@ -1095,6 +1126,10 @@ where
             }
             Err((pdu, err)) => {
                 if let Some(pdu) = pdu {
+                    // Either the association was rejected and the PDU
+                    // is A-ASSOCIATE-RJ (action AE-6, send A-ASSOCIATE-RJ)
+                    // or an unexpected/unknown PDU was received (action
+                    // AA-1: send A-ABORT). Either way, new state is Sta13.
                     // Send the rejection/abort PDU and switch to Sta13
                     write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
                     tls_stream.write_all(&write_buffer).context(WireSendSnafu)?;
@@ -1109,7 +1144,7 @@ where
                     )?;
                 } else {
                     // No PDU to send means it's our turn to close the socket
-                    // (this is most likely in response to an A-ABORT request)
+                    // (action AA-2: close socket, or AA-5: do nothing).
                     let _ = tls_stream.close();
                 }
                 Err(err)
@@ -1409,6 +1444,12 @@ where
     N: Negotiation,
 {
     /// Negotiate an association with the given TCP stream.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta2 (transport connection open,
+    /// waiting for A-ASSOCIATE-RQ). If the return value is `Ok`,
+    /// the new state is Sta6 (ready to send/receive data);
+    /// if it is `Err`, the new state is Sta1 (connection closed).
     pub async fn establish_async(
         &self,
         mut socket: tokio::net::TcpStream,
@@ -1487,6 +1528,12 @@ where
     }
 
     /// Negotiate an association with the given TCP stream.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// is entered in state Sta2 (transport connection open,
+    /// waiting for A-ASSOCIATE-RQ). If the return value is `Ok`,
+    /// the new state is Sta6 (ready to send/receive data);
+    /// if it is `Err`, the new state is Sta1 (connection closed).
     #[cfg(feature = "async-tls")]
     pub async fn establish_tls_async(
         &self,
