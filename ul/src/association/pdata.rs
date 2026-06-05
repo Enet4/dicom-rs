@@ -359,6 +359,7 @@ pub mod non_blocking {
     const PDU_PDV_HEADER_SIZE: usize = (PDU_HEADER_SIZE + PDV_HEADER_SIZE) as usize;
 
     /// Enum representing state of the Async Writer
+    #[derive(Debug)]
     enum WriteState {
         // Ready to write to the underlying stream
         Ready,
@@ -415,9 +416,13 @@ pub mod non_blocking {
     /// ```
     #[must_use]
     pub struct AsyncPDataWriter<W: AsyncWrite + Unpin> {
+        // Buffer for accumulating P-Data fragments
         buffer: Vec<u8>,
+        // Underlying stream
         stream: W,
         max_pdu_length: u32,
+        // State machine tracking whether we're currently writing to the
+        // underlying stream and how much of the buffer we've written
         state: WriteState,
     }
 
@@ -513,25 +518,43 @@ pub mod non_blocking {
                         self.buffer.extend(slice);
                         debug_assert_eq!(self.buffer.len(), total_len);
                         setup_pdata_header(&mut self.buffer, false);
-                        let this = self.get_mut();
-                        // Attempt to send PDU on wire
-                        match Pin::new(&mut this.stream).poll_write(cx, &this.buffer) {
-                            Poll::Ready(Ok(n)) => {
-                                if n == this.buffer.len() {
-                                    // If we wrote the whole buffer, reset `self.buffer`
-                                    this.buffer.truncate(PDU_PDV_HEADER_SIZE);
-                                    Poll::Ready(Ok(slice.len()))
-                                } else {
-                                    // Otherwise keep track of how much we wrote and change state to Writing
-                                    this.state = WriteState::Writing(n);
-                                    Poll::Pending
+                        let mut written = 0;
+
+                        loop {
+                            let this: &mut AsyncPDataWriter<W> = self.as_mut().get_mut();
+                            match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[written..]) {
+                                Poll::Ready(Ok(n)) => {
+                                    // Underlying writer wrote something.
+                                    written += n;
+                                    // If we wrote the whole buffer, we can try
+                                    // to write the rest immediately.  It is
+                                    // important we don't return
+                                    // `Poll::Pending`` here, since the
+                                    // underlying writer returned `Poll::Ready`,
+                                    // so there is no waker registered. If we
+                                    // return Poll::Pending here, we will never
+                                    // be woken up and hang forever.
+                                    
+                                    // Alternatively, we could call
+                                    // `cx.waker().clone().wake()` here to
+                                    // ensure we get polled again, but that may
+                                    // result in unnecessary wakeups if it is a
+                                    // relatively long time until the underlying
+                                    // writer becomes ready to write
+                                    if written == this.buffer.len() {
+                                        // If we wrote the whole buffer, reset `self.buffer`
+                                        this.buffer.truncate(PDU_PDV_HEADER_SIZE);
+                                        return Poll::Ready(Ok(slice.len()))
+                                    }
                                 }
-                            }
-                            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                            Poll::Pending => {
-                                // Nothing was written yet, change state to writing at position 0
-                                this.state = WriteState::Writing(0);
-                                Poll::Pending
+                                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                                Poll::Pending => {
+                                    // Underlying stream is pending, we need to
+                                    // wait until it's ready again to continue
+                                    // writing the rest of the buffer
+                                    this.state = WriteState::Writing(written);
+                                    return Poll::Pending
+                                }
                             }
                         }
                     }
@@ -539,22 +562,26 @@ pub mod non_blocking {
                 WriteState::Writing(pos) => {
                     // Continue writing to stream from current position
                     let buflen = self.buffer.len();
-                    let this = self.get_mut();
-                    match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[pos..]) {
-                        Poll::Ready(Ok(n)) => {
-                            if (n + pos) == this.buffer.len() {
-                                // If we wrote the whole buffer, reset `self.buffer` and change state back to ready
-                                this.buffer.truncate(PDU_PDV_HEADER_SIZE);
-                                this.state = WriteState::Ready;
-                                Poll::Ready(Ok(buflen - PDU_PDV_HEADER_SIZE))
-                            } else {
-                                // Otherwise add to current position
-                                this.state = WriteState::Writing(n + pos);
-                                Poll::Pending
+                    let mut written = 0;
+                    loop {
+                        let this = self.as_mut().get_mut();
+                        match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[(pos + written)..]) {
+                            Poll::Ready(Ok(n)) => {
+                                // Similar to the loop in the WriteState::Ready
+                                // case, we need to keep trying to write until
+                                // we've either written everything or the
+                                // underlying stream switches back to `Pending`
+                                written += n;
+                                if (written + pos) == this.buffer.len() {
+                                    // If we wrote the whole buffer, reset `self.buffer` and change state back to ready
+                                    this.buffer.truncate(PDU_PDV_HEADER_SIZE);
+                                    this.state = WriteState::Ready;
+                                    return Poll::Ready(Ok(buflen - PDU_PDV_HEADER_SIZE))
+                                }
                             }
+                            Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                            Poll::Pending => return Poll::Pending,
                         }
-                        Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
-                        Poll::Pending => Poll::Pending,
                     }
                 }
             }
