@@ -1511,8 +1511,8 @@ impl<'a> ClientAssociationOptions<'a> {
                         },
                         Err(err) => {
                             if let Ok(rustls::Error::InappropriateMessage{..}) = err.downcast::<rustls::Error>() {
-                                error!("Recieved TLS response to non-TLS request!");
-                                return super::TlsNotSupportedSnafu.fail()
+                                    error!("Recieved TLS response to non-TLS request!");
+                                    return super::TlsNotSupportedSnafu.fail()
                             }
                             // if let rustls::Error::InappropriateMessage{..} = err {
                             //     error!("Recieved TLS response to non-TLS request!");
@@ -1525,7 +1525,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     }
                 }
                 #[cfg(not(feature = "async-tls"))]
-                e
+                return Err(e)
             }
         };
         let negotiated_options = self.process_a_association_resp(pdu, &pc_proposed);
