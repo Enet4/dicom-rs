@@ -7,8 +7,9 @@ use bytes::{Buf, BytesMut};
 use tracing::warn;
 
 use crate::{
+    Pdu,
     pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE, PDV_HEADER_SIZE},
-    read_pdu, Pdu,
+    read_pdu,
 };
 
 /// Combined size of PDU header and one PDV header, as usize, for convenience
@@ -253,7 +254,9 @@ pub struct PDataReader<'a, R> {
 impl<'a, R> PDataReader<'a, R> {
     pub fn new(stream: R, max_pdu_length: u32, remaining: &'a mut BytesMut) -> Self {
         PDataReader {
-            buffer: VecDeque::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize),
+            buffer: VecDeque::with_capacity(
+                (max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+            ),
             stream,
             presentation_context_id: None,
             max_pdu_length,
@@ -303,9 +306,7 @@ where
                 reader.consume(recv.len());
                 self.read_buffer.extend_from_slice(&recv);
                 if recv.is_empty() {
-                    return Err(std::io::Error::other(
-                        "Connection closed by peer",
-                    ));
+                    return Err(std::io::Error::other("Connection closed by peer"));
                 }
             };
 
@@ -316,7 +317,10 @@ where
                             None => Some(pdata_value.presentation_context_id),
                             Some(cid) if cid == pdata_value.presentation_context_id => Some(cid),
                             Some(cid) => {
-                                warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
+                                warn!(
+                                    "Received PData value of presentation context {}, but should be {}",
+                                    pdata_value.presentation_context_id, cid
+                                );
                                 Some(cid)
                             }
                         };
@@ -328,7 +332,7 @@ where
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::UnexpectedEof,
                         "Unexpected PDU type",
-                    ))
+                    ));
                 }
             }
         }
@@ -339,7 +343,9 @@ where
 #[cfg(feature = "async")]
 pub mod non_blocking {
     use std::{
-        io::Cursor, pin::Pin, task::{Context, Poll, ready}
+        io::Cursor,
+        pin::Pin,
+        task::{Context, Poll, ready},
     };
 
     use bytes::{Buf, BufMut};
@@ -349,8 +355,9 @@ pub mod non_blocking {
     use tracing::warn;
 
     use crate::{
+        Pdu,
         pdu::{PDU_HEADER_SIZE, PDV_HEADER_SIZE},
-        read_pdu, Pdu,
+        read_pdu,
     };
 
     pub use super::PDataReader;
@@ -361,10 +368,11 @@ pub mod non_blocking {
     /// Enum representing state of the Async Writer
     #[derive(Debug)]
     enum WriteState {
-        // Ready to write to the underlying stream
+        /// Ready to write to the underlying stream
         Ready,
-        // Currently writing to underlying stream, with a position in the buffer
-        Writing(usize),
+        /// Currently writing to underlying stream, with a position in the buffer
+        /// and the number of bytes consumed by the caller buffer
+        Writing(usize, usize),
     }
 
     /// A P-Data async value writer.
@@ -516,56 +524,57 @@ pub mod non_blocking {
                         // buffer, prepare to send PDU
                         let slice = &buf[..total_len - self.buffer.len()];
                         self.buffer.extend(slice);
+                        let consumed = slice.len()
                         debug_assert_eq!(self.buffer.len(), total_len);
                         setup_pdata_header(&mut self.buffer, false);
                         let mut written = 0;
 
                         loop {
                             let this: &mut AsyncPDataWriter<W> = self.as_mut().get_mut();
-                            match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[written..]) {
+                            match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[written..])
+                            {
                                 Poll::Ready(Ok(n)) => {
                                     // Underlying writer wrote something.
                                     written += n;
-                                    // If we wrote the whole buffer, we can try
-                                    // to write the rest immediately.  It is
-                                    // important we don't return
-                                    // `Poll::Pending`` here, since the
-                                    // underlying writer returned `Poll::Ready`,
-                                    // so there is no waker registered. If we
-                                    // return Poll::Pending here, we will never
-                                    // be woken up and hang forever.
-                                    
-                                    // Alternatively, we could call
-                                    // `cx.waker().clone().wake()` here to
-                                    // ensure we get polled again, but that may
-                                    // result in unnecessary wakeups if it is a
-                                    // relatively long time until the underlying
-                                    // writer becomes ready to write
+                                    // If we didn't write the whole buffer, we can try to write the
+                                    // rest immediately.  It is important we don't return
+                                    // `Poll::Pending`` here, since the underlying writer returned
+                                    // `Poll::Ready`, so there is no waker registered. If we return
+                                    // Poll::Pending here, we will never be woken up and hang
+                                    // forever.
+
+                                    // Alternatively, we could call `cx.waker().clone().wake()` here
+                                    // to ensure we get polled again, but that may result in
+                                    // unnecessary wakeups if it is a relatively long time until the
+                                    // underlying writer becomes ready to write
                                     if written == this.buffer.len() {
                                         // If we wrote the whole buffer, reset `self.buffer`
                                         this.buffer.truncate(PDU_PDV_HEADER_SIZE);
-                                        return Poll::Ready(Ok(slice.len()))
+                                        return Poll::Ready(Ok(consumed));
                                     }
                                 }
                                 Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                                 Poll::Pending => {
-                                    // Underlying stream is pending, we need to
-                                    // wait until it's ready again to continue
-                                    // writing the rest of the buffer
-                                    this.state = WriteState::Writing(written);
-                                    return Poll::Pending
+                                    // Underlying stream is pending, we need to wait until it's
+                                    // ready again to continue writing the rest of the buffer
+
+                                    // Store the current position in `self.buffer` as well as the
+                                    // number of bytes we "consumed" from the caller buffer
+                                    this.state = WriteState::Writing(written, consumed);
+                                    return Poll::Pending;
                                 }
                             }
                         }
                     }
                 }
-                WriteState::Writing(pos) => {
+                WriteState::Writing(pos, consumed) => {
                     // Continue writing to stream from current position
-                    let buflen = self.buffer.len();
                     let mut written = 0;
                     loop {
                         let this = self.as_mut().get_mut();
-                        match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[(pos + written)..]) {
+                        match Pin::new(&mut this.stream)
+                            .poll_write(cx, &this.buffer[(pos + written)..])
+                        {
                             Poll::Ready(Ok(n)) => {
                                 // Similar to the loop in the WriteState::Ready
                                 // case, we need to keep trying to write until
@@ -576,11 +585,14 @@ pub mod non_blocking {
                                     // If we wrote the whole buffer, reset `self.buffer` and change state back to ready
                                     this.buffer.truncate(PDU_PDV_HEADER_SIZE);
                                     this.state = WriteState::Ready;
-                                    return Poll::Ready(Ok(buflen - PDU_PDV_HEADER_SIZE))
+                                    return Poll::Ready(Ok(consumed));
                                 }
                             }
                             Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
-                            Poll::Pending => return Poll::Pending,
+                            Poll::Pending => {
+                                this.state = WriteState::Writing(written, consumed);
+                                return Poll::Pending
+                            },
                         }
                     }
                 }
@@ -671,7 +683,10 @@ pub mod non_blocking {
                                     Some(cid)
                                 }
                                 Some(cid) => {
-                                    warn!("Received PData value of presentation context {}, but should be {}", pdata_value.presentation_context_id, cid);
+                                    warn!(
+                                        "Received PData value of presentation context {}, but should be {}",
+                                        pdata_value.presentation_context_id, cid
+                                    );
                                     Some(cid)
                                 }
                             };
@@ -683,7 +698,7 @@ pub mod non_blocking {
                         return Poll::Ready(Err(std::io::Error::new(
                             std::io::ErrorKind::UnexpectedEof,
                             "Unexpected PDU type",
-                        )))
+                        )));
                     }
                 }
             }
@@ -701,7 +716,7 @@ mod tests {
     use std::io::{Read, Write};
 
     use crate::association::pdata::PDataWriter;
-    use crate::pdu::{read_pdu, Pdu, MINIMUM_PDU_SIZE, PDV_HEADER_SIZE};
+    use crate::pdu::{MINIMUM_PDU_SIZE, PDV_HEADER_SIZE, Pdu, read_pdu};
     use crate::pdu::{PDataValue, PDataValueType};
     use crate::write_pdu;
 
