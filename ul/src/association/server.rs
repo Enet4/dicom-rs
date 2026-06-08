@@ -1409,71 +1409,107 @@ where
             MissingAbstractSyntaxSnafu
         );
         let read_timeout = self.socket_options.read_timeout;
-        let task = async {
-            let mut read_buffer = BytesMut::with_capacity(
-                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-            );
-            let pdu = super::read_pdu_from_wire_async(
+        let write_timeout = self.socket_options.write_timeout;
+        let mut read_buffer = BytesMut::with_capacity(
+            (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+        );
+        let pdu = match super::timeout(
+            read_timeout,
+            super::read_pdu_from_wire_async(
                 Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
-            )
-            .await?;
-
-            let mut write_buffer: Vec<u8> =
-                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
-            match self.process_a_association_rq(pdu) {
-                Ok((
-                    pdu,
-                    NegotiatedOptions {
-                        user_variables,
-                        presentation_contexts,
-                        peer_max_pdu_length,
-                        peer_ae_title,
-                    },
-                    called_ae_title,
-                )) => {
-                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                    socket
-                        .write_all(&write_buffer)
-                        .await
-                        .context(WireSendSnafu)?;
-                    Ok(AsyncServerAssociation {
-                        presentation_contexts,
-                        requestor_max_pdu_length: peer_max_pdu_length,
-                        acceptor_max_pdu_length: self.max_pdu_length,
-                        socket: Some(socket),
-                        client_ae_title: peer_ae_title,
-                        write_buffer,
-                        strict: self.strict,
-                        read_buffer,
-                        read_timeout: self.socket_options.read_timeout,
-                        write_timeout: self.socket_options.write_timeout,
-                        finalization_timeout: self.finalization_timeout,
-                        user_variables,
-                        called_ae_title,
-                    })
-                }
-                Err((pdu, err)) => {
-                    if let Some(pdu) = pdu {
-                        // Send the rejection/abort PDU and switch to Sta13
-                        write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                        socket
-                            .write_all(&write_buffer)
-                            .await
-                            .context(WireSendSnafu)?;
-                        // TODO: Async Sta13 implementation
-                    } else {
-                        // No PDU to send means it's our turn to close the socket
-                        // (this is most likely in response to an A-ABORT request)
-                        drop(socket);
-                    }
-                    Err(err)
-                }
+            ),
+        )
+        .await
+        {
+            Ok(msg) => msg,
+            Err(err) => {
+                // This covers "ARTIM timer expired" (socket read timeout)
+                // and "Transport connection closed".
+                // Action AA-2 or AA-5: Close connection or do nothing,
+                // then return to Sta1
+                // (the connection may already be closed but we close it
+                // nevertheless).
+                drop(socket);
+                return Err(err);
             }
         };
-        super::timeout(read_timeout, task).await
+
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
+        match self.process_a_association_rq(pdu) {
+            Ok((
+                pdu,
+                NegotiatedOptions {
+                    user_variables,
+                    presentation_contexts,
+                    peer_max_pdu_length,
+                    peer_ae_title,
+                },
+                called_ae_title,
+            )) => {
+                // A-ASSOCIATE-RQ received, association accepted.
+                // The function `process_a_association_rq` has
+                // transitioned to state Sta3 and sends us (via
+                // returning Ok(_)) an "A-ASSOCIATE response
+                // primitive (accept)".
+                // Action AE-7: send A-ASSOCIATE-AC PDU. New state
+                // is Sta6 (association established, ready to send
+                // data).
+                write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                super::timeout(write_timeout, async {
+                    socket.write_all(&write_buffer).await.context(WireSendSnafu)
+                })
+                .await?;
+
+                Ok(AsyncServerAssociation {
+                    presentation_contexts,
+                    requestor_max_pdu_length: peer_max_pdu_length,
+                    acceptor_max_pdu_length: self.max_pdu_length,
+                    socket: Some(socket),
+                    client_ae_title: peer_ae_title,
+                    write_buffer,
+                    strict: self.strict,
+                    read_buffer,
+                    read_timeout: self.socket_options.read_timeout,
+                    write_timeout: self.socket_options.write_timeout,
+                    finalization_timeout: self.finalization_timeout,
+                    user_variables,
+                    called_ae_title,
+                })
+            }
+            Err((pdu, err)) => {
+                if let Some(pdu) = pdu {
+                    // Either the association was rejected and the PDU
+                    // is A-ASSOCIATE-RJ (action AE-6, send A-ASSOCIATE-RJ)
+                    // or an unexpected/unknown PDU was received (action
+                    // AA-1: send A-ABORT). Either way, new state is Sta13.
+                    // Send the rejection/abort PDU and switch to Sta13
+                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                    super::timeout(write_timeout, async {
+                        socket.write_all(&write_buffer).await.context(WireSendSnafu)
+                    })
+                    .await?;
+                    let mut some_socket = Some(socket);
+                    super::sta13_async(
+                        &mut some_socket,
+                        &mut read_buffer,
+                        &mut write_buffer,
+                        self.max_pdu_length,
+                        DEFAULT_MAX_PDU,
+                        self.finalization_timeout,
+                    )
+                    .await?;
+                } else {
+                    // No PDU to send means it's our turn to close the socket
+                    // (action AA-2: close socket, or AA-5: do nothing).
+                    drop(socket);
+                }
+                Err(err)
+            }
+        }
     }
 
     /// Negotiate an association with the given TCP stream.
@@ -1505,71 +1541,107 @@ where
             .await
             .context(crate::association::ConnectSnafu)?;
         let read_timeout = self.socket_options.read_timeout;
-        let task = async {
-            let mut read_buffer = BytesMut::with_capacity(
-                (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
-            );
-            let pdu = super::read_pdu_from_wire_async(
+        let write_timeout = self.socket_options.write_timeout;
+
+        let mut read_buffer = BytesMut::with_capacity(
+            (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
+        );
+        let pdu = match super::timeout(
+            read_timeout,
+            super::read_pdu_from_wire_async(
                 Some(&mut socket),
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
-            )
-            .await?;
-
-            let mut write_buffer: Vec<u8> =
-                Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
-            match self.process_a_association_rq(pdu) {
-                Ok((
-                    pdu,
-                    NegotiatedOptions {
-                        user_variables,
-                        presentation_contexts,
-                        peer_max_pdu_length,
-                        peer_ae_title,
-                    },
-                    called_ae_title,
-                )) => {
-                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                    socket
-                        .write_all(&write_buffer)
-                        .await
-                        .context(WireSendSnafu)?;
-                    Ok(AsyncServerAssociation {
-                        presentation_contexts,
-                        requestor_max_pdu_length: peer_max_pdu_length,
-                        acceptor_max_pdu_length: self.max_pdu_length,
-                        socket: Some(socket),
-                        client_ae_title: peer_ae_title,
-                        write_buffer,
-                        strict: self.strict,
-                        read_buffer,
-                        read_timeout: self.socket_options.read_timeout,
-                        write_timeout: self.socket_options.write_timeout,
-                        finalization_timeout: self.finalization_timeout,
-                        user_variables,
-                        called_ae_title,
-                    })
-                }
-                Err((pdu, err)) => {
-                    if let Some(pdu) = pdu {
-                        // Send the rejection/abort PDU and switch to Sta13
-                        write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
-                        socket
-                            .write_all(&write_buffer)
-                            .await
-                            .context(WireSendSnafu)?;
-                        // TODO: Async Sta13 implementation
-                    } else {
-                        // No PDU to send means it's our turn to close the socket
-                        // (this is most likely in response to an A-ABORT request)
-                        drop(socket);
-                    }
-                    Err(err)
-                }
+            ),
+        )
+        .await
+        {
+            Ok(msg) => msg,
+            Err(err) => {
+                // This covers "ARTIM timer expired" (socket read timeout)
+                // and "Transport connection closed".
+                // Action AA-2 or AA-5: Close connection or do nothing,
+                // then return to Sta1
+                // (the connection may already be closed but we close it
+                // nevertheless).
+                drop(socket);
+                return Err(err);
             }
         };
-        super::timeout(read_timeout, task).await
+
+        let mut write_buffer: Vec<u8> =
+            Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
+        match self.process_a_association_rq(pdu) {
+            Ok((
+                pdu,
+                NegotiatedOptions {
+                    user_variables,
+                    presentation_contexts,
+                    peer_max_pdu_length,
+                    peer_ae_title,
+                },
+                called_ae_title,
+            )) => {
+                // A-ASSOCIATE-RQ received, association accepted.
+                // The function `process_a_association_rq` has
+                // transitioned to state Sta3 and sends us (via
+                // returning Ok(_)) an "A-ASSOCIATE response
+                // primitive (accept)".
+                // Action AE-7: send A-ASSOCIATE-AC PDU. New state
+                // is Sta6 (association established, ready to send
+                // data).
+                write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                super::timeout(write_timeout, async {
+                    socket.write_all(&write_buffer).await.context(WireSendSnafu)
+                })
+                .await?;
+                Ok(AsyncServerAssociation {
+                    presentation_contexts,
+                    requestor_max_pdu_length: peer_max_pdu_length,
+                    acceptor_max_pdu_length: self.max_pdu_length,
+                    socket: Some(socket),
+                    client_ae_title: peer_ae_title,
+                    write_buffer,
+                    strict: self.strict,
+                    read_buffer,
+                    read_timeout: self.socket_options.read_timeout,
+                    write_timeout: self.socket_options.write_timeout,
+                    finalization_timeout: self.finalization_timeout,
+                    user_variables,
+                    called_ae_title,
+                })
+            }
+            Err((pdu, err)) => {
+                if let Some(pdu) = pdu {
+                    // Either the association was rejected and the PDU
+                    // is A-ASSOCIATE-RJ (action AE-6, send A-ASSOCIATE-RJ)
+                    // or an unexpected/unknown PDU was received (action
+                    // AA-1: send A-ABORT). Either way, new state is Sta13.
+                    // Send the rejection/abort PDU and switch to Sta13
+                    write_pdu(&mut write_buffer, &pdu).context(SendPduSnafu)?;
+                    super::timeout(write_timeout, async {
+                        socket.write_all(&write_buffer).await.context(WireSendSnafu)
+                    })
+                    .await?;
+                    let mut some_socket = Some(socket);
+                    super::sta13_async(
+                        &mut some_socket,
+                        &mut read_buffer,
+                        &mut write_buffer,
+                        self.max_pdu_length,
+                        DEFAULT_MAX_PDU,
+                        self.finalization_timeout,
+                    )
+                    .await?;
+                } else {
+                    // No PDU to send means it's our turn to close the socket
+                    // (action AA-2: close socket, or AA-5: do nothing).
+                    drop(socket);
+                }
+                Err(err)
+            }
+        }
     }
 }
 
