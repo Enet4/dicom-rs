@@ -442,7 +442,7 @@ pub mod non_blocking {
         /// Construct a new P-Data value writer.
         ///
         /// `max_pdu_length` is the maximum value of the PDU-length property.
-        pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
+        pub fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
             use crate::pdu::LARGE_PDU_SIZE;
 
             let mut buffer =
@@ -524,7 +524,7 @@ pub mod non_blocking {
                         // buffer, prepare to send PDU
                         let slice = &buf[..total_len - self.buffer.len()];
                         self.buffer.extend(slice);
-                        let consumed = slice.len()
+                        let consumed = slice.len();
                         debug_assert_eq!(self.buffer.len(), total_len);
                         setup_pdata_header(&mut self.buffer, false);
                         let mut written = 0;
@@ -538,7 +538,7 @@ pub mod non_blocking {
                                     written += n;
                                     // If we didn't write the whole buffer, we can try to write the
                                     // rest immediately.  It is important we don't return
-                                    // `Poll::Pending`` here, since the underlying writer returned
+                                    // `Poll::Pending` here, since the underlying writer returned
                                     // `Poll::Ready`, so there is no waker registered. If we return
                                     // Poll::Pending here, we will never be woken up and hang
                                     // forever.
@@ -560,6 +560,7 @@ pub mod non_blocking {
 
                                     // Store the current position in `self.buffer` as well as the
                                     // number of bytes we "consumed" from the caller buffer
+
                                     this.state = WriteState::Writing(written, consumed);
                                     return Poll::Pending;
                                 }
@@ -590,7 +591,9 @@ pub mod non_blocking {
                             }
                             Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                             Poll::Pending => {
-                                this.state = WriteState::Writing(written, consumed);
+                                // Store current position in `self.buffer`, which is any previous
+                                // position + what has currently been written
+                                this.state = WriteState::Writing(pos + written, consumed);
                                 return Poll::Pending
                             },
                         }
