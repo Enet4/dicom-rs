@@ -2,7 +2,7 @@
 mod async_pdata_tests {
     use std::{collections::VecDeque, pin::Pin, task::{Poll, Context}};
 
-    use dicom_ul::{Pdu, ServerAssociationOptions, association::{AsyncPDataWriter, ClientAssociationOptions}, pdu::{DEFAULT_MAX_PDU, MINIMUM_PDU_SIZE}, read_pdu};
+    use dicom_ul::{Pdu, ServerAssociationOptions, association::{AsyncPDataWriter, ClientAssociationOptions}, pdu::{DEFAULT_MAX_PDU}, read_pdu};
     use tokio::io::{AsyncWriteExt, AsyncReadExt, AsyncWrite};
     use rstest::rstest;
 
@@ -17,11 +17,11 @@ mod async_pdata_tests {
     }
 
     impl AsyncWrite for ControlledStream {
-        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
             Poll::Ready(Ok(()))
         }
 
-        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
             Poll::Ready(Ok(()))
         }
 
@@ -127,7 +127,7 @@ mod async_pdata_tests {
         let test_buffer: Vec<u8> = vec![0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7].into_iter().cycle().take(1048576).collect();
         {
             let mut pdata_writer = AsyncPDataWriter::new(&mut writer, 1, DEFAULT_MAX_PDU);
-            let res = pdata_writer.write_all(&test_buffer).await;
+            pdata_writer.write_all(&test_buffer).await.expect("Error raised in write_all")
         }
         let res = collect_pdata_bytes(&writer.inner);
         assert_eq!(res, test_buffer);
