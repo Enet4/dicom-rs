@@ -486,6 +486,13 @@ pub mod non_blocking {
         }
 
         async fn finish_impl(&mut self) -> std::io::Result<()> {
+            // If finish is called in writing state, the stream may be corrupted, return an error
+            if let WriteState::Writing(pos, consumed) = self.state {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    format!("PDU write was cancelled mid-flight. Wrote {} of {} bytes", pos, consumed)
+                ))
+            }
             if !self.buffer.is_empty() {
                 // send last PDU
                 setup_pdata_header(&mut self.buffer, true);
@@ -533,6 +540,12 @@ pub mod non_blocking {
                             let this: &mut AsyncPDataWriter<W> = self.as_mut().get_mut();
                             match Pin::new(&mut this.stream).poll_write(cx, &this.buffer[written..])
                             {
+                                Poll::Ready(Ok(0)) => {
+                                    return Poll::Ready(Err(std::io::Error::new(
+                                        std::io::ErrorKind::WriteZero,
+                                        "failed to write whole buffer",
+                                    )));
+                                }
                                 Poll::Ready(Ok(n)) => {
                                     // Underlying writer wrote something.
                                     written += n;
@@ -576,6 +589,12 @@ pub mod non_blocking {
                         match Pin::new(&mut this.stream)
                             .poll_write(cx, &this.buffer[(pos + written)..])
                         {
+                            Poll::Ready(Ok(0)) => {
+                                return Poll::Ready(Err(std::io::Error::new(
+                                    std::io::ErrorKind::WriteZero,
+                                    "failed to write whole buffer",
+                                )));
+                            }
                             Poll::Ready(Ok(n)) => {
                                 // Similar to the loop in the WriteState::Ready
                                 // case, we need to keep trying to write until
