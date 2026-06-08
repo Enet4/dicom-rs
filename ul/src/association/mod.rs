@@ -1038,7 +1038,7 @@ pub(crate) fn sta13<S: Read + Write + CloseSocket + SetReadTimeout>(
 ///
 /// This is the asynchronous version.
 #[cfg(feature = "async")]
-pub(crate) async fn _sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
+pub(crate) async fn sta13_async<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
     socket: &mut Option<S>,
     read_buffer: &mut BytesMut,
     write_buffer: &mut Vec<u8>,
