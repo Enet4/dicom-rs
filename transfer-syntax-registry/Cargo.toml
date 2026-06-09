@@ -82,7 +82,7 @@ optional = true
 default-features = false
 
 [dependencies.jpeg-encoder]
-version = "0.6"
+version = "0.7"
 optional = true
 
 [dependencies.charls]
@@ -91,18 +91,18 @@ optional = true
 features = ["static"]
 
 [dependencies.jxl-oxide]
-version = "0.10.2"
+version = "0.12.6"
 optional = true
 default-features = false
 
 [dependencies.zune-jpegxl]
-version = "0.4.0"
+version = "0.5"
 optional = true
 default-features = false
 features = ["std"]
 
 [dependencies.zune-core]
-version = "0.4.12"
+version = "0.5"
 optional = true
 default-features = false
 
