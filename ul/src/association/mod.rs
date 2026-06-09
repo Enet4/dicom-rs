@@ -509,7 +509,7 @@ pub trait SyncAssociation<S: Read + Write + CloseSocket + SetReadTimeout>: Assoc
 
 #[cfg(feature = "async")]
 /// Trait that represents methods that can be made on an asynchronous association.
-pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>:
+pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send>:
     Association
 {
     /// Obtain access to the inner stream
@@ -539,23 +539,68 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     where
         Self: Send;
 
-    /// Send a provider initiated abort message
+    /// Send an abort message with a source/reason
     /// and shut down the TCP connection,
     /// terminating the association.
-    fn abort(mut self) -> impl std::future::Future<Output = Result<()>> + Send
+    /// This function may take up to a time defined by
+    /// `finalization_timeout()` to complete, depending
+    /// on how long the peer takes to close the socket.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// It will return in state Sta1 (no connection) regardless of
+    /// the return value, which serves to identify what happened.
+    fn abort_with_source(
+        mut self,
+        source: AbortRQSource,
+    ) -> impl std::future::Future<Output = Result<()>> + Send
     where
         Self: Sized + Send,
     {
-        let pdu = Pdu::AbortRQ {
-            source: AbortRQSource::ServiceProvider(
-                AbortRQServiceProviderReason::ReasonNotSpecified,
-            ),
-        };
         async move {
-            let out = self.send(&pdu).await;
-            self.close();
-            out
+            let pdu = Pdu::AbortRQ { source };
+            let local_max_pdu_length = self.local_max_pdu_length();
+            let peer_max_pdu_length = self.peer_max_pdu_length();
+            let write_timeout = self.write_timeout();
+            let close_assoc_timeout = self.finalization_timeout();
+            let (socket, read_buffer, write_buffer) = self.get_mut();
+            write_pdu_to_wire_async(
+                socket.as_mut(),
+                write_buffer,
+                &pdu,
+                peer_max_pdu_length,
+                write_timeout,
+            )
+            .await?;
+
+            sta13_async(
+                socket,
+                read_buffer,
+                write_buffer,
+                local_max_pdu_length,
+                peer_max_pdu_length,
+                close_assoc_timeout,
+            )
+            .await
         }
+    }
+
+    /// Send a user-initiated abort message
+    /// and shut down the TCP connection,
+    /// terminating the association.
+    /// This function may take up to a time defined by
+    /// `finalization_timeout()` to complete, depending
+    /// on how long the peer takes to close the socket.
+    ///
+    /// In the DIMSE Association State Machine, this method
+    /// must be entered in state Sta6 (ready to send/receive data).
+    /// It will return in state Sta1 (no connection) regardless of
+    /// the return value, which serves to identify what happened.
+    fn abort(self) -> impl std::future::Future<Output = Result<()>> + Send
+    where
+        Self: Sized + Send,
+    {
+        self.abort_with_source(AbortRQSource::ServiceUser)
     }
 
     /// Iniate a graceful release of the association.
@@ -627,6 +672,14 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     fn close(&mut self) {
         drop(self.inner_stream().take());
     }
+
+    /// Returns the timeout that was set for sending data, or None if no
+    /// timeout was specified.
+    fn write_timeout(&self) -> Option<Duration>;
+
+    /// Returns the timeout that was set for receiving data, or None if no
+    /// timeout was specified.
+    fn read_timeout(&self) -> Option<Duration>;
 }
 
 // Helper function to perform an operation with timeout

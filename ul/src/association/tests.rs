@@ -37,7 +37,7 @@ mod successive_pdus_during_client_association {
     use super::*;
     use crate::{
         ClientAssociationOptions, Pdu,
-        pdu::{AbortRQServiceProviderReason, AbortRQSource, PDataValue, PDataValueType},
+        pdu::{AbortRQSource, PDataValue, PDataValueType},
     };
 
     use crate::association::server::*;
@@ -419,9 +419,7 @@ mod successive_pdus_during_client_association {
         assert_eq!(
             received_pdu,
             Pdu::AbortRQ {
-                source: AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecified
-                ),
+                source: AbortRQSource::ServiceUser,
             }
         );
 
