@@ -198,9 +198,6 @@ impl PixelDataWriter for JpegXlAdapter {
         let frame_size =
             cols as usize * rows as usize * samples_per_pixel as usize * bytes_per_sample;
 
-        // record dst length before encoding to know full jpeg size
-        let len_before = dst.len();
-
         // identify frame data using the frame index
         let pixeldata_uncompressed = &src
             .raw_pixel_data()
@@ -235,16 +232,13 @@ impl PixelDataWriter for JpegXlAdapter {
         options.set_effort(effort.map(|e| e + 27).unwrap_or(64));
         let encoder = JxlSimpleEncoder::new(frame_data, options);
 
-        let jxl = encoder
-            .encode()
-            .map_err(|e| format!("{e:?}"))
+        let bytes_written = encoder
+            .encode(dst)
             .whatever_context("Failed to encode JPEG XL data")?;
-
-        dst.extend_from_slice(&jxl);
 
         // provide attribute changes
         let mut changes = if quality != 100 {
-            let compressed_frame_size = dst.len() - len_before;
+            let compressed_frame_size = bytes_written;
             let compression_ratio = frame_size as f64 / compressed_frame_size as f64;
             let compression_ratio = format!("{compression_ratio:.6}");
             vec![
