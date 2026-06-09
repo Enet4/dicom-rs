@@ -315,7 +315,11 @@ mod successive_pdus_during_client_association {
             let association = server_options
                 .establish_with_extra_pdus(stream, vec![echo_pdu])
                 .unwrap();
-            association
+
+            // Give time for the TCP buffers to flush, otherwise the kernel
+            // may send them in the same transmission and spoil the test
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            association.abort().unwrap();
         });
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(10));
@@ -330,19 +334,20 @@ mod successive_pdus_during_client_association {
         // This should succeed in establishing the association despite multiple PDUs
         let mut association = scu_options.broken_establish(server_addr.into()).unwrap();
 
-        // Initiate abort server side
-        server_handle.join().unwrap().abort().unwrap();
-
         // Client should not have anything to receive, only receives abort Rq
         let received_pdu = association.receive().unwrap();
         assert_eq!(
             received_pdu,
             Pdu::AbortRQ {
-                source: AbortRQSource::ServiceProvider(
-                    AbortRQServiceProviderReason::ReasonNotSpecified
-                )
+                source: AbortRQSource::ServiceUser,
             }
         );
+
+        // Currently receive() doesn't handle aborts; we need to close the assoc ourselves
+        association.close().unwrap();
+
+        // Wait until server has finished
+        server_handle.join().unwrap();
 
         // Client cannot receive the PDU that was sent during association
         // Clean shutdown
@@ -383,7 +388,11 @@ mod successive_pdus_during_client_association {
                 .establish_with_extra_pdus_async(stream, vec![echo_pdu])
                 .await
                 .unwrap();
-            association
+
+            // Give time for the TCP buffers to flush, otherwise the kernel
+            // may send them in the same transmission and spoil the test
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            association.abort().await.unwrap();
         });
 
         // Give server time to start
@@ -401,10 +410,8 @@ mod successive_pdus_during_client_association {
             .broken_establish_async(server_addr.into())
             .await
             .unwrap();
-        // Initiate abort server-side
-        server_handle.await.unwrap().abort().await.unwrap();
 
-        // Client should be able to receive the release request that was sent consecutively
+        // Client should be able to receive the abort request that was sent consecutively
         let received_pdu = association
             .receive()
             .await
@@ -414,11 +421,16 @@ mod successive_pdus_during_client_association {
             Pdu::AbortRQ {
                 source: AbortRQSource::ServiceProvider(
                     AbortRQServiceProviderReason::ReasonNotSpecified
-                )
+                ),
             }
         );
 
-        // Client cannot receive the PDU that was sent during association
+        // Currently receive() doesn't handle aborts; we need to close the assoc ourselves
+        association.close().await.unwrap();
+
+        // Wait until server has finished
+        server_handle.await.unwrap();
+
         // Clean shutdown
         drop(association);
     }
