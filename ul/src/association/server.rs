@@ -1794,6 +1794,10 @@ where
         .await
     }
 
+    async fn release(self) -> Result<()> {
+        super::release_impl_async(self, false).await
+    }
+
     fn write_timeout(&self) -> Option<Duration> {
         self.write_timeout
     }

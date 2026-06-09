@@ -580,29 +580,9 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// do not try to release the association on [`Drop`],
     /// so remember to call `release` explicitly
     /// at the end of all DIMSE transactions.
-    fn release(mut self) -> impl std::future::Future<Output = Result<()>> + Send
+    fn release(self) -> impl std::future::Future<Output = Result<()>> + Send
     where
-        Self: Sized + Send,
-    {
-        async move {
-            let pdu = Pdu::ReleaseRQ;
-            self.send(&pdu).await?;
-            let pdu = self.receive().await?;
-
-            match pdu {
-                Pdu::ReleaseRP => {}
-                pdu @ Pdu::AbortRQ { .. }
-                | pdu @ Pdu::AssociationAC { .. }
-                | pdu @ Pdu::AssociationRJ { .. }
-                | pdu @ Pdu::AssociationRQ { .. }
-                | pdu @ Pdu::PData { .. }
-                | pdu @ Pdu::ReleaseRQ => return UnexpectedPduSnafu { pdu }.fail(),
-                pdu @ Pdu::Unknown { .. } => return UnknownPduSnafu { pdu }.fail(),
-            }
-            self.close();
-            Ok(())
-        }
-    }
+        Self: Sized + Send;
 
     /// Prepare a P-Data writer for sending
     /// one or more data item PDUs.
@@ -927,6 +907,187 @@ where
                 assoc.abort_with_source(AbortRQSource::ServiceProvider(
                     AbortRQServiceProviderReason::UnrecognizedPdu,
                 ))?;
+                return UnknownPduSnafu { pdu }.fail();
+            }
+        }
+    }
+}
+
+/// Helper function to implement the behaviour of the
+/// association release for both servers and clients.
+/// They differ only very slightly, so this factors
+/// both server and client into one function.
+///
+/// This is the async version.
+#[cfg(feature = "async")]
+pub(crate) async fn release_impl_async<S>(
+    assoc: impl AsyncAssociation<S> + Send,
+    requestor: bool,
+) -> Result<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+{
+    // Entered in Sta6
+    // Action AR-1: send A-RELEASE-RQ PDU; next state: Sta7
+    let mut assoc = assoc;
+    let max_pdu_peer = assoc.acceptor_max_pdu_length();
+    let max_pdu_local = assoc.requestor_max_pdu_length();
+    let finalization_timeout = assoc.finalization_timeout();
+    let read_timeout = assoc.read_timeout();
+    let write_timeout = assoc.write_timeout();
+    let (socket, read_buffer, write_buffer) = assoc.get_mut();
+    write_pdu_to_wire_async(
+        socket.as_mut(),
+        write_buffer,
+        &Pdu::ReleaseRQ,
+        max_pdu_peer,
+        write_timeout,
+    )
+    .await?;
+    // Sta7
+    loop {
+        // Note: without a socket timeout, this function may
+        // block indefinitely if the peer does not send anything valid.
+        let pdu = timeout(
+            read_timeout,
+            read_pdu_from_wire_async(socket.as_mut(), read_buffer, max_pdu_local, false),
+        )
+        .await?;
+
+        match pdu {
+            Pdu::ReleaseRP => {
+                // Action AR-3 (indicate successful release) and close
+                // connection. Next state is Sta1 (return).
+                assoc.close();
+                return Ok(());
+            }
+            Pdu::PData { .. } => {
+                // Action AR-6, remain in Sta7
+                // We can't send a P-DATA indication because
+                // the API does not allow it at this point.
+                // So we just ignore the PDU.
+            }
+            Pdu::ReleaseRQ => {
+                // Release collision, action AR-8 (nothing in our case).
+                // Here's where client and server differ.
+                if requestor {
+                    // Next state for a client is Sta9.
+                    // We immediately issue an A-RELEASE response primitive,
+                    // so action is AR-9 (send A-RELEASE-RP) and next state
+                    // is Sta11.
+                    write_pdu_to_wire_async(
+                        socket.as_mut(),
+                        write_buffer,
+                        &Pdu::ReleaseRP,
+                        max_pdu_peer,
+                        write_timeout,
+                    )
+                    .await?;
+                } else {
+                    // Next state for a server is Sta10. We start by receiving.
+                }
+                // Sta10 or Sta11
+                // We had sent an A-RELEASE-RQ which may be replied.
+                // We also may receive an A-ABORT which we need to
+                // process. Or the peer may receive our A-RELEASE-RP and
+                // close the socket. In any case, we need to receive
+                // once more.
+                let result = timeout(
+                    read_timeout,
+                    read_pdu_from_wire_async(socket.as_mut(), read_buffer, max_pdu_local, false),
+                )
+                .await;
+                let pdu = match result {
+                    Ok(pdu) => pdu,
+                    Err(Error::ConnectionClosed) => {
+                        // The peer closed the connection; action is AA-4
+                        // (issue A-ABORT indication). Next state is Sta1.
+                        return AbortedSnafu {}.fail();
+                    }
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+                match pdu {
+                    Pdu::ReleaseRP => {
+                        // The peer responded to our release request
+                        if requestor {
+                            // Sta11: Action AR-3 (close socket and confirm
+                            // success). Next state is Sta1.
+                            assoc.close();
+                            return Ok(());
+                        }
+                        // We're a server, so we're still in Sta10. Action
+                        // is AR-10 (confirm release); next state is Sta12.
+                        // From Sta12, we immediately send a release response
+                        // primitive, which results in action AR-4 (send
+                        // A-RELEASE-RP) and state Sta13.
+                        write_pdu_to_wire_async(
+                            socket.as_mut(),
+                            write_buffer,
+                            &Pdu::ReleaseRP,
+                            max_pdu_peer,
+                            write_timeout,
+                        )
+                        .await?;
+                        return sta13_async(
+                            socket,
+                            read_buffer,
+                            write_buffer,
+                            max_pdu_local,
+                            max_pdu_peer,
+                            finalization_timeout,
+                        )
+                        .await;
+                    }
+                    Pdu::AbortRQ { .. } => {
+                        // Action AA-3, close socket and issue A-ABORT indication.
+                        assoc.close();
+                        return AbortedSnafu {}.fail();
+                    }
+                    Pdu::Unknown { .. } => {
+                        // Action AA-8: abort
+                        assoc
+                            .abort_with_source(AbortRQSource::ServiceProvider(
+                                AbortRQServiceProviderReason::UnrecognizedPdu,
+                            ))
+                            .await?;
+                        return UnknownPduSnafu { pdu }.fail();
+                    }
+                    _ => {
+                        // Action AA-8, abort
+                        assoc
+                            .abort_with_source(AbortRQSource::ServiceProvider(
+                                AbortRQServiceProviderReason::UnexpectedPdu,
+                            ))
+                            .await?;
+                        return UnexpectedPduSnafu { pdu }.fail();
+                    }
+                }
+            }
+            Pdu::AbortRQ { .. } => {
+                // Action AA-3, close socket and issue A-ABORT indication.
+                assoc.close();
+                return AbortedSnafu {}.fail();
+            }
+            pdu @ Pdu::AssociationAC { .. }
+            | pdu @ Pdu::AssociationRJ { .. }
+            | pdu @ Pdu::AssociationRQ { .. } => {
+                // Action AA-8, abort
+                assoc
+                    .abort_with_source(AbortRQSource::ServiceProvider(
+                        AbortRQServiceProviderReason::UnexpectedPdu,
+                    ))
+                    .await?;
+                return UnexpectedPduSnafu { pdu }.fail();
+            }
+            pdu @ Pdu::Unknown { .. } => {
+                // Action AA-8, abort
+                assoc
+                    .abort_with_source(AbortRQSource::ServiceProvider(
+                        AbortRQServiceProviderReason::UnrecognizedPdu,
+                    ))
+                    .await?;
                 return UnknownPduSnafu { pdu }.fail();
             }
         }
