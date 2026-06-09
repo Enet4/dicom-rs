@@ -1793,6 +1793,14 @@ where
         })
         .await
     }
+
+    fn write_timeout(&self) -> Option<Duration> {
+        self.write_timeout
+    }
+
+    fn read_timeout(&self) -> Option<Duration> {
+        self.read_timeout
+    }
 }
 
 #[cfg(test)]
