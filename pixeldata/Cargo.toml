@@ -20,7 +20,7 @@ required-features = ["cli"]
 dicom-object = { path = "../object", version = "0.9.1" }
 dicom-core = { path = "../core", version = "0.9.1" }
 dicom-encoding = { path = "../encoding", version = "0.9.1" }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.9.1" }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.9.1", default-features = false }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.9" }
 snafu = "0.9"
 byteorder = "1.4.3"
@@ -61,8 +61,13 @@ native = ["dicom-transfer-syntax-registry/native", "jpeg", "rle", "deflate"]
 deflate = ['dicom-object/deflate', 'dicom-transfer-syntax-registry/deflate']
 # native JPEG codec implementation
 jpeg = ["dicom-transfer-syntax-registry/jpeg"]
-# native JPEG XL codec implementation
+# native JPEG XL decoding via jxl-oxide
+jxl-oxide = ["dicom-transfer-syntax-registry/jxl-oxide"]
+# native JPEG XL encoding via zune-jpegxl
+zune-jpegxl = ["dicom-transfer-syntax-registry/zune-jpegxl"]
+# native JPEG XL codec implementation (encoder and decoder)
 jpegxl = ["dicom-transfer-syntax-registry/jpegxl"]
+
 # native RLE lossless codec implementation
 rle = ["dicom-transfer-syntax-registry/rle"]
 # JPEG 2000 decoding via OpenJPEG static linking

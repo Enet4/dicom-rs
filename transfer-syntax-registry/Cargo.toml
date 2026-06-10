@@ -79,6 +79,7 @@ default-features = false
 [dependencies.jpeg-decoder]
 version = "0.3.0"
 optional = true
+default-features = false
 
 [dependencies.jpeg-encoder]
 version = "0.6"
@@ -92,6 +93,7 @@ features = ["static"]
 [dependencies.jxl-oxide]
 version = "0.10.2"
 optional = true
+default-features = false
 
 [dependencies.zune-jpegxl]
 version = "0.4.0"
