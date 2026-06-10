@@ -82,7 +82,7 @@ optional = true
 default-features = false
 
 [dependencies.jpeg-encoder]
-version = "0.7"
+version = ">=0.6.1,<0.8.0"
 optional = true
 
 [dependencies.charls]
