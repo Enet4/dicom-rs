@@ -1048,7 +1048,9 @@ impl<'a> ClientAssociationOptions<'a> {
                     &mut write_buffer,
                     &Pdu::AbortRQ {
                         source: AbortRQSource::ServiceProvider(
-                            if let Error::UnknownPdu { .. } = err {
+                            if let Error::NoAcceptedPresentationContexts { .. } = err {
+                                AbortRQServiceProviderReason::ReasonNotSpecified
+                            } else if let Error::UnknownPdu { .. } = err {
                                 AbortRQServiceProviderReason::UnrecognizedPdu
                             } else {
                                 AbortRQServiceProviderReason::UnexpectedPdu
