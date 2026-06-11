@@ -759,6 +759,8 @@ mod tests {
 
     #[cfg(feature = "async")]
     use crate::association::pdata::non_blocking::AsyncPDataWriter;
+    #[cfg(feature = "async")]
+    use crate::association::AsyncAssociation;
 
     static IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";
     static MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
