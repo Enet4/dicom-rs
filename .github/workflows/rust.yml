@@ -26,7 +26,7 @@ jobs:
           cache: true
       # test project with default + extra features
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
-        run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl
+        run: cargo test --features image,ndarray,sop-class,rle,cli,jpegxl,tls
       # test dicom-pixeldata with openjp2
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
         run: cargo test -p dicom-pixeldata --features openjp2
