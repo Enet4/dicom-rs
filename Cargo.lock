@@ -1304,12 +1304,11 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hayro-jpeg2000"
-version = "0.3.5"
-source = "git+https://github.com/LaurenzV/hayro.git?rev=b8cf963fd60bd0531d83360968fd05b0d9ef0965#b8cf963fd60bd0531d83360968fd05b0d9ef0965"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bab0c77d09c0d9b144d429d0bf0fcd4c63c01d5f6c33f9b8ed501283e0f1ef76"
 dependencies = [
  "fearless_simd",
- "image",
- "moxcms 0.8.1",
 ]
 
 [[package]]
@@ -1380,7 +1379,7 @@ dependencies = [
  "byteorder-lite",
  "exr",
  "image-webp",
- "moxcms 0.7.11",
+ "moxcms",
  "num-traits",
  "png",
  "ravif",
@@ -1859,16 +1858,6 @@ name = "moxcms"
 version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac9557c559cd6fc9867e122e20d2cbefc9ca29d80d027a8e39310920ed2f0a97"
-dependencies = [
- "num-traits",
- "pxfm",
-]
-
-[[package]]
-name = "moxcms"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
 dependencies = [
  "num-traits",
  "pxfm",

@@ -80,10 +80,10 @@ optional = true
 default-features = false
 
 [dependencies.hayro-jpeg2000]
-# version = "0.3.4"
-git = "https://github.com/LaurenzV/hayro.git"
-rev = "b8cf963fd60bd0531d83360968fd05b0d9ef0965"
+version = "0.4.0"
 optional = true
+default-features = false
+features = ["simd"]
 
 [dependencies.jpeg-decoder]
 version = "0.3.0"
