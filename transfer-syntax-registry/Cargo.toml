@@ -82,7 +82,7 @@ default-features = false
 [dependencies.hayro-jpeg2000]
 # version = "0.3.4"
 git = "https://github.com/LaurenzV/hayro.git"
-rev = "20888608e8682f57a23632924fd87d2858fca359"
+rev = "b8cf963fd60bd0531d83360968fd05b0d9ef0965"
 optional = true
 
 [dependencies.jpeg-decoder]

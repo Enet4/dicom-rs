@@ -1,4 +1,4 @@
-#![deny(trivial_numeric_casts, unstable_features)]
+#![deny(trivial_numeric_casts, unsafe_code, unstable_features)]
 #![warn(
     missing_debug_implementations,
     missing_docs,

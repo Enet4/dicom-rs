@@ -2,6 +2,7 @@
 
 use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelDataReader, decode_error};
 use dicom_encoding::snafu::prelude::*;
+use tracing::warn;
 
 // Check jpeg2k backend conflicts
 #[cfg(all(feature = "openjp2", feature = "openjpeg-sys"))]
@@ -75,7 +76,6 @@ impl PixelDataReader for Jpeg2000Adapter {
         #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
         {
             use jpeg2k::Image;
-            use tracing::warn;
 
             let image =
                 Image::from_bytes(&frame_data).whatever_context("jpeg2k decoder failure")?;
@@ -112,16 +112,31 @@ impl PixelDataReader for Jpeg2000Adapter {
             let image = Image::new(&frame_data, &DecodeSettings::default())
                 .whatever_context("hayro-jpeg2000 read image failure")?;
 
-            // make sure dst is aligned for u16 and has even length
-            debug_assert_eq!(dst.len() % 2, 0);
-            debug_assert_eq!(dst.as_ptr() as usize % align_of::<u16>(), 0);
+            let mut ctx = DecoderContext::default();
+            let decoded = image
+                .decode(&mut ctx)
+                .whatever_context("hayro-jpeg2000 decoder failure")?;
 
-            // dst is aligned for u16, decode directly into dst_u16
-            let (prefix, dst_u16, suffix) = unsafe { dst.align_to_mut::<u16>() };
-            if prefix.is_empty() && suffix.is_empty() {
-                image
-                    .decode_u16_into(dst_u16, &mut DecoderContext::default())
-                    .expect("hayro-jpeg2000 decoder failure");
+            let components = decoded.components();
+
+            for (component_i, component) in components.iter().enumerate() {
+                if component_i >= samples_per_pixel as usize {
+                    warn!(
+                        "JPEG 2000 image has more components than expected ({} >= {})",
+                        component_i, samples_per_pixel
+                    );
+                    break;
+                }
+
+                for (i, sample) in component.samples().iter().enumerate() {
+                    let offset = base_offset
+                        + i * samples_per_pixel as usize * bytes_per_sample as usize
+                        + component_i * bytes_per_sample as usize;
+
+                    let sample = sample.round() as u32;
+                    dst[offset..offset + bytes_per_sample as usize]
+                        .copy_from_slice(&sample.to_le_bytes()[..bytes_per_sample as usize]);
+                }
             }
         }
         Ok(())

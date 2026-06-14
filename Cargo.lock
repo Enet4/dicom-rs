@@ -1305,7 +1305,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 [[package]]
 name = "hayro-jpeg2000"
 version = "0.3.5"
-source = "git+https://github.com/LaurenzV/hayro.git?rev=20888608e8682f57a23632924fd87d2858fca359#20888608e8682f57a23632924fd87d2858fca359"
+source = "git+https://github.com/LaurenzV/hayro.git?rev=b8cf963fd60bd0531d83360968fd05b0d9ef0965#b8cf963fd60bd0531d83360968fd05b0d9ef0965"
 dependencies = [
  "fearless_simd",
  "image",
