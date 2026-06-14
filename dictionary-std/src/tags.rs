@@ -3,7 +3,7 @@
 //! Adapted from the DCMTK project.\
 //! URL: <https://raw.githubusercontent.com/DCMTK/dcmtk/master/dcmdata/data/dicom.dic>\
 //! License: <https://github.com/DCMTK/dcmtk/blob/master/COPYRIGHT>\
-//! #  Copyright (C) 1994-2025, OFFIS e.V.\
+//! #  Copyright (C) 1994-2026, OFFIS e.V.\
 // Automatically generated. Edit at your own risk.
 #![allow(deprecated)]
 
@@ -245,6 +245,9 @@ pub const ORIGINAL_SPECIALIZED_SOP_CLASS_UID: Tag = Tag(0x0008, 0x001B);
 /// SyntheticData (0008,001C) CS 1 DICOM
 #[rustfmt::skip]
 pub const SYNTHETIC_DATA: Tag = Tag(0x0008, 0x001C);
+/// SensitiveContentCodeSequence (0008,001D) SQ 1 DICOM
+#[rustfmt::skip]
+pub const SENSITIVE_CONTENT_CODE_SEQUENCE: Tag = Tag(0x0008, 0x001D);
 /// StudyDate (0008,0020) DA 1 DICOM
 #[rustfmt::skip]
 pub const STUDY_DATE: Tag = Tag(0x0008, 0x0020);
@@ -4379,6 +4382,15 @@ pub const PHOTON_ENERGY: Tag = Tag(0x0018, 0x9383);
 /// XRayMassAttenuationCoefficient (0018,9384) DS 1 DICOM
 #[rustfmt::skip]
 pub const X_RAY_MASS_ATTENUATION_COEFFICIENT: Tag = Tag(0x0018, 0x9384);
+/// MetalArtifactReductionSequence (0018,9390) SQ 1 DICOM
+#[rustfmt::skip]
+pub const METAL_ARTIFACT_REDUCTION_SEQUENCE: Tag = Tag(0x0018, 0x9390);
+/// MetalArtifactReductionApplied (0018,9391) CS 1 DICOM
+#[rustfmt::skip]
+pub const METAL_ARTIFACT_REDUCTION_APPLIED: Tag = Tag(0x0018, 0x9391);
+/// MetalArtifactReductionAlgorithmIdentificationSequence (0018,9392) SQ 1 DICOM
+#[rustfmt::skip]
+pub const METAL_ARTIFACT_REDUCTION_ALGORITHM_IDENTIFICATION_SEQUENCE: Tag = Tag(0x0018, 0x9392);
 /// ProjectionPixelCalibrationSequence (0018,9401) SQ 1 DICOM
 #[rustfmt::skip]
 pub const PROJECTION_PIXEL_CALIBRATION_SEQUENCE: Tag = Tag(0x0018, 0x9401);
@@ -11240,6 +11252,21 @@ pub const TISSUE_HETEROGENEITY_CORRECTION: Tag = Tag(0x3004, 0x0014);
 /// RecommendedIsodoseLevelSequence (3004,0016) SQ 1 DICOM
 #[rustfmt::skip]
 pub const RECOMMENDED_ISODOSE_LEVEL_SEQUENCE: Tag = Tag(0x3004, 0x0016);
+/// DoseUnitCodeSequence (3004,0020) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_UNIT_CODE_SEQUENCE: Tag = Tag(0x3004, 0x0020);
+/// RTDoseInterpretedTypeCodeSequence (3004,0021) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_DOSE_INTERPRETED_TYPE_CODE_SEQUENCE: Tag = Tag(0x3004, 0x0021);
+/// RTDoseInterpretedTypeCodeModifierSequence (3004,0022) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_DOSE_INTERPRETED_TYPE_CODE_MODIFIER_SEQUENCE: Tag = Tag(0x3004, 0x0022);
+/// DoseRadiobiologicalInterpretationSequence (3004,0023) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_RADIOBIOLOGICAL_INTERPRETATION_SEQUENCE: Tag = Tag(0x3004, 0x0023);
+/// RTDoseIntentCodeSequence (3004,0024) SQ 1 DICOM
+#[rustfmt::skip]
+pub const RT_DOSE_INTENT_CODE_SEQUENCE: Tag = Tag(0x3004, 0x0024);
 /// DVHNormalizationPoint (3004,0040) DS 3 DICOM
 #[rustfmt::skip]
 pub const DVH_NORMALIZATION_POINT: Tag = Tag(0x3004, 0x0040);
@@ -11276,6 +11303,21 @@ pub const DVH_MAXIMUM_DOSE: Tag = Tag(0x3004, 0x0072);
 /// DVHMeanDose (3004,0074) DS 1 DICOM
 #[rustfmt::skip]
 pub const DVH_MEAN_DOSE: Tag = Tag(0x3004, 0x0074);
+/// DoseCalculationModelSequence (3004,0080) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_CALCULATION_MODEL_SEQUENCE: Tag = Tag(0x3004, 0x0080);
+/// DoseCalculationAlgorithmSequence (3004,0081) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_CALCULATION_ALGORITHM_SEQUENCE: Tag = Tag(0x3004, 0x0081);
+/// CommissioningStatus (3004,0082) CS 1 DICOM
+#[rustfmt::skip]
+pub const COMMISSIONING_STATUS: Tag = Tag(0x3004, 0x0082);
+/// DoseCalculationModelParameterSequence (3004,0083) SQ 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_CALCULATION_MODEL_PARAMETER_SEQUENCE: Tag = Tag(0x3004, 0x0083);
+/// DoseDepositionCalculationMedium (3004,0084) CS 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_DEPOSITION_CALCULATION_MEDIUM: Tag = Tag(0x3004, 0x0084);
 /// StructureSetLabel (3006,0002) SH 1 DICOM
 #[rustfmt::skip]
 pub const STRUCTURE_SET_LABEL: Tag = Tag(0x3006, 0x0002);
@@ -12803,6 +12845,12 @@ pub const SCAN_SPOT_SIZES_DELIVERED: Tag = Tag(0x300A, 0x0399);
 /// NumberOfPaintings (300A,039A) IS 1 DICOM
 #[rustfmt::skip]
 pub const NUMBER_OF_PAINTINGS: Tag = Tag(0x300A, 0x039A);
+/// ScanSpotGantryAngles (300A,039B) FL 1-n DICOM
+#[rustfmt::skip]
+pub const SCAN_SPOT_GANTRY_ANGLES: Tag = Tag(0x300A, 0x039B);
+/// ScanSpotPatientSupportAngles (300A,039C) FL 1-n DICOM
+#[rustfmt::skip]
+pub const SCAN_SPOT_PATIENT_SUPPORT_ANGLES: Tag = Tag(0x300A, 0x039C);
 /// IonToleranceTableSequence (300A,03A0) SQ 1 DICOM
 #[rustfmt::skip]
 pub const ION_TOLERANCE_TABLE_SEQUENCE: Tag = Tag(0x300A, 0x03A0);
@@ -16567,6 +16615,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(RELATED_GENERAL_SOP_CLASS_UID), alias: "RelatedGeneralSOPClassUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(ORIGINAL_SPECIALIZED_SOP_CLASS_UID), alias: "OriginalSpecializedSOPClassUID", vr: Exact(UI) }, // DICOM
     E { tag: Single(SYNTHETIC_DATA), alias: "SyntheticData", vr: Exact(CS) }, // DICOM
+    E { tag: Single(SENSITIVE_CONTENT_CODE_SEQUENCE), alias: "SensitiveContentCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(STUDY_DATE), alias: "StudyDate", vr: Exact(DA) }, // DICOM
     E { tag: Single(SERIES_DATE), alias: "SeriesDate", vr: Exact(DA) }, // DICOM
     E { tag: Single(ACQUISITION_DATE), alias: "AcquisitionDate", vr: Exact(DA) }, // DICOM
@@ -17945,6 +17994,9 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(MATERIAL_ATTENUATION_SEQUENCE), alias: "MaterialAttenuationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(PHOTON_ENERGY), alias: "PhotonEnergy", vr: Exact(DS) }, // DICOM
     E { tag: Single(X_RAY_MASS_ATTENUATION_COEFFICIENT), alias: "XRayMassAttenuationCoefficient", vr: Exact(DS) }, // DICOM
+    E { tag: Single(METAL_ARTIFACT_REDUCTION_SEQUENCE), alias: "MetalArtifactReductionSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(METAL_ARTIFACT_REDUCTION_APPLIED), alias: "MetalArtifactReductionApplied", vr: Exact(CS) }, // DICOM
+    E { tag: Single(METAL_ARTIFACT_REDUCTION_ALGORITHM_IDENTIFICATION_SEQUENCE), alias: "MetalArtifactReductionAlgorithmIdentificationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(PROJECTION_PIXEL_CALIBRATION_SEQUENCE), alias: "ProjectionPixelCalibrationSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DISTANCE_SOURCE_TO_ISOCENTER), alias: "DistanceSourceToIsocenter", vr: Exact(FL) }, // DICOM
     E { tag: Single(DISTANCE_OBJECT_TO_TABLE_TOP), alias: "DistanceObjectToTableTop", vr: Exact(FL) }, // DICOM
@@ -20232,6 +20284,11 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DOSE_VALUE), alias: "DoseValue", vr: Exact(DS) }, // DICOM
     E { tag: Single(TISSUE_HETEROGENEITY_CORRECTION), alias: "TissueHeterogeneityCorrection", vr: Exact(CS) }, // DICOM
     E { tag: Single(RECOMMENDED_ISODOSE_LEVEL_SEQUENCE), alias: "RecommendedIsodoseLevelSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(DOSE_UNIT_CODE_SEQUENCE), alias: "DoseUnitCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(RT_DOSE_INTERPRETED_TYPE_CODE_SEQUENCE), alias: "RTDoseInterpretedTypeCodeSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(RT_DOSE_INTERPRETED_TYPE_CODE_MODIFIER_SEQUENCE), alias: "RTDoseInterpretedTypeCodeModifierSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(DOSE_RADIOBIOLOGICAL_INTERPRETATION_SEQUENCE), alias: "DoseRadiobiologicalInterpretationSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(RT_DOSE_INTENT_CODE_SEQUENCE), alias: "RTDoseIntentCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DVH_NORMALIZATION_POINT), alias: "DVHNormalizationPoint", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_NORMALIZATION_DOSE_VALUE), alias: "DVHNormalizationDoseValue", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_SEQUENCE), alias: "DVHSequence", vr: Exact(SQ) }, // DICOM
@@ -20244,6 +20301,11 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DVH_MINIMUM_DOSE), alias: "DVHMinimumDose", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_MAXIMUM_DOSE), alias: "DVHMaximumDose", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_MEAN_DOSE), alias: "DVHMeanDose", vr: Exact(DS) }, // DICOM
+    E { tag: Single(DOSE_CALCULATION_MODEL_SEQUENCE), alias: "DoseCalculationModelSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(DOSE_CALCULATION_ALGORITHM_SEQUENCE), alias: "DoseCalculationAlgorithmSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(COMMISSIONING_STATUS), alias: "CommissioningStatus", vr: Exact(CS) }, // DICOM
+    E { tag: Single(DOSE_CALCULATION_MODEL_PARAMETER_SEQUENCE), alias: "DoseCalculationModelParameterSequence", vr: Exact(SQ) }, // DICOM
+    E { tag: Single(DOSE_DEPOSITION_CALCULATION_MEDIUM), alias: "DoseDepositionCalculationMedium", vr: Exact(CS) }, // DICOM
     E { tag: Single(STRUCTURE_SET_LABEL), alias: "StructureSetLabel", vr: Exact(SH) }, // DICOM
     E { tag: Single(STRUCTURE_SET_NAME), alias: "StructureSetName", vr: Exact(LO) }, // DICOM
     E { tag: Single(STRUCTURE_SET_DESCRIPTION), alias: "StructureSetDescription", vr: Exact(ST) }, // DICOM
@@ -20753,6 +20815,8 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(SCANNING_SPOT_SIZE), alias: "ScanningSpotSize", vr: Exact(FL) }, // DICOM
     E { tag: Single(SCAN_SPOT_SIZES_DELIVERED), alias: "ScanSpotSizesDelivered", vr: Exact(FL) }, // DICOM
     E { tag: Single(NUMBER_OF_PAINTINGS), alias: "NumberOfPaintings", vr: Exact(IS) }, // DICOM
+    E { tag: Single(SCAN_SPOT_GANTRY_ANGLES), alias: "ScanSpotGantryAngles", vr: Exact(FL) }, // DICOM
+    E { tag: Single(SCAN_SPOT_PATIENT_SUPPORT_ANGLES), alias: "ScanSpotPatientSupportAngles", vr: Exact(FL) }, // DICOM
     E { tag: Single(ION_TOLERANCE_TABLE_SEQUENCE), alias: "IonToleranceTableSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(ION_BEAM_SEQUENCE), alias: "IonBeamSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(ION_BEAM_LIMITING_DEVICE_SEQUENCE), alias: "IonBeamLimitingDeviceSequence", vr: Exact(SQ) }, // DICOM
