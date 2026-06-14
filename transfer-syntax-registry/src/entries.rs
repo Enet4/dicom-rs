@@ -27,12 +27,12 @@ use dicom_encoding::transfer_syntax::{AdapterFreeTransferSyntax as Ts, Codec};
 
 use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
 
-#[cfg(any(feature = "rle", feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "rle", feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 use dicom_encoding::NeverPixelAdapter;
 
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JpegAdapter;
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 use crate::adapters::jpeg2k::Jpeg2000Adapter;
 #[cfg(feature = "charls")]
 use crate::adapters::jpegls::{JpegLsAdapter, JpegLsLosslessWriter};
@@ -261,11 +261,11 @@ pub const JPIP_HTJ2K_REFERENCED_DEFLATE: Ts = Ts::new_ele(
 /// An alias for a transfer syntax specifier with [`Jpeg2000Adapter`]
 /// (supports decoding and encoding to JPEG baseline,
 /// support for JPEG extended and JPEG lossless may vary).
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 type Jpeg2000Ts<R = Jpeg2000Adapter, W = NeverPixelAdapter> = TransferSyntax<NeverAdapter, R, W>;
 
 /// Create a transfer syntax with JPEG 2000 encapsulated pixel data
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 const fn create_ts_jpeg2k(uid: &'static str, name: &'static str) -> Jpeg2000Ts {
     TransferSyntax::new_ele(
         uid,
@@ -275,49 +275,49 @@ const fn create_ts_jpeg2k(uid: &'static str, name: &'static str) -> Jpeg2000Ts {
 }
 
 /// **Decoder implementation:** JPEG 2000 Image Compression (Lossless Only)
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts = create_ts_jpeg2k(
     "1.2.840.10008.1.2.4.90",
     "JPEG 2000 Image Compression (Lossless Only)",
 );
 /// **Stub descriptor:** JPEG 2000 Image Compression (Lossless Only)
-#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000")))]
 pub const JPEG_2000_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.90",
     "JPEG 2000 Image Compression (Lossless Only)",
 );
 
 /// **Decoder implementation:** JPEG 2000 Image Compression
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 pub const JPEG_2000_IMAGE_COMPRESSION: Jpeg2000Ts =
     create_ts_jpeg2k("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
 /// **Stub descriptor:** JPEG 2000 Image Compression
-#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000")))]
 pub const JPEG_2000_IMAGE_COMPRESSION: Ts =
     create_ts_stub("1.2.840.10008.1.2.4.91", "JPEG 2000 Image Compression");
 
 /// **Decoder implementation:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Jpeg2000Ts =
     create_ts_jpeg2k(
         "1.2.840.10008.1.2.4.92",
         "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
     );
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)
-#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000")))]
 pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION_LOSSLESS_ONLY: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.92",
     "JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only)",
 );
 
 /// **Decoder implementation:** JPEG 2000 Part 2 Multi-component Image Compression
-#[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
+#[cfg(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000"))]
 pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Jpeg2000Ts = create_ts_jpeg2k(
     "1.2.840.10008.1.2.4.93",
     "JPEG 2000 Part 2 Multi-component Image Compression",
 );
 /// **Stub descriptor:** JPEG 2000 Part 2 Multi-component Image Compression
-#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys")))]
+#[cfg(not(any(feature = "openjp2", feature = "openjpeg-sys", feature = "hayro-jpeg2000")))]
 pub const JPEG_2000_PART2_MULTI_COMPONENT_IMAGE_COMPRESSION: Ts = create_ts_stub(
     "1.2.840.10008.1.2.4.93",
     "JPEG 2000 Part 2 Multi-component Image Compression",
