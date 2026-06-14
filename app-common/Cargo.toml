@@ -9,9 +9,13 @@ keywords = ["dicom", "cli"]
 version = "0.9.0"
 edition = "2024"
 
+[features]
+default = []
+tls = ["dep:rustls", "dep:rustls-native-certs"]
+
 [dependencies]
 clap = { version = "4.5.47", features = ["derive", "wrap_help"] }
-rustls = "0.23.31"
-rustls-native-certs = "0.8.1"
+rustls = { version = "0.23.31", optional = true }
+rustls-native-certs = { version = "0.8.1", optional = true }
 snafu = "0.9"
 tracing = "0.1.41"

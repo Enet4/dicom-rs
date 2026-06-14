@@ -193,13 +193,19 @@ pub fn get_scu_options<'a>(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: &'a HashSet<(String, String)>,
+    #[cfg(feature = "tls")]
     tls_options: rustls::ClientConfig,
 ) -> ClientAssociationOptions<'a> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
-        .max_pdu_length(max_pdu_length)
-        .server_name("localhost")
-        .tls_config(tls_options);
+        .max_pdu_length(max_pdu_length);
+
+    #[cfg(feature = "tls")]
+    {
+        scu_init = scu_init
+            .server_name("localhost").
+            tls_config(tls_options);
+    }
 
     for (storage_sop_class_uid, transfer_syntax) in presentation_contexts {
         scu_init = scu_init.with_presentation_context(storage_sop_class_uid, vec![transfer_syntax]);
@@ -358,6 +364,13 @@ fn run(app: App) -> Result<(), Error> {
         never_transcode = true;
     }
     let tls_enabled = tls.enabled;
+
+    #[cfg(not(feature = "tls"))]
+    if tls_enabled {
+        return Err(Error::Tls { source: dicom_app_common::TlsError::TlsSupportNotAvailable });
+    }
+
+    #[cfg(feature = "tls")]
     let config = tls.client_config()
         .context(TlsSnafu)?;
 
@@ -376,6 +389,7 @@ fn run(app: App) -> Result<(), Error> {
         saml_assertion,
         jwt,
         &presentation_contexts,
+        #[cfg(feature = "tls")]
         config
     );
     let progress_bar;
@@ -393,14 +407,15 @@ fn run(app: App) -> Result<(), Error> {
         progress_bar = None;
     }
 
+    #[cfg(feature = "tls")]
     if tls_enabled {
         let scu = scu_options.establish_with_tls(&addr).map_err(Box::from).context(ScuSnafu)?;
         store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
-
-    } else {
-        let scu = scu_options.establish_with(&addr).map_err(Box::from).context(ScuSnafu)?;
-        store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
+        return Ok(());
     }
+
+    let scu = scu_options.establish_with(&addr).map_err(Box::from).context(ScuSnafu)?;
+    store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
     Ok(())
 }
 
@@ -431,6 +446,12 @@ async fn run_async() -> Result<(), Error> {
     }
 
     let tls_enabled = tls.enabled;
+    #[cfg(not(feature = "tls"))]
+    if tls_enabled {
+        return Err(Error::Tls { source: dicom_app_common::TlsError::TlsSupportNotAvailable });
+    }
+
+    #[cfg(feature = "tls")]
     let config = tls.client_config()
         .context(TlsSnafu)?;
 
@@ -473,6 +494,7 @@ async fn run_async() -> Result<(), Error> {
         let password = password.clone();
         let called_ae_title = called_ae_title.clone();
         let calling_ae_title = calling_ae_title.clone();
+        #[cfg(feature = "tls")]
         let tls_config_clone = config.clone();
         tasks.spawn(async move {
             let scu_options = get_scu_options(
@@ -485,31 +507,17 @@ async fn run_async() -> Result<(), Error> {
                 saml_assertion,
                 jwt,
                 &pc,
+                #[cfg(feature = "tls")]
                 tls_config_clone
             );
+            #[cfg(feature = "tls")]
             if tls_enabled {
                 let scu = scu_options
                     .establish_with_async_tls(&addr)
                     .await
                     .map_err(Box::from)
                     .context(ScuSnafu)?;
-                store_async::inner(
-                    scu,
-                    d_files,
-                    pbx,
-                    never_transcode,
-                    fail_first,
-                    verbose,
-                    ignore_sop_class,
-                )
-                .await
-            } else {
-                let scu = scu_options
-                    .establish_with_async(&addr)
-                    .await
-                    .map_err(Box::from)
-                    .context(ScuSnafu)?;
-                store_async::inner(
+                return store_async::inner(
                     scu,
                     d_files,
                     pbx,
@@ -520,6 +528,21 @@ async fn run_async() -> Result<(), Error> {
                 )
                 .await
             }
+            let scu = scu_options
+                .establish_with_async(&addr)
+                .await
+                .map_err(Box::from)
+                .context(ScuSnafu)?;
+            store_async::inner(
+                scu,
+                d_files,
+                pbx,
+                never_transcode,
+                fail_first,
+                verbose,
+                ignore_sop_class,
+            )
+            .await
         });
     }
     while let Some(result) = tasks.join_next().await {

@@ -1,8 +1,12 @@
 use clap::Args;
+#[cfg(feature = "tls")]
 use rustls::{ClientConfig, ServerConfig, SupportedProtocolVersion, pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer, pem::PemObject}, server::WebPkiClientVerifier};
+#[cfg(feature = "tls")]
 use tracing::{debug, info};
-use std::{path::PathBuf, sync::Arc};
-use snafu::{Snafu, ResultExt};
+use std::path::PathBuf;
+#[cfg(feature = "tls")]
+use std::sync::Arc;
+use snafu::prelude::*;
 
 #[derive(Snafu, Debug)]
 pub enum MissingPemObject {
@@ -16,62 +20,79 @@ pub enum MissingPemObject {
 pub enum TlsError {
     #[snafu(display("IO error"))] 
     Io { source: std::io::Error },
+    #[cfg(feature = "tls")]
     #[snafu(display("PEM parse error in path: {}", path.as_ref().map(|p| p.display().to_string()).unwrap_or("unknown".into())))]
     PemParse { 
         source: rustls::pki_types::pem::Error,
         path: Option<PathBuf>,
      },
+    #[cfg(feature = "tls")]
     #[snafu(display("Rustls error"))]
     Rustls { source: rustls::Error },
 
+    #[cfg(feature = "tls")]
     #[snafu(display("Certificate verifier error"))]
     CertificateVerifier { source: rustls::client::VerifierBuilderError},
 
     #[snafu(display("Config error: {missing}"))]
+    #[cfg(feature = "tls")]
     Config { missing: MissingPemObject },
-}
 
+    /// the application was not built with TLS support
+    #[cfg(not(feature = "tls"))]
+    TlsSupportNotAvailable,
+}
 
 #[derive(Args, Debug)]
 pub struct TlsOptions {
     /// Enables mTLS (TLS for DICOM connections)
     #[arg(long = "tls", default_value = "false")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub enabled: bool,
 
     /// Crypto provider to use, see documentation (https://docs.rs/rustls/latest/rustls/index.html) for details
     #[arg(long, value_enum, default_value_t = CryptoProvider::AwsLC, value_name = "provider")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub crypto_provider: CryptoProvider,
 
     /// List of cipher suites to use. If not specified, the default cipher suites for the selected crypto provider will be used.
     #[arg(long, value_name = "cipher1,...")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub cipher_suites: Option<Vec<String>>,
 
     /// TLS protocol versions to enable
     #[arg(long, value_enum, value_name = "version,...", default_values_t = vec![TLSProtocolVersion::TLS1_2, TLSProtocolVersion::TLS1_3])]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub protocol_versions: Vec<TLSProtocolVersion>,
 
     /// Path to private key file in PEM format
     #[arg(long, value_name = "/path/to/key.pem,...")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub key: Option<PathBuf>,
 
     /// Path to certificate file in PEM format
     #[arg(long, value_name = "/path/to/cert.pem,...")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub cert: Option<PathBuf>,
 
     /// Path to additional CA certificates (comma separated) in PEM format to add to the root store
     #[arg(long, value_name = "/path/to/cert.pem,...")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub add_certs: Option<Vec<PathBuf>>,
 
     /// Add Certificate Revocation Lists (CRLs) to the server's certificate verifier
     #[arg(long, value_name = "/path/to/crl.pem,...")]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub add_crls: Option<Vec<PathBuf>>,
 
     /// Load certitificates from the system root store
     #[arg(long, action = clap::ArgAction::SetFalse)]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub system_roots: bool,
 
     /// How to handle peer certificates
     #[arg(long, value_enum, value_name = "opt", default_value_t = PeerCertOption::Require)]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub peer_cert: PeerCertOption,
 
 }
@@ -97,6 +118,7 @@ impl Default for TlsOptions {
 pub struct TlsAcceptorOptions {
     /// Allow unauthenticated clients (only valid for server)
     #[arg(long)]
+    #[arg(hide(cfg!(not(feature = "tls"))))]
     pub allow_unauthenticated: bool,
 }
 
@@ -137,7 +159,8 @@ pub enum PeerCertOption {
 }
 
 /// Show the supported cipher suites for the default crypto provider
-pub fn show_cipher_suites(){
+#[cfg(feature = "tls")]
+pub fn show_cipher_suites() {
     let provider = rustls::crypto::CryptoProvider::get_default().expect("No default crypto provider found");
     println!("Supported cipher suites: ");
     for suite in &provider.cipher_suites {
@@ -145,6 +168,15 @@ pub fn show_cipher_suites(){
     }
 }
 
+/// Show the supported cipher suites for the default crypto provider
+///
+/// This is a no-op with Cargo feature `tls` disabled.
+#[cfg(not(feature = "tls"))]
+pub fn show_cipher_suites() {
+    // no-op
+}
+
+#[cfg(feature = "tls")]
 impl TlsOptions{
     /// Build a root cert store from system roots and any additional certs
     fn root_cert_store(&self) -> Result<rustls::RootCertStore, TlsError> {
@@ -279,5 +311,4 @@ impl TlsOptions{
             }
         }
     }
-
 }
