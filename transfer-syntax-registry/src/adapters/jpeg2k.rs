@@ -87,9 +87,9 @@ impl PixelDataReader for Jpeg2000Adapter {
 
             // write each component into the destination buffer
             for (component_i, component) in components.iter().enumerate() {
-                if component_i > samples_per_pixel as usize {
+                if component_i >= samples_per_pixel as usize {
                     warn!(
-                        "JPEG 2000 image has more components than expected ({} > {})",
+                        "JPEG 2000 image has more components than expected ({} >= {})",
                         component_i, samples_per_pixel
                     );
                     break;
