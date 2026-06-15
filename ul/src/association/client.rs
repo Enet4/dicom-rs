@@ -986,13 +986,13 @@ impl<'a> ClientAssociationOptions<'a> {
                             // This means the server responded with a valid TLS
                             // state, but since we didn't originally send a TLS
                             // ClientHello, that shouldn't be possible
-                            error!("Recieved TLS response to non-TLS request!");
+                            error!("Received TLS response to non-TLS request!");
                             return super::TlsNotSupportedSnafu.build()
                         }
                         Err((err, _alert)) => {
                             // Recieved a valid TLS message, means the server expects TLS
                             if let rustls::Error::InappropriateMessage{..} = err {
-                                error!("Recieved TLS response to non-TLS request!");
+                                error!("Received TLS response to non-TLS request!");
                                 return super::TlsNotSupportedSnafu.build()
                             }
                         }
@@ -1511,7 +1511,7 @@ impl<'a> ClientAssociationOptions<'a> {
                         },
                         Err(err) => {
                             if let Ok(rustls::Error::InappropriateMessage{..}) = err.downcast::<rustls::Error>() {
-                                    error!("Recieved TLS response to non-TLS request!");
+                                    error!("Received TLS response to non-TLS request!");
                                     return super::TlsNotSupportedSnafu.fail()
                             }
                             // if let rustls::Error::InappropriateMessage{..} = err {
