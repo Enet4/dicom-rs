@@ -927,53 +927,10 @@ impl<'a> ClientAssociationOptions<'a> {
         );
         let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)
             .map_err(|e| {
-                // // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
-                // // could be because the server expects TLS but we sent a
-                // // plaintext request.  In that case, we make a best effort to
-                // // detect that and return a more specific error message.
-                // #[cfg(feature = "sync-tls")]
-                // {
-                //     // There does not seem to be an analog of
-                //     // `rustls::server::Acceptor` for client side, so we need to
-                //     // create a full `ClientConfig`
-                //     let options = dicom_app_common::TlsOptions::default();
-                //     let config =  match options.client_config().map(std::sync::Arc::new){
-                //         Ok(c) => c,
-                //         Err(_) => return e
-                //     };
-                //     let server_name = match rustls::pki_types::ServerName::try_from("localhost"){
-                //         Ok(n) => n,
-                //         Err(_) => return e
-                //     };
-                //     let mut cursor = std::io::Cursor::new(buf.to_vec());
-                //     let mut conn = rustls::ClientConnection::new(config, server_name).unwrap();
-                //     if conn.read_tls(&mut cursor).is_err(){
-                //         return e
-                //     }
-                //     match conn.process_new_packets(){
-                //         Ok(_) => {
-                //             // This shouldn't be possible.  If we're here this
-                //             // means the server responded with a valid TLS
-                //             // state, but since we didn't originally send a TLS
-                //             // ClientHello, that shouldn't be possible
-                //             error!("Recieved TLS response to non-TLS request!");
-                //             super::TlsNotSupportedSnafu.build()
-                //         }
-                //         Err(rustls::Error::InvalidMessage(..)) => e,
-                //         _ => {
-                //             // If we get any error other than `InvalidMessage`,
-                //             // it could be because the server expects TLS but we
-                //             // sent a plaintext request.  In that case, we
-                //             // return a more specific error message.
-                //             error!(err=?e, "Server expects TLS, client sent plaintext");
-                //             super::TlsNotSupportedSnafu.build()
-                //         }
-                //     }
-                // }
-                // #[cfg(not(feature = "sync-tls"))]
-                // {
-                //     e
-                // }
+                // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
+                // could be because the server expects TLS but we sent a
+                // plaintext request.  In that case, we make a best effort to
+                // detect that and return a more specific error message.
                 #[cfg(feature = "sync-tls")]{
                     let mut acceptor = rustls::server::Acceptor::default();
                     let mut read = std::io::Cursor::new(buf.to_vec());
@@ -998,7 +955,6 @@ impl<'a> ClientAssociationOptions<'a> {
                         }
                     }
                 };
-
                 e
             })?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
