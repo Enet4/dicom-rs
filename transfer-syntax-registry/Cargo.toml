@@ -55,7 +55,7 @@ charls-vcpkg = ["charls?/vcpkg"]
 
 # build OpenJPEG with multithreading,
 # implies "rayon"
-openjpeg-sys-threads = ["rayon", "jpeg2k?/threads"]
+openjpeg-sys-threads = ["rayon", "openjpeg-sys", "jpeg2k?/threads"]
 
 # multithreading for JPEG XL encoding
 zune-jpegxl-threads = ["zune-jpegxl?/threads"]
