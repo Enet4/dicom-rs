@@ -7,7 +7,8 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    ClientAssociation, Pdu, association::CloseSocket, pdu::{PDataValue, PDataValueType}
+    ClientAssociation, Pdu, association::{CloseSocket, SetReadTimeout}, pdu::{PDataValue, PDataValueType},
+    association::SyncAssociation,
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt};
@@ -25,7 +26,9 @@ pub fn send_file<T>(
     verbose: bool,
     fail_first: bool,
 ) -> Result<ClientAssociation<T>, Error> 
-where T: std::io::Read + std::io::Write + CloseSocket{
+where
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
+{
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
             pb.set_message(file.sop_instance_uid.clone());
@@ -211,7 +214,9 @@ pub fn inner<T>(
     never_transcode: bool,
     ignore_sop_class: bool,
 ) -> Result<(), Error>
-where T: std::io::Read + std::io::Write + CloseSocket{
+where
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
+{
     for (message_id, mut file) in (1..).zip(d_files) {
         // identify the right transfer syntax to use
         let r: Result<_, Error> =

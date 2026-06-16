@@ -1,6 +1,9 @@
 use dicom_dictionary_std::uids::{self, VERIFICATION};
+use dicom_ul::association::SyncAssociation;
 #[cfg(feature = "sync-tls")]
 use dicom_ul::association::Association;
+#[cfg(feature = "async-tls")]
+use dicom_ul::association::AsyncAssociation;
 use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions};
 use rstest::rstest;
 #[cfg(feature = "sync-tls")]

@@ -5,7 +5,11 @@ use dicom_encoding::TransferSyntaxIndex;
 use dicom_object::{open_file, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    Pdu, association::client::AsyncClientAssociation, pdu::{PDataValue, PDataValueType}
+    Pdu,
+    pdu::{PDataValue, PDataValueType},
+    association::{
+        AsyncAssociation, AsyncClientAssociation,
+    }
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt};
