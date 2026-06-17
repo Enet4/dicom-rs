@@ -28,6 +28,7 @@ use crate::{
     },
 };
 use snafu::{ResultExt, ensure};
+#[cfg(feature = "sync-tls")]
 use tracing::{debug, error};
 
 use super::{Result, uid::trim_uid};
@@ -925,38 +926,38 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buf = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)
-            .map_err(|e| {
-                // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
-                // could be because the server expects TLS but we sent a
-                // plaintext request.  In that case, we make a best effort to
-                // detect that and return a more specific error message.
-                #[cfg(feature = "sync-tls")]{
-                    let mut acceptor = rustls::server::Acceptor::default();
-                    let mut read = std::io::Cursor::new(buf.to_vec());
-                    let res = acceptor.read_tls(&mut read);
-                    if res.is_err() {
-                        return e;
+        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict);
+        // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
+        // could be because the server expects TLS but we sent a
+        // plaintext request.  In that case, we make a best effort to
+        // detect that and return a more specific error message.
+        #[cfg(feature = "sync-tls")]
+        let resp = resp.map_err(|e| {
+            let mut acceptor = rustls::server::Acceptor::default();
+            let mut read = std::io::Cursor::new(buf.to_vec());
+            let res = acceptor.read_tls(&mut read);
+            if res.is_err() {
+                return e;
+            }
+            match acceptor.accept() {
+                Ok(_) => {
+                    // This means the server responded with a valid TLS
+                    // state, but since we didn't originally send a TLS
+                    // ClientHello, that shouldn't be possible
+                    error!("Received TLS response to non-TLS request!");
+                    return super::TlsNotSupportedSnafu.build()
+                }
+                Err((err, _alert)) => {
+                    // Recieved a valid TLS message, means the server expects TLS
+                    if let rustls::Error::InappropriateMessage{..} = err {
+                        error!("Received TLS response to non-TLS request!");
+                        return super::TlsNotSupportedSnafu.build()
                     }
-                    match acceptor.accept() {
-                        Ok(_) => {
-                            // This means the server responded with a valid TLS
-                            // state, but since we didn't originally send a TLS
-                            // ClientHello, that shouldn't be possible
-                            error!("Received TLS response to non-TLS request!");
-                            return super::TlsNotSupportedSnafu.build()
-                        }
-                        Err((err, _alert)) => {
-                            // Recieved a valid TLS message, means the server expects TLS
-                            if let rustls::Error::InappropriateMessage{..} = err {
-                                error!("Received TLS response to non-TLS request!");
-                                return super::TlsNotSupportedSnafu.build()
-                            }
-                        }
-                    }
-                };
-                e
-            })?;
+                }
+            }
+            e
+        });
+        let resp = resp?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
             Err(e) => {

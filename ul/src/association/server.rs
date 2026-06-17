@@ -32,6 +32,7 @@ use crate::{
         PresentationContextResultReason, UserIdentity, UserVariableItem, write_pdu,
     },
 };
+#[cfg(feature = "sync-tls")]
 use tracing::{error, warn};
 
 use super::{Error, Result, uid::trim_uid};
