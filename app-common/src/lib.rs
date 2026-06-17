@@ -76,6 +76,23 @@ pub struct TlsOptions {
 
 }
 
+impl Default for TlsOptions {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            crypto_provider: CryptoProvider::AwsLC,
+            cipher_suites: None,
+            protocol_versions: vec![TLSProtocolVersion::TLS1_2, TLSProtocolVersion::TLS1_3],
+            key: None,
+            cert: None,
+            add_certs: None,
+            add_crls: None,
+            system_roots: false,
+            peer_cert: PeerCertOption::Ignore
+        }
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct TlsAcceptorOptions {
     /// Allow unauthenticated clients (only valid for server)

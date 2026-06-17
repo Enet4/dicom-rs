@@ -28,6 +28,7 @@ use crate::{
     },
 };
 use snafu::{ResultExt, ensure};
+use tracing::{debug, error};
 
 use super::{Result, uid::trim_uid};
 
@@ -89,13 +90,16 @@ where
 {
     use std::convert::TryFrom;
 
-    let socket = tcp_connection(ae_address, opts)?;
+    let mut socket = tcp_connection(ae_address, opts)?;
     let server_name = rustls::pki_types::ServerName::try_from(server_name.to_string())
         .context(super::InvalidServerNameSnafu)?;
 
-    let conn = rustls::ClientConnection::new(tls_config.clone(), server_name)
+    let mut conn = rustls::ClientConnection::new(tls_config.clone(), server_name)
         .context(super::TlsConnectionSnafu)?;
-
+    // Ensure that the handshake completes before returning the stream.
+    let (read, wrote) = conn.complete_io(&mut socket)
+        .context(super::TlsHandshakeSnafu)?;
+    debug!(read_bytes=read, write_bytes=wrote, "Client handshake completed");
     Ok(rustls::StreamOwned::new(conn, socket))
 }
 
@@ -921,7 +925,38 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buf = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
+        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)
+            .map_err(|e| {
+                // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
+                // could be because the server expects TLS but we sent a
+                // plaintext request.  In that case, we make a best effort to
+                // detect that and return a more specific error message.
+                #[cfg(feature = "sync-tls")]{
+                    let mut acceptor = rustls::server::Acceptor::default();
+                    let mut read = std::io::Cursor::new(buf.to_vec());
+                    let res = acceptor.read_tls(&mut read);
+                    if res.is_err() {
+                        return e;
+                    }
+                    match acceptor.accept() {
+                        Ok(_) => {
+                            // This means the server responded with a valid TLS
+                            // state, but since we didn't originally send a TLS
+                            // ClientHello, that shouldn't be possible
+                            error!("Received TLS response to non-TLS request!");
+                            return super::TlsNotSupportedSnafu.build()
+                        }
+                        Err((err, _alert)) => {
+                            // Recieved a valid TLS message, means the server expects TLS
+                            if let rustls::Error::InappropriateMessage{..} = err {
+                                error!("Received TLS response to non-TLS request!");
+                                return super::TlsNotSupportedSnafu.build()
+                            }
+                        }
+                    }
+                };
+                e
+            })?;
         let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
         match negotiated_options {
             Err(e) => {
@@ -1315,7 +1350,19 @@ where
     let tls_stream = connector
         .connect(domain, tcp_stream)
         .await
-        .context(crate::association::ConnectSnafu)?;
+        .map_err(|e| {
+            // This is how tokio_rustls represents a handshake error
+            if let std::io::ErrorKind::UnexpectedEof = e.kind() {
+                return super::Error::TlsHandshake{
+                    source: e,
+                    backtrace: std::backtrace::Backtrace::capture()
+                }
+            }
+            super::Error::Connect{
+                source: e,
+                backtrace: std::backtrace::Backtrace::capture()
+            }
+        })?;
     Ok(tls_stream)
 }
 
@@ -1401,8 +1448,43 @@ impl<'a> ClientAssociationOptions<'a> {
             )
             .await
         })
-        .await?;
-        let negotiated_options = self.process_a_association_resp(resp, &pc_proposed);
+        .await;
+        let pdu = match resp  {
+            Ok(pdu) => pdu,
+            Err(e) => {
+                // Attempt to check if the failure was because the client sent a TLS stream
+                #[cfg(feature = "async-tls")]
+                {
+                    use tokio_rustls::LazyConfigAcceptor;
+                    use rustls::server::Acceptor;
+                    let cursor = std::io::Cursor::new(read_buffer.to_vec());
+                    match LazyConfigAcceptor::new(Acceptor::default(),cursor).await{
+                        Ok(_res) => {
+                            // This means the server responded with a valid TLS
+                            // state, but since we didn't originally send a TLS
+                            // ClientHello, that shouldn't be possible
+                            return Err(e)
+                        },
+                        Err(err) => {
+                            if let Ok(rustls::Error::InappropriateMessage{..}) = err.downcast::<rustls::Error>() {
+                                    error!("Received TLS response to non-TLS request!");
+                                    return super::TlsNotSupportedSnafu.fail()
+                            }
+                            // if let rustls::Error::InappropriateMessage{..} = err {
+                            //     error!("Recieved TLS response to non-TLS request!");
+                            //     return super::TlsNotSupportedSnafu.fail()
+                            // }
+                            // Recieved a valid TLS message, means the server expects TLS
+                            return super::TlsNotSupportedSnafu.fail()
+                        }
+
+                    }
+                }
+                #[cfg(not(feature = "async-tls"))]
+                return Err(e)
+            }
+        };
+        let negotiated_options = self.process_a_association_resp(pdu, &pc_proposed);
         match negotiated_options {
             Err(e) => {
                 // abort connection

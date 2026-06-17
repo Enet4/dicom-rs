@@ -523,10 +523,19 @@ async fn run_async() -> Result<(), Error> {
         });
     }
     while let Some(result) = tasks.join_next().await {
-        if let Err(e) = result {
-            error!("{}", Report::from_error(e));
-            if fail_first {
-                std::process::exit(-2);
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                error!("{}", Report::from_error(e));
+                if fail_first {
+                    std::process::exit(-2)
+                }
+            },
+            Err(e) => {
+                error!("{}", Report::from_error(e));
+                if fail_first {
+                    std::process::exit(-2)
+                }
             }
         }
     }

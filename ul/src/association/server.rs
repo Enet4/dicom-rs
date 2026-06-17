@@ -6,6 +6,8 @@
 //! for details and examples on how to create an association.
 use bytes::BytesMut;
 use std::borrow::Cow;
+#[cfg(feature = "sync-tls")]
+use std::sync::Arc;
 use std::time::Duration;
 use std::{io::Write, net::TcpStream};
 
@@ -30,6 +32,7 @@ use crate::{
         PresentationContextResultReason, UserIdentity, UserVariableItem, write_pdu,
     },
 };
+use tracing::{error, warn};
 
 use super::{Error, Result, uid::trim_uid};
 
@@ -44,6 +47,9 @@ pub mod non_blocking {}
 pub type TlsStream = rustls::StreamOwned<rustls::ServerConnection, std::net::TcpStream>;
 #[cfg(feature = "async-tls")]
 pub type AsyncTlsStream = tokio_rustls::server::TlsStream<tokio::net::TcpStream>;
+
+#[cfg(feature = "sync-tls")]
+use rustls::{server::{Acceptor, Accepted}, ServerConfig, ServerConnection};
 
 /// Common interface for application entity access control policies.
 ///
@@ -280,6 +286,62 @@ pub trait Negotiation {
 pub struct DefaultNegotiation;
 
 impl Negotiation for DefaultNegotiation {}
+
+#[cfg(feature = "sync-tls")]
+/// Attempt to accept an incoming TLS connection
+/// 
+/// Returns
+/// * `Ok(Ok(Accepted))` when the connection is accepted
+/// * `Ok(Err(err, alert))` when the connection was not accepted against bare config
+/// * `Err(TlsHandshakeSnafu)` otherwise (on io error)
+fn accept_tls<S>(socket: &mut S) -> Result<std::result::Result<Accepted, (rustls::Error, rustls::server::AcceptedAlert)>>
+where S: std::io::Read + std::io::Write {
+    let mut acceptor = Acceptor::default();
+    let accepted = loop {
+        acceptor.read_tls(socket).context(super::TlsHandshakeSnafu)?;
+        match acceptor.accept() {
+            Ok(Some(accepted)) => break accepted,
+            Ok(None) => {},
+            Err((err, alert)) => return Ok(Err((err, alert)))
+        }
+    };
+    Ok(Ok(accepted))
+}
+
+#[cfg(feature = "sync-tls")]
+/// Attempt to handshake an incoming TLS connection
+/// 
+/// First attempts to accept using a bare config, then validates using the
+/// provided ServerConfig
+/// 
+/// If there is an error in either, a `rustls::server::AcceptedAlert` will be
+/// written back to the client
+fn handshake_tls(socket: &mut TcpStream, tls_config: Arc<ServerConfig>) -> Result<ServerConnection>{
+    let maybe_tls = accept_tls(socket)?;
+    match maybe_tls {
+        Ok(accepted) => {
+            // Connection was accepted, now validate against our ServerConfig and send an alert
+            // if validation fails
+            Ok(accepted.into_connection(tls_config.clone()).map_err(|(err, mut alert)| {
+                let peer = socket.peer_addr().map(|addr| addr.to_string()).unwrap_or("unknown".to_string());
+                warn!(remote = peer, err = ?err, "Incoming TLS connection not accepted, sending alert to client.");
+                if let Err(e) = alert.write_all(socket){
+                    error!("Failed to send alert notification to client: {:?}", e)
+                }
+                err
+            }).context(super::TlsConnectionSnafu)?)
+        },
+        Err((err, mut alert)) => {
+            let peer = socket.peer_addr().map(|addr| addr.to_string()).unwrap_or("unknown".to_string());
+            warn!(remote = peer, err = ?err, "Incoming TLS connection not accepted, sending alert to client.");
+            // Connection was not accepted, send an alert as to why
+            if let Err(e) = alert.write_all(socket){
+                error!("Failed to send alert notification to client: {:?}", e)
+            }
+            Err(err).context(super::TlsConnectionSnafu)
+        }
+    }
+}
 
 /// A DICOM association builder for an acceptor DICOM node,
 /// often taking the role of a service class provider (SCP).
@@ -949,7 +1011,22 @@ where
             &mut read_buffer,
             self.max_pdu_length,
             self.strict,
-        )?;
+        ).map_err(|e| {
+            // If we're compiling with the sync-tls feature, check to see if the error
+            // may have been caused by the client associating with TLS but the server
+            // not being run with TLS support
+            #[cfg(feature = "sync-tls")]
+            {
+                // read_pdu_from_wire consumes bytes on the socket, but puts them into read_buffer
+                let mut cursor = std::io::Cursor::new(read_buffer.to_vec());
+                if let Ok(Ok(_)) = accept_tls(&mut cursor){
+                    // If the connection was accepted, return an error, TLS
+                    // client attempting to connect with non-TLS server
+                    return super::TlsNotSupportedSnafu.build()
+                }
+            } 
+            e
+        })?;
         let mut write_buffer: Vec<u8> =
             Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
         match self.process_a_association_rq(msg) {
@@ -989,7 +1066,8 @@ where
 
     /// Negotiate an association with the given TCP stream using TLS.
     #[cfg(feature = "sync-tls")]
-    pub fn establish_tls(&self, socket: TcpStream) -> Result<ServerAssociation<TlsStream>> {
+    pub fn establish_tls(&self, mut socket: TcpStream) -> Result<ServerAssociation<TlsStream>> {
+
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
             MissingAbstractSyntaxSnafu
@@ -1006,8 +1084,7 @@ where
             .set_write_timeout(self.socket_options.write_timeout)
             .context(super::SetWriteTimeoutSnafu)?;
 
-        let conn =
-            rustls::ServerConnection::new(tls_config.clone()).context(super::TlsConnectionSnafu)?;
+        let conn = handshake_tls(&mut socket, tls_config.clone())?;
         let mut tls_stream = rustls::StreamOwned::new(conn, socket);
         let mut read_buffer = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
@@ -1362,6 +1439,28 @@ where
     it.into_iter().find(|ts| is_supported(ts.as_ref()))
 }
 
+#[cfg(feature="async-tls")]
+async fn accept_tls_async<S>(socket: S) -> Result<tokio_rustls::server::StartHandshake<S>>
+where S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin
+{
+    tokio_rustls::LazyConfigAcceptor::new(
+        rustls::server::Acceptor::default(),
+        socket
+    )
+        .await
+        .context(super::TlsHandshakeSnafu)
+}
+
+#[cfg(feature = "async-tls")]
+async fn handshake_tls_async(socket: tokio::net::TcpStream, tls_config: Arc<ServerConfig>) -> Result<tokio_rustls::server::TlsStream<tokio::net::TcpStream>>{
+    let accepted = accept_tls_async(socket).await?;
+    let stream = accepted.into_stream(tls_config)
+        .await
+        .context(super::TlsHandshakeSnafu)?;
+    Ok(stream)
+}
+
+
 #[cfg(feature = "async")]
 impl<A, N> ServerAssociationOptions<'_, A, N>
 where
@@ -1383,13 +1482,34 @@ where
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let pdu = super::read_pdu_from_wire_async(
+            let pdu = match super::read_pdu_from_wire_async(
                 &mut socket,
                 &mut read_buffer,
                 self.max_pdu_length,
                 self.strict,
             )
-            .await?;
+            .await {
+                Ok(pdu) => pdu,
+                Err(e) => {
+                    // Attempt to check if the failure was because the client sent a TLS stream
+                    #[cfg(feature = "async-tls")]
+                    {
+                        // `read_pdu_from_wire_async` pulls bytes off the socket
+                        // and accumulates into `read_buffer`, so we need to use that in
+                        // `accept_tls_async`
+
+                        // NOTE: `accept_tls_async` may attempt to write to the cursor if
+                        // an `AcceptedAlert` is generated, this should be fine since the 
+                        // client does not need to receive that alert message
+                        let cursor = std::io::Cursor::new(read_buffer.to_vec());
+                        if accept_tls_async(cursor).await.is_ok(){
+                            return super::TlsNotSupportedSnafu.fail()
+                        }
+                    }
+                    return Err(e);
+                }
+            };
+            
 
             let mut write_buffer: Vec<u8> =
                 Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
@@ -1445,7 +1565,6 @@ where
         socket: tokio::net::TcpStream,
     ) -> Result<AsyncServerAssociation<AsyncTlsStream>> {
         use tokio::io::AsyncWriteExt;
-        use tokio_rustls::TlsAcceptor;
 
         ensure!(
             !self.abstract_syntax_uids.is_empty() || self.promiscuous,
@@ -1455,11 +1574,7 @@ where
             .tls_config
             .as_ref()
             .ok_or_else(|| crate::association::TlsConfigMissingSnafu {}.build())?;
-        let acceptor = TlsAcceptor::from(tls_config.clone());
-        let mut socket = acceptor
-            .accept(socket)
-            .await
-            .context(crate::association::ConnectSnafu)?;
+        let mut socket = handshake_tls_async(socket, tls_config.clone()).await?;
         let read_timeout = self.socket_options.read_timeout;
         let task = async {
             let mut read_buffer = BytesMut::with_capacity(
