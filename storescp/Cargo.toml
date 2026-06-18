@@ -10,11 +10,16 @@ categories = ["command-line-utilities"]
 keywords = ["dicom", "store"]
 readme = "README.md"
 
+[features]
+default = []
+# support DICOM over TLS
+tls = ["dicom-app-common/tls", "dicom-ul/async-tls"]
+
 [dependencies]
 clap = { version = "4.0.18", features = ["derive"] }
-dicom-app-common = { version = "0.9", path = "../app-common" }
+dicom-app-common = { version = "0.9", path = "../app-common", default-features = false}
 dicom-core = { path = '../core', version = "0.9.1" }
-dicom-ul = { path = '../ul', version = "0.9.1", features = ["async-tls"] }
+dicom-ul = { path = '../ul', version = "0.9.1", features = ["async"] }
 dicom-object = { path = '../object', version = "0.9.1" }
 dicom-encoding = { path = "../encoding/", version = "0.9.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }

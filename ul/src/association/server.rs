@@ -32,6 +32,7 @@ use crate::{
         PresentationContextResultReason, UserIdentity, UserVariableItem, write_pdu,
     },
 };
+#[cfg(feature = "sync-tls")]
 use tracing::{error, warn};
 
 use super::{Error, Result, uid::trim_uid};
@@ -1011,22 +1012,22 @@ where
             &mut read_buffer,
             self.max_pdu_length,
             self.strict,
-        ).map_err(|e| {
-            // If we're compiling with the sync-tls feature, check to see if the error
-            // may have been caused by the client associating with TLS but the server
-            // not being run with TLS support
-            #[cfg(feature = "sync-tls")]
-            {
-                // read_pdu_from_wire consumes bytes on the socket, but puts them into read_buffer
-                let mut cursor = std::io::Cursor::new(read_buffer.to_vec());
-                if let Ok(Ok(_)) = accept_tls(&mut cursor){
-                    // If the connection was accepted, return an error, TLS
-                    // client attempting to connect with non-TLS server
-                    return super::TlsNotSupportedSnafu.build()
-                }
-            } 
+        );
+        // If we're compiling with the sync-tls feature, check to see if the error
+        // may have been caused by the client associating with TLS but the server
+        // not being run with TLS support
+        #[cfg(feature = "sync-tls")]
+        let msg = msg.map_err(|e| {
+            // read_pdu_from_wire consumes bytes on the socket, but puts them into read_buffer
+            let mut cursor = std::io::Cursor::new(read_buffer.to_vec());
+            if let Ok(Ok(_)) = accept_tls(&mut cursor){
+                // If the connection was accepted, return an error, TLS
+                // client attempting to connect with non-TLS server
+                return super::TlsNotSupportedSnafu.build()
+            }
             e
-        })?;
+        });
+        let msg = msg?;
         let mut write_buffer: Vec<u8> =
             Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
         match self.process_a_association_rq(msg) {

@@ -124,6 +124,13 @@ fn main() {
     .unwrap_or_else(|e: Whatever| {
         eprintln!("[ERROR] {}", Report::from_error(e));
     });
+
+    #[cfg(not(feature = "tls"))]
+    if app.tls.enabled {
+        error!("{}", dicom_app_common::TlsError::TlsSupportNotAvailable);
+        std::process::exit(-2);
+    }
+
     if app.non_blocking {
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
