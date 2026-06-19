@@ -85,14 +85,14 @@ pub enum Error {
     },
 
     /// failed to send association request
-    #[snafu(display("failed to send pdu: {}", source))]
+    #[snafu(display("failed to send pdu"))]
     SendPdu {
         #[snafu(backtrace)]
         source: crate::pdu::WriteError,
     },
 
     /// failed to receive association response
-    #[snafu(display("failed to receive pdu: {}", source))]
+    #[snafu(display("failed to receive pdu"))]
     ReceivePdu {
         #[snafu(backtrace)]
         source: crate::pdu::ReadError,
@@ -167,7 +167,9 @@ pub enum Error {
     SendTooLongPdu { length: usize, backtrace: Backtrace },
 
     #[snafu(display("connection closed by peer"))]
-    ConnectionClosed,
+    ConnectionClosed {
+        backtrace: Backtrace,
+    },
 
     /// TLS configuration is missing
     #[cfg(feature = "sync-tls")]
@@ -199,7 +201,7 @@ pub enum Error {
     },
     #[cfg(any(feature = "sync-tls", feature = "async-tls"))]
     #[snafu(display("TLS not enabled, but peer seems to be sending TLS data"))]
-    TlsNotSupported
+    TlsNotSupported,
 }
 /// Struct to hold negotiated options after association is accepted
 pub(crate) struct NegotiatedOptions {
