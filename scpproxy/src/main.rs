@@ -128,7 +128,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scu,
@@ -184,7 +184,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,
