@@ -20,7 +20,7 @@ use tracing::{error, info, warn, Level};
 use tracing_subscriber::filter::EnvFilter;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
-use dicom_app_common::TlsOptions;
+use dicom_app_common::{ConnectionOptions, TlsOptions};
 
 mod store_async;
 mod store_sync;
@@ -103,8 +103,13 @@ struct App {
     #[arg(short = 'c', long = "concurrency")]
     concurrency: Option<usize>,
 
+    /// timeout for TCP connection establishment in seconds
+    #[arg(long = "connect-timeout", value_name = "SECS")]
+    connect_timeout: Option<u64>,
+    #[command(flatten, next_help_heading = "Connection Options")]
+    connection: ConnectionOptions,
     #[command(flatten, next_help_heading = "TLS Options")]
-    tls: TlsOptions
+    tls: TlsOptions,
 }
 
 #[derive(Debug)]
@@ -356,6 +361,8 @@ fn run(app: App) -> Result<(), Error> {
         saml_assertion,
         jwt,
         concurrency: _,
+        connect_timeout,
+        connection,
         tls,
     } = app;
 
@@ -379,7 +386,7 @@ fn run(app: App) -> Result<(), Error> {
     }
     let (dicom_files, presentation_contexts) = check_files(files, verbose, never_transcode);
 
-    let scu_options = get_scu_options(
+    let mut scu_options = get_scu_options(
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
@@ -392,6 +399,15 @@ fn run(app: App) -> Result<(), Error> {
         #[cfg(feature = "tls")]
         config
     );
+    if let Some(secs) = connection.read_timeout {
+        scu_options = scu_options.read_timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = connection.write_timeout {
+        scu_options = scu_options.write_timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = connect_timeout {
+        scu_options = scu_options.connection_timeout(Duration::from_secs(secs));
+    }
     let progress_bar;
     if !verbose {
         progress_bar = Some(ProgressBar::new(dicom_files.len() as u64));
@@ -437,7 +453,9 @@ async fn run_async() -> Result<(), Error> {
         saml_assertion,
         jwt,
         concurrency,
-        tls
+        connect_timeout,
+        connection,
+        tls,
     } = App::parse();
 
     // never transcode if the feature is disabled
@@ -496,8 +514,11 @@ async fn run_async() -> Result<(), Error> {
         let calling_ae_title = calling_ae_title.clone();
         #[cfg(feature = "tls")]
         let tls_config_clone = config.clone();
+        let connect_timeout_copy = connect_timeout;
+        let read_timeout_copy = connection.read_timeout;
+        let write_timeout_copy = connection.write_timeout;
         tasks.spawn(async move {
-            let scu_options = get_scu_options(
+            let mut scu_options = get_scu_options(
                 calling_ae_title,
                 called_ae_title,
                 max_pdu_length,
@@ -510,6 +531,15 @@ async fn run_async() -> Result<(), Error> {
                 #[cfg(feature = "tls")]
                 tls_config_clone
             );
+            if let Some(secs) = read_timeout_copy {
+                scu_options = scu_options.read_timeout(Duration::from_secs(secs));
+            }
+            if let Some(secs) = write_timeout_copy {
+                scu_options = scu_options.write_timeout(Duration::from_secs(secs));
+            }
+            if let Some(secs) = connect_timeout_copy {
+                scu_options = scu_options.connection_timeout(Duration::from_secs(secs));
+            }
             #[cfg(feature = "tls")]
             if tls_enabled {
                 let scu = scu_options

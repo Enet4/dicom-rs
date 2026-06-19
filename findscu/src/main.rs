@@ -1,4 +1,5 @@
 use clap::Parser;
+use dicom_app_common::ConnectionOptions;
 use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::{tags, uids};
@@ -15,6 +16,7 @@ use query::parse_queries;
 use snafu::prelude::*;
 use std::io::{stderr, BufRead as _, Read};
 use std::path::PathBuf;
+use std::time::Duration;
 use tracing::{debug, error, info, warn, Level};
 use transfer_syntax::TransferSyntaxIndex;
 
@@ -66,6 +68,11 @@ struct App {
         conflicts_with = "patient"
     )]
     mwl: bool,
+    /// timeout for TCP connection establishment in seconds
+    #[arg(long = "connect-timeout", value_name = "SECS")]
+    connect_timeout: Option<u64>,
+    #[command(flatten, next_help_heading = "Connection Options")]
+    connection: ConnectionOptions,
 }
 
 fn main() {
@@ -186,6 +193,8 @@ fn run() -> Result<(), Error> {
         patient,
         study,
         mwl,
+        connect_timeout,
+        connection,
     } = App::parse();
 
     tracing::subscriber::set_global_default(
@@ -223,6 +232,15 @@ fn run() -> Result<(), Error> {
 
     if let Some(called_ae_title) = called_ae_title {
         scu_opt = scu_opt.called_ae_title(called_ae_title);
+    }
+    if let Some(secs) = connection.read_timeout {
+        scu_opt = scu_opt.read_timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = connection.write_timeout {
+        scu_opt = scu_opt.write_timeout(Duration::from_secs(secs));
+    }
+    if let Some(secs) = connect_timeout {
+        scu_opt = scu_opt.connection_timeout(Duration::from_secs(secs));
     }
 
     let mut scu = scu_opt.establish_with(&addr).context(InitScuSnafu)?;

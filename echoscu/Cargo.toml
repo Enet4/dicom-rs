@@ -12,6 +12,7 @@ readme = "README.md"
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
+dicom-app-common = { version = "0.9", path = "../app-common", default-features = false }
 dicom-core = { path = "../core", version = "0.9.1" }
 dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
 dicom-dump = { path = "../dump", version = "0.9.1", default-features = false }
