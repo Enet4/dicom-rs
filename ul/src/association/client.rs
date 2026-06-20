@@ -933,6 +933,12 @@ impl<'a> ClientAssociationOptions<'a> {
         // detect that and return a more specific error message.
         #[cfg(feature = "sync-tls")]
         let resp = resp.map_err(|e| {
+            // TLS config means that the client already expects TLS
+            if self.tls_config.is_some() {
+                return e;
+            }
+            // try to identify whether the server expects TLS
+            // (even though the client was not fully prepared for this)
             let mut acceptor = rustls::server::Acceptor::default();
             let mut read = std::io::Cursor::new(buf.to_vec());
             let res = acceptor.read_tls(&mut read);
@@ -948,7 +954,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     return super::TlsNotSupportedSnafu.build()
                 }
                 Err((err, _alert)) => {
-                    // Recieved a valid TLS message, means the server expects TLS
+                    // Received a valid TLS message reporting that the server expects TLS
                     if let rustls::Error::InappropriateMessage{..} = err {
                         error!("Received TLS response to non-TLS request!");
                         return super::TlsNotSupportedSnafu.build()
