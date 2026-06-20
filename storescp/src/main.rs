@@ -115,8 +115,8 @@ fn main() {
             .with_max_level(Level::INFO)
             .with_env_filter(
                 EnvFilter::from_default_env()
-                    .add_directive("dicom_app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "dicom_storescp=debug".parse().unwrap() } else { "dicom_storescp=info".parse().unwrap() })
+                    .add_directive(if app.verbose { "dicom_app_common=debug" } else { "dicom_app_common=info" }.parse().unwrap() )
+                    .add_directive(if app.verbose { "dicom_storescp=debug" } else { "dicom_storescp=info" }.parse().unwrap())
             )
             .finish(),
     )

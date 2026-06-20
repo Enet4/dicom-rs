@@ -245,7 +245,8 @@ fn main() {
             .with_env_filter(
                 EnvFilter::from_default_env()
                     .add_directive("dicom_app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "dicom_storescu=debug".parse().unwrap() } else { "dicom_storescu=info".parse().unwrap() })
+                    .add_directive(if app.verbose { "dicom_storescu=debug" } else { "dicom_storescu=info" }.parse().unwrap())
+                    .add_directive(if app.verbose { "dicom_app_common=debug" } else { "dicom_app_common=info" }.parse().unwrap())
             )
             .finish(),
     )
