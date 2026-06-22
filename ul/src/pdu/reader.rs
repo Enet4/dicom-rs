@@ -75,6 +75,14 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
             max_pdu_length
         );
     }
+    ensure!(
+        !matches!(pdu_type, 0x03 | 0x05 | 0x06 | 0x07) || pdu_length == 4,
+        InvalidFixedPduLengthSnafu {
+            pdu_type,
+            pdu_length,
+            expected_length: 4_u32,
+        }
+    );
     if buf.remaining() < pdu_length as usize {
         return Ok(None);
     }

@@ -213,3 +213,115 @@ fn can_read_write_pdata() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+mod pdu_length_validation {
+    use super::{
+        read_pdu, write_pdu, AssociationRQ, Cursor, Pdu, PresentationContextProposed,
+        UserVariableItem, DEFAULT_MAX_PDU,
+    };
+    use dicom_ul::pdu::{
+        AbortRQSource, AssociationRJ, AssociationRJResult, AssociationRJServiceUserReason,
+        AssociationRJSource, ReadError, WriteChunkError, WriteError,
+    };
+
+    #[test]
+    fn fixed_length_pdu_declared_lengths_are_validated() -> Result<(), Box<dyn std::error::Error>> {
+        let fixed_pdus = [
+            (
+                0x03,
+                [0, 1, 1, 1],
+                Pdu::AssociationRJ(AssociationRJ {
+                    result: AssociationRJResult::Permanent,
+                    source: AssociationRJSource::ServiceUser(
+                        AssociationRJServiceUserReason::NoReasonGiven,
+                    ),
+                }),
+            ),
+            (0x05, [0, 0, 0, 0], Pdu::ReleaseRQ),
+            (0x06, [0, 0, 0, 0], Pdu::ReleaseRP),
+            (
+                0x07,
+                [0, 0, 0, 0],
+                Pdu::AbortRQ {
+                    source: AbortRQSource::ServiceUser,
+                },
+            ),
+        ];
+
+        for (pdu_type, valid_body, expected_pdu) in fixed_pdus {
+            let bytes = pdu_bytes(pdu_type, 4, &valid_body);
+            let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?.unwrap();
+            assert_eq!(result, expected_pdu);
+
+            for invalid_length in [3, 5] {
+                let body = if invalid_length == 3 {
+                    valid_body[..3].to_vec()
+                } else {
+                    let mut body = valid_body.to_vec();
+                    body.push(0);
+                    body
+                };
+                let bytes = pdu_bytes(pdu_type, invalid_length, &body);
+                let error = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true).unwrap_err();
+
+                assert!(matches!(
+                    error,
+                    ReadError::InvalidFixedPduLength {
+                        pdu_type: actual_pdu_type,
+                        pdu_length,
+                        expected_length,
+                    } if actual_pdu_type == pdu_type
+                        && pdu_length == invalid_length
+                        && expected_length == 4
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn write_pdu_rejects_oversized_u16_chunk_payload() {
+        let pdu = Pdu::AssociationRQ(AssociationRQ {
+            protocol_version: 1,
+            calling_ae_title: "CALLING".to_string(),
+            called_ae_title: "CALLED".to_string(),
+            application_context_name: "1.2.840.10008.3.1.1.1".to_string(),
+            presentation_contexts: vec![PresentationContextProposed {
+                id: 1,
+                abstract_syntax: "1.2.840.10008.1.1".to_string(),
+                transfer_syntaxes: vec!["1.2.840.10008.1.2".to_string()],
+            }],
+            user_variables: vec![UserVariableItem::Unknown(0xff, vec![0; 65_536])],
+        });
+
+        let mut bytes = Vec::new();
+        let error = write_pdu(&mut bytes, &pdu).unwrap_err();
+
+        assert!(contains_encoded_length_overflow(&error));
+    }
+
+    fn pdu_bytes(pdu_type: u8, pdu_length: u32, body: &[u8]) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(6 + body.len());
+        bytes.push(pdu_type);
+        bytes.push(0);
+        bytes.extend(pdu_length.to_be_bytes());
+        bytes.extend(body);
+        bytes
+    }
+
+    fn contains_encoded_length_overflow(error: &WriteError) -> bool {
+        match error {
+            WriteError::EncodedLengthOverflow {
+                length,
+                maximum_length,
+                length_field,
+            } => *length == 65_536 && *maximum_length == 65_535 && *length_field == "u16",
+            WriteError::WriteChunk { source, .. } => match source {
+                WriteChunkError::BuildChunk { source } => contains_encoded_length_overflow(source),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+}

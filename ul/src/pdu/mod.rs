@@ -60,6 +60,18 @@ pub enum WriteError {
         #[snafu(backtrace)]
         source: dicom_encoding::text::EncodeTextError,
     },
+
+    #[snafu(display(
+        "Encoded length {} exceeds maximum {} for {} length field",
+        length,
+        maximum_length,
+        length_field
+    ))]
+    EncodedLengthOverflow {
+        length: usize,
+        maximum_length: usize,
+        length_field: &'static str,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -95,6 +107,18 @@ pub enum ReadError {
 
     #[snafu(display("Invalid item length {} (must be >=2)", length))]
     InvalidItemLength { length: u32 },
+
+    #[snafu(display(
+        "Invalid fixed PDU length {} for PDU type {} (expected {})",
+        pdu_length,
+        pdu_type,
+        expected_length
+    ))]
+    InvalidFixedPduLength {
+        pdu_type: u8,
+        pdu_length: u32,
+        expected_length: u32,
+    },
 
     #[snafu(display("Could not read {} reserved bytes", bytes))]
     ReadReserved {
