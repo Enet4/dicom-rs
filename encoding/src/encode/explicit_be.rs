@@ -86,7 +86,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
     where
         W: Write,
     {
-        let mut buf = [0u8, 4];
+        let mut buf = [0u8; 4];
         BigEndian::write_u16(&mut buf[..], tag.group());
         BigEndian::write_u16(&mut buf[2..], tag.element());
         to.write_all(&buf).context(WriteTagSnafu)
