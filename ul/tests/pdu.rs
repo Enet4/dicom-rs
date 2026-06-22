@@ -7,6 +7,185 @@ use dicom_ul::pdu::{
 use matches::matches;
 use std::io::Cursor;
 
+mod ae_title_wire_length_validation {
+    use super::*;
+    use dicom_ul::pdu::{
+        AssociationAC, PresentationContextResult, PresentationContextResultReason, WriteError,
+    };
+
+    fn association_rq_with_ae_titles(called_ae_title: &str, calling_ae_title: &str) -> Pdu {
+        AssociationRQ {
+            protocol_version: 1,
+            calling_ae_title: calling_ae_title.to_string(),
+            called_ae_title: called_ae_title.to_string(),
+            application_context_name: "1.2.840.10008.3.1.1.1".to_string(),
+            presentation_contexts: vec![],
+            user_variables: vec![],
+        }
+        .into()
+    }
+
+    fn association_ac_with_ae_titles(called_ae_title: &str, calling_ae_title: &str) -> Pdu {
+        AssociationAC {
+            protocol_version: 1,
+            calling_ae_title: calling_ae_title.to_string(),
+            called_ae_title: called_ae_title.to_string(),
+            application_context_name: "1.2.840.10008.3.1.1.1".to_string(),
+            presentation_contexts: vec![PresentationContextResult {
+                id: 1,
+                reason: PresentationContextResultReason::Acceptance,
+                transfer_syntax: "1.2.840.10008.1.2".to_string(),
+            }],
+            user_variables: vec![UserVariableItem::MaxLength(16_384)],
+        }
+        .into()
+    }
+
+    fn padded_ae_title(value: &str) -> [u8; 16] {
+        let mut bytes = [b' '; 16];
+        bytes[..value.len()].copy_from_slice(value.as_bytes());
+        bytes
+    }
+
+    fn assert_invalid_fixed_size_text_field(
+        err: WriteError,
+        expected_field: &'static str,
+        expected_length: usize,
+        expected_actual_length: usize,
+    ) {
+        match err {
+            WriteError::InvalidFixedSizeTextField {
+                field,
+                length,
+                actual_length,
+                ..
+            } => {
+                assert_eq!(field, expected_field);
+                assert_eq!(length, expected_length);
+                assert_eq!(actual_length, expected_actual_length);
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn associate_rq_writes_16_byte_ae_titles_without_padding() -> Result<(), WriteError> {
+        let pdu = association_rq_with_ae_titles("CALLED_AE_123456", "CALLING_AE_12345");
+
+        let mut bytes = Vec::new();
+        write_pdu(&mut bytes, &pdu)?;
+
+        assert_eq!(&bytes[10..26], b"CALLED_AE_123456");
+        assert_eq!(&bytes[26..42], b"CALLING_AE_12345");
+
+        Ok(())
+    }
+
+    #[test]
+    fn associate_rq_pads_shorter_ae_titles_to_16_bytes() -> Result<(), WriteError> {
+        let pdu = association_rq_with_ae_titles("SCP", "SCU");
+
+        let mut bytes = Vec::new();
+        write_pdu(&mut bytes, &pdu)?;
+
+        assert_eq!(&bytes[10..26], &padded_ae_title("SCP"));
+        assert_eq!(&bytes[26..42], &padded_ae_title("SCU"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn associate_rq_rejects_empty_and_all_space_ae_titles() {
+        for invalid_ae_title in ["", "   ", "                "] {
+            let pdu = association_rq_with_ae_titles(invalid_ae_title, "CALLING");
+            let mut bytes = Vec::new();
+            let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+            assert_invalid_fixed_size_text_field(
+                err,
+                "Called-AE-title",
+                16,
+                invalid_ae_title.len(),
+            );
+            assert!(bytes.is_empty());
+
+            let pdu = association_rq_with_ae_titles("CALLED", invalid_ae_title);
+            let mut bytes = Vec::new();
+            let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+            assert_invalid_fixed_size_text_field(
+                err,
+                "Calling-AE-title",
+                16,
+                invalid_ae_title.len(),
+            );
+            assert!(bytes.is_empty());
+        }
+    }
+
+    #[test]
+    fn associate_rq_rejects_17_byte_ae_titles() {
+        let invalid_ae_title = "ABCDEFGHIJKLMNOPQ";
+
+        let pdu = association_rq_with_ae_titles(invalid_ae_title, "CALLING");
+        let mut bytes = Vec::new();
+        let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+        assert_invalid_fixed_size_text_field(err, "Called-AE-title", 16, 17);
+        assert!(bytes.is_empty());
+
+        let pdu = association_rq_with_ae_titles("CALLED", invalid_ae_title);
+        let mut bytes = Vec::new();
+        let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+        assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 17);
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn associate_ac_uses_fixed_ae_title_validation() {
+        let invalid_ae_title = "ABCDEFGHIJKLMNOPQ";
+
+        let pdu = association_ac_with_ae_titles(invalid_ae_title, "CALLING");
+        let mut bytes = Vec::new();
+        let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+        assert_invalid_fixed_size_text_field(err, "Called-AE-title", 16, 17);
+        assert!(bytes.is_empty());
+
+        let pdu = association_ac_with_ae_titles("CALLED", "                ");
+        let mut bytes = Vec::new();
+        let err = write_pdu(&mut bytes, &pdu).unwrap_err();
+        assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 16);
+        assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn valid_ae_titles_keep_associate_rq_fields_aligned() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let association_rq = AssociationRQ {
+            protocol_version: 1,
+            calling_ae_title: "SCU".to_string(),
+            called_ae_title: "CALLED_AE_123456".to_string(),
+            application_context_name: "1.2.840.10008.3.1.1.1".to_string(),
+            presentation_contexts: vec![PresentationContextProposed {
+                id: 1,
+                abstract_syntax: "1.2.840.10008.1.1".to_string(),
+                transfer_syntaxes: vec!["1.2.840.10008.1.2".to_string()],
+            }],
+            user_variables: vec![UserVariableItem::MaxLength(16_384)],
+        };
+
+        let mut bytes = Vec::new();
+        write_pdu(&mut bytes, &association_rq.clone().into())?;
+
+        assert_eq!(&bytes[10..26], b"CALLED_AE_123456");
+        assert_eq!(&bytes[26..42], &padded_ae_title("SCU"));
+        assert_eq!(&bytes[42..74], &[0; 32]);
+        assert_eq!(bytes[74], 0x10);
+
+        let result = read_pdu(&mut Cursor::new(&bytes), DEFAULT_MAX_PDU, true)?.unwrap();
+        assert_eq!(result, Pdu::AssociationRQ(association_rq));
+
+        Ok(())
+    }
+}
+
 #[test]
 fn can_read_write_associate_rq() -> Result<(), Box<dyn std::error::Error>> {
     let association_rq = AssociationRQ {
