@@ -70,8 +70,11 @@ where
 
 /// Encode an AE title for a fixed 16-byte association PDU field.
 ///
-/// Rejects values that encode to all spaces or more than 16 bytes, and pads shorter
-/// encoded values with spaces to preserve the DICOM UL field layout.
+/// Called-AE-title and Calling-AE-title fields are encoded as 16 characters
+/// using the ISO 646:1990 Basic G0 Set. Leading and trailing spaces are
+/// non-significant, and an all-space value means "no Application Name specified".
+/// Rejects values that encode to all spaces or more than 16 bytes, and pads
+/// shorter encoded values with spaces to preserve the DICOM UL field layout.
 fn encode_ae_title(ae_title: &str, field: &'static str, codec: &dyn TextCodec) -> Result<Vec<u8>> {
     let mut bytes = codec.encode(ae_title).context(EncodeFieldSnafu { field })?;
 
@@ -114,11 +117,6 @@ where
             presentation_contexts,
             user_variables,
         }) => {
-            let called_ae_title_bytes =
-                encode_ae_title(called_ae_title, "Called-AE-title", &codec)?;
-            let calling_ae_title_bytes =
-                encode_ae_title(calling_ae_title, "Calling-AE-title", &codec)?;
-
             // A-ASSOCIATE-RQ PDU Structure
 
             // 1 - PDU-type - 01H
@@ -150,22 +148,20 @@ where
                     .write_u16::<BigEndian>(0x00)
                     .context(WriteReservedSnafu { bytes: 2_u32 })?;
 
-                // 11-26 - Called-AE-title - Destination DICOM Application Name. It shall be
-                // encoded as 16 characters as defined by the ISO 646:1990-Basic G0 Set with
-                // leading and trailing spaces (20H) being non-significant. The value made of 16
-                // spaces (20H) meaning "no Application Name specified" shall not be used. For a
-                // complete description of the use of this field, see Section 7.1.1.4.
+                // 11-26 - Called-AE-title - Destination DICOM Application Name. For a complete
+                // description of the use of this field, see Section 7.1.1.4.
+                let called_ae_title_bytes =
+                    encode_ae_title(called_ae_title, "Called-AE-title", &codec)?;
                 writer
                     .write_all(&called_ae_title_bytes)
                     .context(WriteFieldSnafu {
                         field: "Called-AE-title",
                     })?;
 
-                // 27-42 - Calling-AE-title - Source DICOM Application Name. It shall be encoded
-                // as 16 characters as defined by the ISO 646:1990-Basic G0 Set with leading and
-                // trailing spaces (20H) being non-significant. The value made of 16 spaces
-                // (20H) meaning "no Application Name specified" shall not be used. For a
-                // complete description of the use of this field, see Section 7.1.1.3.
+                // 27-42 - Calling-AE-title - Source DICOM Application Name. For a complete
+                // description of the use of this field, see Section 7.1.1.3.
+                let calling_ae_title_bytes =
+                    encode_ae_title(calling_ae_title, "Calling-AE-title", &codec)?;
                 writer
                     .write_all(&calling_ae_title_bytes)
                     .context(WriteFieldSnafu {
@@ -210,11 +206,6 @@ where
             presentation_contexts,
             user_variables,
         }) => {
-            let called_ae_title_bytes =
-                encode_ae_title(called_ae_title, "Called-AE-title", &codec)?;
-            let calling_ae_title_bytes =
-                encode_ae_title(calling_ae_title, "Calling-AE-title", &codec)?;
-
             // A-ASSOCIATE-AC PDU Structure
 
             // 1 - PDU-type - 02H
@@ -249,6 +240,8 @@ where
                 // 11-26 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
+                let called_ae_title_bytes =
+                    encode_ae_title(called_ae_title, "Called-AE-title", &codec)?;
                 writer
                     .write_all(&called_ae_title_bytes)
                     .context(WriteFieldSnafu {
@@ -257,6 +250,8 @@ where
                 // 27-42 - Reserved - This reserved field shall be sent with a value identical to
                 // the value received in the same field of the A-ASSOCIATE-RQ PDU, but its value
                 // shall not be tested when received.
+                let calling_ae_title_bytes =
+                    encode_ae_title(calling_ae_title, "Calling-AE-title", &codec)?;
                 writer
                     .write_all(&calling_ae_title_bytes)
                     .context(WriteFieldSnafu {
