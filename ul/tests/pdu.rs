@@ -10,7 +10,8 @@ use std::io::Cursor;
 mod ae_title_wire_length_validation {
     use super::*;
     use dicom_ul::pdu::{
-        AssociationAC, PresentationContextResult, PresentationContextResultReason, WriteError,
+        AssociationAC, PresentationContextResult, PresentationContextResultReason,
+        WriteChunkError, WriteError,
     };
 
     fn association_rq_with_ae_titles(called_ae_title: &str, calling_ae_title: &str) -> Pdu {
@@ -64,6 +65,15 @@ mod ae_title_wire_length_validation {
                 assert_eq!(length, expected_length);
                 assert_eq!(actual_length, expected_actual_length);
             }
+            WriteError::WriteChunk { source, .. } => match source {
+                WriteChunkError::BuildChunk { source } => assert_invalid_fixed_size_text_field(
+                    *source,
+                    expected_field,
+                    expected_length,
+                    expected_actual_length,
+                ),
+                other => panic!("unexpected chunk error: {other:?}"),
+            },
             other => panic!("unexpected error: {other:?}"),
         }
     }
@@ -106,7 +116,7 @@ mod ae_title_wire_length_validation {
                 16,
                 invalid_ae_title.len(),
             );
-            assert!(bytes.is_empty());
+            assert_eq!(bytes.as_slice(), &[0x01, 0x00]);
 
             let pdu = association_rq_with_ae_titles("CALLED", invalid_ae_title);
             let mut bytes = Vec::new();
@@ -117,7 +127,7 @@ mod ae_title_wire_length_validation {
                 16,
                 invalid_ae_title.len(),
             );
-            assert!(bytes.is_empty());
+            assert_eq!(bytes.as_slice(), &[0x01, 0x00]);
         }
     }
 
@@ -129,13 +139,13 @@ mod ae_title_wire_length_validation {
         let mut bytes = Vec::new();
         let err = write_pdu(&mut bytes, &pdu).unwrap_err();
         assert_invalid_fixed_size_text_field(err, "Called-AE-title", 16, 17);
-        assert!(bytes.is_empty());
+        assert_eq!(bytes.as_slice(), &[0x01, 0x00]);
 
         let pdu = association_rq_with_ae_titles("CALLED", invalid_ae_title);
         let mut bytes = Vec::new();
         let err = write_pdu(&mut bytes, &pdu).unwrap_err();
         assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 17);
-        assert!(bytes.is_empty());
+        assert_eq!(bytes.as_slice(), &[0x01, 0x00]);
     }
 
     #[test]
@@ -146,13 +156,13 @@ mod ae_title_wire_length_validation {
         let mut bytes = Vec::new();
         let err = write_pdu(&mut bytes, &pdu).unwrap_err();
         assert_invalid_fixed_size_text_field(err, "Called-AE-title", 16, 17);
-        assert!(bytes.is_empty());
+        assert_eq!(bytes.as_slice(), &[0x02, 0x00]);
 
         let pdu = association_ac_with_ae_titles("CALLED", "                ");
         let mut bytes = Vec::new();
         let err = write_pdu(&mut bytes, &pdu).unwrap_err();
         assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 16);
-        assert!(bytes.is_empty());
+        assert_eq!(bytes.as_slice(), &[0x02, 0x00]);
     }
 
     #[test]
