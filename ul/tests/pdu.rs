@@ -149,7 +149,7 @@ mod ae_title_wire_length_validation {
     }
 
     #[test]
-    fn associate_ac_uses_fixed_ae_title_validation() {
+    fn associate_ac_rejects_ae_title_fields_longer_than_fixed_length() {
         let invalid_ae_title = "ABCDEFGHIJKLMNOPQ";
 
         let pdu = association_ac_with_ae_titles(invalid_ae_title, "CALLING");
@@ -158,11 +158,24 @@ mod ae_title_wire_length_validation {
         assert_invalid_fixed_size_text_field(err, "Called-AE-title", 16, 17);
         assert_eq!(bytes.as_slice(), &[0x02, 0x00]);
 
-        let pdu = association_ac_with_ae_titles("CALLED", "                ");
+        let pdu = association_ac_with_ae_titles("CALLED", invalid_ae_title);
         let mut bytes = Vec::new();
         let err = write_pdu(&mut bytes, &pdu).unwrap_err();
-        assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 16);
+        assert_invalid_fixed_size_text_field(err, "Calling-AE-title", 16, 17);
         assert_eq!(bytes.as_slice(), &[0x02, 0x00]);
+    }
+
+    #[test]
+    fn associate_ac_allows_reserved_all_space_ae_title_fields() -> Result<(), WriteError> {
+        let pdu = association_ac_with_ae_titles("                ", "");
+
+        let mut bytes = Vec::new();
+        write_pdu(&mut bytes, &pdu)?;
+
+        assert_eq!(&bytes[10..26], &[b' '; 16]);
+        assert_eq!(&bytes[26..42], &[b' '; 16]);
+
+        Ok(())
     }
 
     #[test]
