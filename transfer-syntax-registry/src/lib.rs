@@ -59,10 +59,10 @@
 //! | JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14 [Selection Value 1]) | Cargo feature `jpeg` | x |
 //! | JPEG-LS Lossless              | Cargo feature `charls` | ✓ |
 //! | JPEG-LS Lossy (Near-Lossless) | Cargo feature `charls` | ✓ |
-//! | JPEG 2000 (Lossless Only)     | Cargo feature `openjp2` or `openjpeg-sys` | x |
-//! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` | x |
-//! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
-//! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` | x |
+//! | JPEG 2000 (Lossless Only)     | Cargo feature `openjp2` or `openjpeg-sys` or `hayro-jpeg2000` | x |
+//! | JPEG 2000                     | Cargo feature `openjp2` or `openjpeg-sys` or `hayro-jpeg2000` | x |
+//! | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` or `hayro-jpeg2000` | x |
+//! | JPEG 2000 Part 2 Multi-component Image Compression | Cargo feature `openjp2` or `openjpeg-sys` or `hayro-jpeg2000` | x |
 //! | JPIP Referenced Deflate       | Cargo feature `deflate` | ✓ |
 //! | High-Throughput JPEG 2000 (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
 //! | High-Throughput JPEG 2000 with RPCL Options (Lossless Only) | Cargo feature `openjp2` or `openjpeg-sys` | x |
@@ -94,6 +94,7 @@
 //! - `openjp2` provides a binding to a computer-translated Rust port of OpenJPEG.
 //!   Due to the nature of this crate,
 //!   it might not work on all modern platforms.
+//! - `hayro-jpeg2000` A memory-safe, pure-Rust JPEG 2000 decoder.
 //! - `jxl-oxide` and `zune-jpegxl` offer JPEG XL decoding and encoding.
 //!
 //! Transfer syntaxes which are not supported,
