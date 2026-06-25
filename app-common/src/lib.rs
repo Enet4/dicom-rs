@@ -68,12 +68,12 @@ pub struct TlsOptions {
     pub crypto_provider: CryptoProvider,
 
     /// List of cipher suites to use. If not specified, the default cipher suites for the selected crypto provider will be used.
-    #[arg(long, value_name = "cipher1,...", use_value_delimiter(true))]
+    #[arg(long, value_name = "cipher1,...", value_delimiter(','))]
     #[arg(hide(cfg!(not(feature = "tls"))))]
     pub cipher_suites: Option<Vec<String>>,
 
     /// TLS protocol versions to enable
-    #[arg(long, value_enum, value_name = "version,...", use_value_delimiter(true), default_values_t = vec![TlsProtocolVersion::TLS1_2, TlsProtocolVersion::TLS1_3])]
+    #[arg(long, value_enum, value_name = "version,...", value_delimiter(','), default_values_t = vec![TlsProtocolVersion::TLS1_2, TlsProtocolVersion::TLS1_3])]
     #[arg(hide(cfg!(not(feature = "tls"))))]
     pub protocol_versions: Vec<TlsProtocolVersion>,
 
@@ -88,12 +88,12 @@ pub struct TlsOptions {
     pub cert: Option<PathBuf>,
 
     /// Path to additional CA certificates (comma separated) in PEM format to add to the root store
-    #[arg(long, value_name = "/path/to/cert.pem,...", use_value_delimiter(true))]
+    #[arg(long, value_name = "/path/to/cert.pem,...", value_delimiter(','))]
     #[arg(hide(cfg!(not(feature = "tls"))))]
     pub add_certs: Option<Vec<PathBuf>>,
 
     /// Add Certificate Revocation Lists (CRLs) to the server's certificate verifier
-    #[arg(long, value_name = "/path/to/crl.pem,...", use_value_delimiter(true))]
+    #[arg(long, value_name = "/path/to/crl.pem,...", value_delimiter(','))]
     #[arg(hide(cfg!(not(feature = "tls"))))]
     pub add_crls: Option<Vec<PathBuf>>,
 
@@ -164,7 +164,7 @@ pub enum TlsProtocolVersion {
 }
 
 /// Peer certificate handling options
-/// cl
+///
 /// Defines how the TLS connection should handle peer certificates.
 #[derive(clap::ValueEnum, Clone, Debug, Eq, Hash, PartialEq)]
 pub enum PeerCertOption {
@@ -265,15 +265,13 @@ impl TlsOptions {
             CryptoProvider::AwsLC => rustls::crypto::aws_lc_rs::default_provider(),
         };
 
-        if self.peer_cert == PeerCertOption::Ignore {
-            tracing::warn!("It is dangerous to skip server peer certificate verification. Prefer registering trusted certificates instead.");
-        }
-
         let builder = ClientConfig::builder_with_provider(provider.into())
             .with_protocol_versions(self.protocol_versions().as_slice())
             .context(SetProtocolVersionsSnafu)?;
 
         let builder = if self.peer_cert == PeerCertOption::Ignore {
+            tracing::warn!("It is dangerous to skip server peer certificate verification. Prefer registering trusted certificates instead.");
+
             builder
                 .dangerous().with_custom_certificate_verifier(SkipServerCertVerification::new())
         } else {
