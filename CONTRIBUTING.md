@@ -99,6 +99,13 @@ please reach out to the project maintainers.
 [roadmap]: https://github.com/Enet4/dicom-rs/wiki/Roadmap
 [zulip]: https://dicom-rs.zulipchat.com
 
+## Security policy
+
+Potential vulnerabilities can be reported in private to one of the maintainers by email,
+or through the vulnerability reporting mechanism on GitHub.
+Please note that, similarly to proposing other contributions,
+the bandwidth available to attend to the report in a timely fashion may be limited.
+
 ## Project team and governance
 
 DICOM-rs is currently led by Eduardo Pinho ([**@Enet4**](https://github.com/Enet4), <enet4mikeenet@gmail.com>).
