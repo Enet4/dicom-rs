@@ -50,20 +50,30 @@ at the root of the repository will build all crates:
 cargo build
 ```
 
-This will also build the CLI and helper tools of the project,
-such as the dictionary builder and `dcmdump`.
+This will also build the various
+command line tools and development tools of the project,
+such as the dictionary builder.
 To build only the library crates,
-you can build the parent package named `dicom`:
+you can build the parent package named `dicom` or add the `--lib` option:
 
 ```sh
-cargo build -p dicom
+cargo build --lib
 ```
 
-Please ensure that all tests pass before sending your contribution.
+It is recommended that you ensure that all tests pass before sending your contribution.
 Writing tests for your own contributions is greatly appreciated as well.
 
 ```sh
 cargo test
+```
+
+Some capabilities are gated behind Cargo features.
+Do not forget to test your contributions with and without relevant features
+to ensure that a change compiles under different combinations.
+
+```sh
+# compile with many more features
+cargo test --features=image,ndarray,sop-class,rle,cli,jpegxl,tls
 ```
 
 We also recommend formatting your code before submitting,
