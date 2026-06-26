@@ -192,6 +192,18 @@ pub fn show_cipher_suites() {
     // no-op
 }
 
+/// Connection timeout options shared across DIMSE tools
+#[derive(Args, Debug, Default)]
+pub struct ConnectionOptions {
+    /// Read timeout for the underlying TCP socket in seconds
+    #[arg(long = "read-timeout", value_name = "SECS")]
+    pub read_timeout: Option<u64>,
+
+    /// Write timeout for the underlying TCP socket in seconds
+    #[arg(long = "write-timeout", value_name = "SECS")]
+    pub write_timeout: Option<u64>,
+}
+
 #[cfg(feature = "tls")]
 impl TlsOptions {
     /// Build a root cert store from system roots and any additional certs

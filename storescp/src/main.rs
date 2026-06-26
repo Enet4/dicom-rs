@@ -2,7 +2,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4}, path::PathBuf
 };
 
-use dicom_app_common::{TlsOptions, TlsAcceptorOptions};
+use dicom_app_common::{ConnectionOptions, TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
 use dicom_core::{dicom_value, DataElement, VR};
 use dicom_dictionary_std::tags;
@@ -53,6 +53,8 @@ struct App {
     /// Run in non-blocking mode (spins up an async task to handle each incoming stream)
     #[arg(short, long)]
     non_blocking: bool,
+    #[command(flatten, next_help_heading = "Connection Options")]
+    connection: ConnectionOptions,
     /// TLS options
     #[command(flatten, next_help_heading = "TLS Options")]
     tls: TlsOptions,

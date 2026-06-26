@@ -674,6 +674,7 @@ name = "dicom-echoscu"
 version = "0.9.1"
 dependencies = [
  "clap",
+ "dicom-app-common",
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-dump",
@@ -702,6 +703,7 @@ name = "dicom-findscu"
 version = "0.9.1"
 dependencies = [
  "clap",
+ "dicom-app-common",
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-dump",
