@@ -11,6 +11,27 @@ to only possess basic knowledge in either one.
 Please do not forget to follow the [Code of Conduct](CODE_OF_CONDUCT.md)
 in all interactions through the given project communication venues.
 
+## AI Policy
+
+DICOM-rs, as a open source software project,
+is a social endeavor as much as it is a technical one.
+One cannot set that aside and and still have a balanced and sustainable FOSS initiative.
+This is why, although external contributions are highly appreciated,
+contributors are expected to follow these guidelines in good faith,
+including the AI policy described next.
+
+For the time being and until the contributor guidelines are updated again,
+the stance for the DICOM-rs project is that
+any kind of contribution to its repositories should be genuinely authored by a human.
+
+- Please refrain from providing content which was _substantially generated_ by LLMs.
+  - What is deemed "substantially generated" will be assessed by maintainers. When in doubt, prefer writing it yourself, which allows you to confidently claim authorship of the contribution and leave less uncertainty in terms of whether you have copyright for those changes.
+  - Commits authored or co-authored by coding agent profiles (such as copilot or claude) are not allowed. Do not include files which are meant to be primarily read by coding agents (e.g. `AGENTS.md`, `CLAUDE.md`, ...).
+- All descriptions and comments on repositories and other official communication venues (GitHub, Zulip) should be written by you rather than generated automatically based on context.
+  - In pull requests, for example, depending on the size of the contribution, a brief paragraph of context and a summary are often enough, even when there is no associated issue already.
+  - When using LLM-based technology to analyze and review code, carefully assess and test all outputs before reporting the curated findings, while refraining from reporting those which you have not understood.
+- As has been in the full lifetime of DICOM-rs, project maintainers will determine whether submissions are reasonably reviewable and acceptable, without the obligation of having to explain these decisions.
+
 ## Contributing with code
 
 Please check out the list of existing issues in the [GitHub issue tracker].
