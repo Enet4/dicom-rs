@@ -11,7 +11,7 @@ use std::{
 
 use adapters::TestDataObject;
 use dicom_core::value::PixelFragmentSequence;
-use dicom_encoding::{adapters::PixelDataReader, Codec};
+use dicom_encoding::{Codec, adapters::PixelDataReader};
 use dicom_transfer_syntax_registry::entries::RLE_LOSSLESS;
 
 fn read_data_piece(test_file: impl AsRef<Path>, offset: u64, length: usize) -> Vec<u8> {

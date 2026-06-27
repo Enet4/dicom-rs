@@ -4,7 +4,7 @@ use clap::Parser;
 use dicom_core::Tag;
 use dicom_dictionary_std::tags;
 use dicom_dump::{ColorMode, DumpFormat, DumpOptions};
-use dicom_object::{file::OddLengthStrategy, OpenFileOptions, StandardDataDictionary};
+use dicom_object::{OpenFileOptions, StandardDataDictionary, file::OddLengthStrategy};
 use snafu::{Report, Whatever};
 use std::io::{ErrorKind, IsTerminal};
 use std::path::PathBuf;
@@ -142,7 +142,9 @@ fn run() -> Result<(), Whatever> {
                     // JSON output doesn't currently support encapsulated pixel data
                     if let Ok(elem) = obj.element(tags::PIXEL_DATA) {
                         if let dicom_core::value::Value::PixelSequence(_) = elem.value() {
-                            eprintln!("[WARN] Encapsulated pixel data not supported in JSON output, skipping");
+                            eprintln!(
+                                "[WARN] Encapsulated pixel data not supported in JSON output, skipping"
+                            );
                             obj.remove_element(tags::PIXEL_DATA);
                         }
                     }

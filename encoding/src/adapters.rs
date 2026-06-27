@@ -207,7 +207,9 @@ pub trait PixelDataObject {
             // and multi-frame with 1:1 fragment to frame.
             // This is important not just for the shortcut,
             // but because the basic offset table may be missing.
-            Some(number_of_fragments) if number_of_fragments == self.number_of_frames().unwrap_or(1) => {
+            Some(number_of_fragments)
+                if number_of_fragments == self.number_of_frames().unwrap_or(1) =>
+            {
                 self.fragment(frame as usize)
             }
             // Other cases of multi-frame objects
@@ -279,7 +281,6 @@ pub trait PixelDataObject {
                 } else {
                     None
                 }
-
             }
         }
     }
@@ -550,7 +551,7 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
 
 /// Use the information in a pixel data object
 /// to determine the number of bytes needed to encode one frame.
-/// 
+///
 /// Only makes sense if the object contains native pixel data.
 #[inline]
 fn determine_bytes_per_native_frame(
@@ -565,11 +566,12 @@ fn determine_bytes_per_native_frame(
         return (rows as usize * columns as usize).div_ceil(8);
     }
 
-    let real_samples_per_pixel = if samples_per_pixel == 3 && photometric_interpretation == "YBR_FULL_422" {
-        2
-    } else {
-        samples_per_pixel
-    };
+    let real_samples_per_pixel =
+        if samples_per_pixel == 3 && photometric_interpretation == "YBR_FULL_422" {
+            2
+        } else {
+            samples_per_pixel
+        };
     rows as usize
         * columns as usize
         * real_samples_per_pixel as usize
@@ -705,7 +707,12 @@ mod tests {
             samples_per_pixel: 3,
             photometric_interpretation: "RGB",
             number_of_frames,
-            flat_pixel_data: Some(generated_rgb_frames(columns, rows).take(number_of_frames as usize).flatten().collect()),
+            flat_pixel_data: Some(
+                generated_rgb_frames(columns, rows)
+                    .take(number_of_frames as usize)
+                    .flatten()
+                    .collect(),
+            ),
             pixel_data_sequence: None,
         };
 
@@ -735,14 +742,14 @@ mod tests {
                 vec![0, 16 + 20, 16 + 20 + 24],
                 vec![
                     // fragment 0 (frame 0)
-                    vec![0x33 ; 16],
+                    vec![0x33; 16],
                     // fragment 1 (frame 0)
-                    vec![0x55 ; 20],
+                    vec![0x55; 20],
                     // fragment 2 (frame 1)
-                    vec![0x77 ; 24],
+                    vec![0x77; 24],
                     // fragment 3 (frame 2)
-                    vec![0x99 ; 36],
-                ]
+                    vec![0x99; 36],
+                ],
             )),
         };
 
@@ -754,6 +761,5 @@ mod tests {
 
         assert_eq!(obj.frame_pixel_data(1), Some(vec![0x77; 24].into()));
         assert_eq!(obj.frame_pixel_data(2), Some(vec![0x99; 36].into()));
-
     }
 }

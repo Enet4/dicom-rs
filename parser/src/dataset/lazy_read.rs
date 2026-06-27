@@ -660,17 +660,17 @@ where
 mod tests {
     use super::{LazyDataSetReader, StatefulDecode};
     use crate::{
-        dataset::{
-            lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy, DataToken, LazyDataToken,
-        },
         StatefulDecoder,
+        dataset::{
+            DataToken, LazyDataToken, lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy,
+        },
     };
     use dicom_core::value::PrimitiveValue;
+    use dicom_core::{Tag, VR};
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length},
     };
-    use dicom_core::{Tag, VR};
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };

@@ -5,11 +5,15 @@ use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::prelude::*;
-use dicom_ul::{Pdu, association::AsyncServerAssociation, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{
+    Pdu,
+    association::AsyncServerAssociation,
+    pdu::{PDataValueType, PresentationContextResultReason},
+};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
-use crate::{create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES, App};
+use crate::{App, create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES};
 pub async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
     args: &App,
@@ -29,7 +33,6 @@ pub async fn run_store_async(
         #[cfg_attr(not(feature = "tls"), allow(unused_variables))]
         tls_acceptor,
     } = args;
-
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -57,7 +60,9 @@ pub async fn run_store_async(
 
     #[cfg(feature = "tls")]
     if tls.enabled {
-        let config = tls.server_config(tls_acceptor).whatever_context("Could not create TLS config")?;
+        let config = tls
+            .server_config(tls_acceptor)
+            .whatever_context("Could not create TLS config")?;
         options = options.tls_config(config);
         let association = options
             .establish_tls_async(scu_stream)
@@ -72,7 +77,8 @@ pub async fn run_store_async(
         }
         debug!(
             "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-            association.presentation_contexts()
+            association
+                .presentation_contexts()
                 .iter()
                 .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
                 .count(),
@@ -104,7 +110,8 @@ pub async fn run_store_async(
     }
     debug!(
         "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-        association.presentation_contexts()
+        association
+            .presentation_contexts()
             .iter()
             .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
             .count(),
@@ -123,8 +130,14 @@ pub async fn run_store_async(
     Ok(())
 }
 
-async fn inner<T>(mut association: AsyncServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
-where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
+async fn inner<T>(
+    mut association: AsyncServerAssociation<T>,
+    verbose: bool,
+    out_dir: &Path,
+) -> Result<(), Whatever>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;
     let mut sop_class_uid = "".to_string();
@@ -297,10 +310,7 @@ where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
                                 snafu::Report::from_error(e)
                             );
                         });
-                        info!(
-                            "Released association with {}",
-                            association.peer_ae_title()
-                        );
+                        info!("Released association with {}", association.peer_ae_title());
                         break;
                     }
                     Pdu::AbortRQ { source } => {

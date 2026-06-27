@@ -45,7 +45,7 @@
 //! ```
 use std::{borrow::Cow, fmt::Write};
 
-use smallvec::{smallvec, SmallVec};
+use smallvec::{SmallVec, smallvec};
 
 use crate::{PrimitiveValue, Tag, VR};
 
@@ -709,8 +709,8 @@ pub trait ApplyOp {
 #[cfg(test)]
 mod tests {
     use crate::{
-        ops::{AttributeSelector, AttributeSelectorStep},
         Tag,
+        ops::{AttributeSelector, AttributeSelectorStep},
     };
 
     #[test]

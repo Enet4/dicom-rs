@@ -5,10 +5,10 @@ use std::{path::PathBuf, str::FromStr};
 use clap::Parser;
 use dicom_dictionary_std::uids;
 use dicom_encoding::adapters::PixelDataObject;
-use dicom_object::{open_file, FileDicomObject, InMemDicomObject};
+use dicom_object::{FileDicomObject, InMemDicomObject, open_file};
 use dicom_pixeldata::{ConvertOptions, PixelDecoder};
 use snafu::{OptionExt, Report, ResultExt, Snafu, Whatever};
-use tracing::{error, warn, Level};
+use tracing::{Level, error, warn};
 
 /// Convert DICOM files into image files
 #[derive(Debug, Parser)]

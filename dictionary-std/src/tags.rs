@@ -7,9 +7,9 @@
 // Automatically generated. Edit at your own risk.
 #![allow(deprecated)]
 
-use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*, VirtualVr::*};
 use dicom_core::Tag;
 use dicom_core::VR::*;
+use dicom_core::dictionary::{DataDictionaryEntryRef, TagRange, TagRange::*, VirtualVr::*};
 
 /// CommandGroupLength (0000,0000) UL 1 DICOM
 #[rustfmt::skip]

@@ -1,9 +1,7 @@
-
 #[cfg(feature = "sync-tls")]
 use dicom_ul::association::Association;
 #[cfg(feature = "sync-tls")]
 use std::sync::Arc;
-
 
 #[cfg(any(feature = "sync-tls", feature = "async-tls"))]
 type Result<T, E = Box<dyn std::error::Error + Send + Sync + 'static>> = std::result::Result<T, E>;
@@ -96,14 +94,13 @@ fn generate_test_certs() -> Result<()> {
     Ok(())
 }
 
-
 #[cfg(feature = "sync-tls")]
 /// Create a test TLS server configuration
 fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::ClientConfig>)> {
     use rustls::{
-        pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer},
-        server::WebPkiClientVerifier,
         ClientConfig, RootCertStore, ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+        server::WebPkiClientVerifier,
     };
     use std::path::PathBuf;
     ensure_test_certs()?;
@@ -161,8 +158,8 @@ fn create_test_config() -> Result<(Arc<rustls::ServerConfig>, Arc<rustls::Client
 fn test_tls_connection_sync() {
     // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
-    use dicom_ul::{ServerAssociationOptions, ClientAssociationOptions};
     use dicom_dictionary_std::uids::VERIFICATION;
+    use dicom_ul::{ClientAssociationOptions, ServerAssociationOptions};
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
@@ -230,8 +227,8 @@ fn test_tls_connection_sync() {
 #[cfg(feature = "async-tls")]
 #[tokio::test(flavor = "multi_thread")]
 async fn test_tls_connection_async() -> Result<()> {
-    use dicom_ul::{ServerAssociationOptions, ClientAssociationOptions};
     use dicom_dictionary_std::uids::VERIFICATION;
+    use dicom_ul::{ClientAssociationOptions, ServerAssociationOptions};
     // set up crypto provider -- Just use the default provider which is aws_lc_rs
     let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
@@ -308,9 +305,9 @@ async fn test_tls_connection_async() -> Result<()> {
 mod sync_tls_mismatch {
     use super::create_test_config;
     use dicom_dictionary_std::uids::VERIFICATION;
-    use dicom_ul::{ServerAssociationOptions, ClientAssociationOptions};
+    use dicom_ul::{ClientAssociationOptions, ServerAssociationOptions};
     #[test]
-    fn test_tls_client_non_tls_server(){
+    fn test_tls_client_non_tls_server() {
         // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -329,10 +326,12 @@ mod sync_tls_mismatch {
         // Spawn server thread
         let server_handle = std::thread::spawn(move || {
             let (stream, _) = listener.accept().expect("Failed to accept connection");
-            let association = server_options
-                .establish(stream);
+            let association = server_options.establish(stream);
             assert!(association.is_err());
-            assert!(matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)))
+            assert!(matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsNotSupported)
+            ))
         });
 
         // Give server time to start
@@ -347,16 +346,18 @@ mod sync_tls_mismatch {
             .tls_config((*client_tls_config).clone());
 
         // Establish TLS connection
-        let association = client_options
-            .establish_tls(server_addr);
+        let association = client_options.establish_tls(server_addr);
         assert!(association.is_err());
-        assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+        assert!(matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsHandshake { .. })
+        ));
         // Wait for server to complete
         server_handle.join().expect("Server thread failed");
     }
 
     #[test]
-    fn test_tls_server_non_tls_client(){
+    fn test_tls_server_non_tls_client() {
         // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -376,10 +377,13 @@ mod sync_tls_mismatch {
         // Spawn server thread
         let server_handle = std::thread::spawn(move || {
             let (stream, _) = listener.accept().expect("Failed to accept connection");
-            let association = server_options
-                .establish_tls(stream);
+            let association = server_options.establish_tls(stream);
             assert!(association.is_err());
-            assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..}) | Err(dicom_ul::association::Error::TlsConnection{..}) ))
+            assert!(matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsHandshake { .. })
+                    | Err(dicom_ul::association::Error::TlsConnection { .. })
+            ))
         });
 
         // Give server time to start
@@ -393,19 +397,20 @@ mod sync_tls_mismatch {
             .server_name("localhost");
 
         // Establish TLS connection
-        let association = client_options
-            .establish(server_addr);
+        let association = client_options.establish(server_addr);
         assert!(association.is_err());
-        assert!(matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+        assert!(matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsNotSupported)
+        ));
         // Wait for server to complete
         server_handle.join().expect("Server thread failed");
     }
 
-
     // Test that the `read_pdu_from_wire` doesn't report a false-positive "TLS"
     // error when its actually just bogus data
     #[test]
-    fn test_non_tls_client_handles_bogus_pdu(){
+    fn test_non_tls_client_handles_bogus_pdu() {
         use std::io::Write;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
         let server_addr = listener.local_addr().expect("Failed to get local address");
@@ -413,7 +418,9 @@ mod sync_tls_mismatch {
         // Spawn server thread
         let server_handle = std::thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("Failed to accept connection");
-            stream.write(b"not valid PDU").expect("Failed to write bogus PDU");
+            stream
+                .write(b"not valid PDU")
+                .expect("Failed to write bogus PDU");
         });
 
         // Give server time to start
@@ -427,18 +434,19 @@ mod sync_tls_mismatch {
             .server_name("localhost");
 
         // Establish TLS connection
-        let association = client_options
-            .establish(server_addr);
+        let association = client_options.establish(server_addr);
         // Assert that its not a TLS not support error
-        assert!(!matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+        assert!(!matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsNotSupported)
+        ));
         server_handle.join().expect("Server handle failed");
-
     }
 
     // Test that the `read_pdu_from_wire` doesn't report a false-positive "TLS"
     // error when its actually just bogus data
     #[test]
-    fn test_non_tls_server_handles_bogus_pdu(){
+    fn test_non_tls_server_handles_bogus_pdu() {
         use std::io::Write;
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("Failed to bind listener");
         let server_addr = listener.local_addr().expect("Failed to get local address");
@@ -451,19 +459,23 @@ mod sync_tls_mismatch {
         // Spawn server thread
         let server_handle = std::thread::spawn(move || {
             let (stream, _) = listener.accept().expect("Failed to accept connection");
-            let association = server_options
-                .establish(stream);
+            let association = server_options.establish(stream);
             assert!(association.is_err());
-            assert!(!matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+            assert!(!matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsNotSupported)
+            ));
         });
 
         // Give server time to start
         std::thread::sleep(std::time::Duration::from_millis(50));
-        let mut stream = std::net::TcpStream::connect(server_addr).expect("Failed to connect to server");
-        stream.write(b"not valid PDU").expect("Failed to write bogus PDU");
+        let mut stream =
+            std::net::TcpStream::connect(server_addr).expect("Failed to connect to server");
+        stream
+            .write(b"not valid PDU")
+            .expect("Failed to write bogus PDU");
 
         server_handle.join().expect("Server handle failed");
-
     }
 }
 
@@ -471,9 +483,9 @@ mod sync_tls_mismatch {
 mod async_tls_mismatch {
     use super::{Result, create_test_config};
     use dicom_dictionary_std::uids::VERIFICATION;
-    use dicom_ul::{ServerAssociationOptions, ClientAssociationOptions};
+    use dicom_ul::{ClientAssociationOptions, ServerAssociationOptions};
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_tls_client_non_tls_server(){
+    async fn test_tls_client_non_tls_server() {
         // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
@@ -495,11 +507,12 @@ mod async_tls_mismatch {
                 .accept()
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
-            let association = server_options
-                .establish_async(stream)
-                .await;
+            let association = server_options.establish_async(stream).await;
             assert!(association.is_err());
-            assert!(matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+            assert!(matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsNotSupported)
+            ));
             Result::Ok(())
         });
         // Give server time to start
@@ -517,15 +530,17 @@ mod async_tls_mismatch {
         let association = client_options.establish_tls_async(server_addr).await;
 
         assert!(association.is_err());
-        assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+        assert!(matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsHandshake { .. })
+        ));
 
         // Wait for server to complete
         server_handle.await.unwrap().unwrap();
     }
 
-
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_tls_server_non_tls_client(){
+    async fn test_tls_server_non_tls_client() {
         // set up crypto provider -- Just use the default provider which is aws_lc_rs
 
         use dicom_ul::ServerAssociationOptions;
@@ -550,11 +565,12 @@ mod async_tls_mismatch {
                 .accept()
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
-            let association = server_options
-                .establish_tls_async(stream)
-                .await;
+            let association = server_options.establish_tls_async(stream).await;
             assert!(association.is_err());
-            assert!(matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+            assert!(matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsHandshake { .. })
+            ));
             Result::Ok(())
         });
         // Give server time to start
@@ -571,14 +587,17 @@ mod async_tls_mismatch {
         let association = client_options.establish_async(server_addr).await;
 
         assert!(association.is_err());
-        assert!(matches!(association, Err(dicom_ul::association::Error::TlsNotSupported)));
+        assert!(matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsNotSupported)
+        ));
 
         // Wait for server to complete
         server_handle.await.unwrap().unwrap();
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_non_tls_server_handles_bogus_pdu(){
+    async fn test_non_tls_server_handles_bogus_pdu() {
         use tokio::io::AsyncWriteExt;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let server_addr = listener.local_addr().unwrap();
@@ -591,12 +610,13 @@ mod async_tls_mismatch {
                 .accept()
                 .await
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
-            let association = server_options
-                .establish_async(stream)
-                .await;
+            let association = server_options.establish_async(stream).await;
             assert!(association.is_err());
             // Shouldn't get a TLS handshake error in this case
-            assert!(!matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+            assert!(!matches!(
+                association,
+                Err(dicom_ul::association::Error::TlsHandshake { .. })
+            ));
             Result::Ok(())
         });
         // Give server time to start
@@ -608,7 +628,7 @@ mod async_tls_mismatch {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_non_tls_client_handles_bogus_pdu(){
+    async fn test_non_tls_client_handles_bogus_pdu() {
         use tokio::io::AsyncWriteExt;
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let server_addr = listener.local_addr().unwrap();
@@ -632,7 +652,10 @@ mod async_tls_mismatch {
         let association = client_options.establish_async(server_addr).await;
 
         assert!(association.is_err());
-        assert!(!matches!(association, Err(dicom_ul::association::Error::TlsHandshake{..})));
+        assert!(!matches!(
+            association,
+            Err(dicom_ul::association::Error::TlsHandshake { .. })
+        ));
         server_handle.await.unwrap().unwrap();
     }
 }

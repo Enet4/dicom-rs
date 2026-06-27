@@ -12,10 +12,10 @@ use dicom_encoding::{adapters::DecodeError, transfer_syntax::TransferSyntaxIndex
 use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{
-    decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
-    GDCMPhotometricInterpretation, GDCMTransferSyntax,
+    Error as GDCMError, GDCMPhotometricInterpretation, GDCMTransferSyntax,
+    decode_multi_frame_compressed, decode_single_frame_compressed,
 };
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, ensure};
 use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>

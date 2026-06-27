@@ -2,10 +2,12 @@ use std::{io::stderr, sync::Arc};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
-use dicom_object::{open_file, InMemDicomObject};
+use dicom_object::{InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    Pdu, association::client::AsyncClientAssociation, pdu::{PDataValue, PDataValueType}
+    Pdu,
+    association::client::AsyncClientAssociation,
+    pdu::{PDataValue, PDataValueType},
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt};
@@ -13,7 +15,9 @@ use tokio::{io::AsyncWriteExt, sync::Mutex};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, check_presentation_contexts, into_ts, store_req_command
+    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu,
+    ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu,
+    WriteDatasetSnafu, check_presentation_contexts, into_ts, store_req_command,
 };
 
 pub async fn send_file<T>(
@@ -23,8 +27,10 @@ pub async fn send_file<T>(
     progress_bar: Option<&Arc<tokio::sync::Mutex<ProgressBar>>>,
     verbose: bool,
     fail_first: bool,
-) -> Result<AsyncClientAssociation<T>, Error> 
-where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
+) -> Result<AsyncClientAssociation<T>, Error>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         let cmd = store_req_command(&file.sop_class_uid, &file.sop_instance_uid, message_id);
 
@@ -198,7 +204,6 @@ where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static{
     Ok(scu)
 }
 
-
 pub async fn inner<T>(
     mut scu: AsyncClientAssociation<T>,
     d_files: Arc<Mutex<Vec<DicomFile>>>,
@@ -208,7 +213,9 @@ pub async fn inner<T>(
     verbose: bool,
     ignore_sop_class: bool,
 ) -> Result<(), Error>
- where T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static {
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
     let mut message_id = 1;
     loop {
         let file = {
@@ -250,5 +257,4 @@ pub async fn inner<T>(
     }
     let _ = scu.release().await;
     Ok(())
-
 }

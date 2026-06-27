@@ -1,6 +1,6 @@
 //! Support for JPEG 2000 image decoding.
 
-use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
+use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelDataReader, decode_error};
 use dicom_encoding::snafu::prelude::*;
 use jpeg2k::Image;
 use tracing::warn;

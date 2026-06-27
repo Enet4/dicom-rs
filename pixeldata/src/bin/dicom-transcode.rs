@@ -167,7 +167,10 @@ impl TargetTransferSyntax {
                 .whatever_context("Missing specifier for JPEG XL"),
             // Deflated Image Frame Compression
             #[cfg(feature = "deflate")]
-            TargetTransferSyntax { deflated_image_frame: true, .. } => TransferSyntaxRegistry
+            TargetTransferSyntax {
+                deflated_image_frame: true,
+                ..
+            } => TransferSyntaxRegistry
                 .get(uids::DEFLATED_IMAGE_FRAME_COMPRESSION)
                 .whatever_context("Missing specifier for Deflated Image Frame Compression"),
             TargetTransferSyntax { ts: Some(ts), .. } => TransferSyntaxRegistry

@@ -45,7 +45,7 @@ use dicom_parser::dataset::write::DataSetWriterOptions;
 use dicom_parser::stateful::decode::CharacterSetOverride;
 use itertools::Itertools;
 use smallvec::SmallVec;
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, ensure};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
@@ -56,7 +56,6 @@ use crate::file::ReadPreamble;
 use crate::ops::{
     ApplyError, ApplyResult, IncompatibleTypesSnafu, ModifySnafu, UnsupportedActionSnafu,
 };
-use crate::{meta::FileMetaTable, FileMetaTableBuilder};
 use crate::{
     AccessByNameError, AccessError, AtAccessError, BuildMetaTableSnafu, CreateParserSnafu,
     CreatePrinterSnafu, DicomObject, ElementNotFoundSnafu, FileDicomObject, InvalidGroupSnafu,
@@ -68,17 +67,18 @@ use crate::{
     ReadUnsupportedTransferSyntaxSnafu, ReadUnsupportedTransferSyntaxWithSuggestionSnafu,
     UnexpectedTokenSnafu, WithMetaError, WriteError,
 };
+use crate::{FileMetaTableBuilder, meta::FileMetaTable};
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{GroupNumber, HasLength, Header};
-use dicom_core::value::{DataSetSequence, PixelFragmentSequence, Value, ValueType, C};
+use dicom_core::value::{C, DataSetSequence, PixelFragmentSequence, Value, ValueType};
 use dicom_core::{DataElement, Length, PrimitiveValue, Tag, VR};
-use dicom_dictionary_std::{tags, uids, StandardDataDictionary};
+use dicom_dictionary_std::{StandardDataDictionary, tags, uids};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_encoding::{encode::EncodeTo, text::SpecificCharacterSet, TransferSyntax};
+use dicom_encoding::{TransferSyntax, encode::EncodeTo, text::SpecificCharacterSet};
 use dicom_parser::dataset::{DataSetReader, DataToken, IntoTokensOptions};
 use dicom_parser::{
-    dataset::{read::Error as ParserError, DataSetWriter, IntoTokens},
     StatefulDecode,
+    dataset::{DataSetWriter, IntoTokens, read::Error as ParserError},
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
@@ -822,7 +822,14 @@ where
                 let adapter = adapter.adapt_reader(Box::new(from));
                 let mut dataset =
                     DataSetReader::new_with_ts_cs(adapter, ts, cs).context(CreateParserSnafu)?;
-                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None, None)
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    None,
+                    None,
+                )
             }
             Codec::Dataset(None) => {
                 let uid = ts.uid();
@@ -847,7 +854,14 @@ where
             Codec::None | Codec::EncapsulatedPixelData(..) => {
                 let mut dataset =
                     DataSetReader::new_with_ts_cs(from, ts, cs).context(CreateParserSnafu)?;
-                InMemDicomObject::build_object(&mut dataset, dict, false, Length::UNDEFINED, None, None)
+                InMemDicomObject::build_object(
+                    &mut dataset,
+                    dict,
+                    false,
+                    Length::UNDEFINED,
+                    None,
+                    None,
+                )
             }
         }
     }
@@ -1385,7 +1399,7 @@ where
                 AttributeSelectorStep::Tag(tag) => {
                     return obj.get(*tag).with_context(|| MissingLeafElementSnafu {
                         selector: selector.clone(),
-                    })
+                    });
                 }
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
@@ -1434,7 +1448,7 @@ where
                 AttributeSelectorStep::Tag(tag) => {
                     return obj.get_mut(*tag).with_context(|| MissingLeafElementSnafu {
                         selector: selector.clone(),
-                    })
+                    });
                 }
                 // navigate further down
                 AttributeSelectorStep::Nested { tag, item } => {
@@ -2155,17 +2169,11 @@ where
                 DataToken::PixelSequenceStart => {
                     let sq_start_tag = Tag(0x7fe0, 0x0010);
                     // stop reading if reached `read_until` tag (exclusive)
-                    if read_until
-                        .map(|t| t <= sq_start_tag)
-                        .unwrap_or(false)
-                    {
+                    if read_until.map(|t| t <= sq_start_tag).unwrap_or(false) {
                         break;
                     }
                     // stop reading if exceeded `read_to` tag (inclusive)
-                    if read_to
-                        .map(|t| t < sq_start_tag)
-                        .unwrap_or(false)
-                    {
+                    if read_to.map(|t| t < sq_start_tag).unwrap_or(false) {
                         break;
                     }
                     let value = InMemDicomObject::build_encapsulated_data(&mut *dataset)?;
@@ -2403,14 +2411,14 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{open_file, DicomAttribute as _};
+    use crate::{DicomAttribute as _, open_file};
     use byteordered::Endianness;
     use dicom_core::chrono::FixedOffset;
     use dicom_core::value::{DicomDate, DicomDateTime, DicomTime};
     use dicom_core::{dicom_value, header::DataElementHeader};
     use dicom_encoding::{
         decode::{basic::BasicDecoder, implicit_le::ImplicitVRLittleEndianDecoder},
-        encode::{implicit_le::ImplicitVRLittleEndianEncoder, EncoderFor},
+        encode::{EncoderFor, implicit_le::ImplicitVRLittleEndianEncoder},
     };
     use dicom_parser::StatefulDecoder;
 
@@ -4151,11 +4159,12 @@ mod tests {
         });
         assert!(o);
 
-        assert!(obj
-            .get(tags::ANATOMIC_REGION_SEQUENCE)
-            .unwrap()
-            .length()
-            .is_undefined());
+        assert!(
+            obj.get(tags::ANATOMIC_REGION_SEQUENCE)
+                .unwrap()
+                .length()
+                .is_undefined()
+        );
     }
 
     #[test]

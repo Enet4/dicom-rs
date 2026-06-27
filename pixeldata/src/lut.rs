@@ -13,7 +13,7 @@ use num_traits::{NumCast, ToPrimitive};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use snafu::{OptionExt, Snafu};
 
-use crate::{transform::VoiLutTransform, Rescale, WindowLevelTransform};
+use crate::{Rescale, WindowLevelTransform, transform::VoiLutTransform};
 
 /// The LUT could not be created:
 /// entry #{index} was mapped to {y_value},
@@ -583,9 +583,15 @@ mod tests {
     #[test]
     fn lut_8bit() {
         // c=2048, w=4096
-        let lut = Lut::new_window_8bit(16, false, WindowLevelTransform::linear(
-            WindowLevel { width: 4096., center: 2048. }
-        )).expect("should have created LUT successfully");
+        let lut = Lut::new_window_8bit(
+            16,
+            false,
+            WindowLevelTransform::linear(WindowLevel {
+                width: 4096.,
+                center: 2048.,
+            }),
+        )
+        .expect("should have created LUT successfully");
 
         assert_eq!(lut.get(0_u16), 0);
         assert_eq!(lut.get(4096_u16), 255);
@@ -598,9 +604,15 @@ mod tests {
         assert_eq!(lut.get(x), y as u8);
 
         // c=2048, w=1
-        let lut = Lut::new_window_8bit(16, false, WindowLevelTransform::linear(
-            WindowLevel { width: 1., center: 2048. }
-        )).expect("should have created LUT successfully");
+        let lut = Lut::new_window_8bit(
+            16,
+            false,
+            WindowLevelTransform::linear(WindowLevel {
+                width: 1.,
+                center: 2048.,
+            }),
+        )
+        .expect("should have created LUT successfully");
 
         assert_eq!(lut.get(0_u16), 0);
         assert_eq!(lut.get(100_u16), 0);
@@ -612,9 +624,15 @@ mod tests {
         assert_eq!(lut.get(65535_u16), 255);
 
         // c=0, w=100, signed
-        let lut = Lut::new_window_8bit(8, true, WindowLevelTransform::linear(
-            WindowLevel { width: 100., center: 0. }
-        )).expect("should have created LUT successfully");
+        let lut = Lut::new_window_8bit(
+            8,
+            true,
+            WindowLevelTransform::linear(WindowLevel {
+                width: 100.,
+                center: 0.,
+            }),
+        )
+        .expect("should have created LUT successfully");
 
         assert_eq!(lut.get((-50_i8).cast_unsigned()), 0);
         assert_eq!(lut.get(50_u8), 255);
@@ -624,9 +642,15 @@ mod tests {
         assert_eq!(lut.get(x), y as u8);
 
         // c=0, w=1, signed
-        let lut = Lut::new_window_8bit(8, true, WindowLevelTransform::linear(
-            WindowLevel { width: 1., center: 0. }
-        )).expect("should have created LUT successfully");
+        let lut = Lut::new_window_8bit(
+            8,
+            true,
+            WindowLevelTransform::linear(WindowLevel {
+                width: 1.,
+                center: 0.,
+            }),
+        )
+        .expect("should have created LUT successfully");
 
         assert_eq!(lut.get((-2_i8).cast_unsigned()), 0);
         assert_eq!(lut.get((-1_i8).cast_unsigned()), 0);

@@ -2,11 +2,11 @@
 
 use std::str::FromStr;
 
-use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelector};
 use dicom_core::DataDictionary;
 use dicom_core::PrimitiveValue;
 use dicom_core::Tag;
 use dicom_core::VR;
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelector};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::InMemDicomObject;
 use snafu::whatever;

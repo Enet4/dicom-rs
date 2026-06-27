@@ -1,9 +1,9 @@
 //! Data element dictionary implementation
 
 use crate::tags::ENTRIES;
+use dicom_core::VR;
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntryRef, TagRange::*, VirtualVr};
 use dicom_core::header::Tag;
-use dicom_core::VR;
 use once_cell::sync::Lazy;
 use std::collections::{HashMap, HashSet};
 use std::fmt;

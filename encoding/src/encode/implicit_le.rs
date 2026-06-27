@@ -5,8 +5,8 @@ use crate::encode::{
     BasicEncode, Encode, Result, WriteHeaderSnafu, WriteItemDelimiterSnafu, WriteItemHeaderSnafu,
     WriteOffsetTableSnafu, WriteSequenceDelimiterSnafu, WriteTagSnafu,
 };
-use byteordered::byteorder::{ByteOrder, LittleEndian};
 use byteordered::Endianness;
+use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::header::{DataElementHeader, HasLength, Header};
 use dicom_core::{PrimitiveValue, Tag};
 use snafu::ResultExt;

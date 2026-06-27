@@ -1,11 +1,11 @@
 //! Support for JPEG-LS image decoding.
 
 use charls::{CharLS, FrameInfo};
-use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_core::Tag;
+use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_encoding::adapters::{
-    decode_error, encode_error, DecodeResult, EncodeResult, PixelDataObject, PixelDataReader,
-    PixelDataWriter,
+    DecodeResult, EncodeResult, PixelDataObject, PixelDataReader, PixelDataWriter, decode_error,
+    encode_error,
 };
 use dicom_encoding::snafu::prelude::*;
 

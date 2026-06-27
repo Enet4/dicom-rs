@@ -56,6 +56,6 @@ pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.10.0";
 pub use address::{AeAddr, FullAeAddr};
 pub use association::client::{ClientAssociation, ClientAssociationOptions};
 pub use association::server::{ServerAssociation, ServerAssociationOptions};
+pub use pdu::Pdu;
 pub use pdu::read_pdu;
 pub use pdu::write_pdu;
-pub use pdu::Pdu;

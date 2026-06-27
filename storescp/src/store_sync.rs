@@ -5,11 +5,15 @@ use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use dicom_ul::{Pdu, ServerAssociation, association::{Association, CloseSocket}, pdu::{PDataValueType, PresentationContextResultReason}};
+use dicom_ul::{
+    Pdu, ServerAssociation,
+    association::{Association, CloseSocket},
+    pdu::{PDataValueType, PresentationContextResultReason},
+};
 use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
-use crate::{create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES, App};
+use crate::{App, create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES};
 pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     let App {
         verbose,
@@ -26,7 +30,6 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         #[cfg_attr(not(feature = "tls"), allow(unused_variables))]
         tls_acceptor,
     } = &args;
-
 
     let mut options = dicom_ul::association::ServerAssociationOptions::new()
         .accept_any()
@@ -54,7 +57,9 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
 
     #[cfg(feature = "tls")]
     if tls.enabled {
-        let config = tls.server_config(tls_acceptor).whatever_context("Could not create TLS config")?;
+        let config = tls
+            .server_config(tls_acceptor)
+            .whatever_context("Could not create TLS config")?;
         options = options.tls_config(config);
         let association = options
             .establish_tls(scu_stream)
@@ -68,7 +73,8 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
         }
         debug!(
             "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-            association.presentation_contexts()
+            association
+                .presentation_contexts()
                 .iter()
                 .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
                 .count(),
@@ -98,7 +104,8 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     }
     debug!(
         "#accepted_presentation_contexts={}, acceptor_max_pdu_length={}, requestor_max_pdu_length={}",
-        association.presentation_contexts()
+        association
+            .presentation_contexts()
             .iter()
             .filter(|pc| pc.reason == PresentationContextResultReason::Acceptance)
             .count(),
@@ -114,10 +121,13 @@ pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever>
     }
 
     Ok(())
-
 }
 
-fn inner<T>(mut association: ServerAssociation<T>, verbose: bool, out_dir: &Path) -> Result<(), Whatever>
+fn inner<T>(
+    mut association: ServerAssociation<T>,
+    verbose: bool,
+    out_dir: &Path,
+) -> Result<(), Whatever>
 where
     T: std::io::Read + std::io::Write + CloseSocket,
 {
@@ -293,10 +303,7 @@ where
                                 snafu::Report::from_error(e)
                             );
                         });
-                        info!(
-                            "Released association with {}",
-                            association.peer_ae_title()
-                        );
+                        info!("Released association with {}", association.peer_ae_title());
                         break;
                     }
                     Pdu::AbortRQ { source } => {
@@ -321,5 +328,4 @@ where
         }
     }
     Ok(())
-
 }

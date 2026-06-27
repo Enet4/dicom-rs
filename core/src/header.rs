@@ -3,15 +3,15 @@
 //! element header, and element composite types.
 
 use crate::value::{
-    CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
-    InMemFragment, PrimitiveValue, Value, C,
+    C, CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
+    InMemFragment, PrimitiveValue, Value,
 };
 use num_traits::NumCast;
-use snafu::{ensure, Backtrace, Snafu};
+use snafu::{Backtrace, Snafu, ensure};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 
 /// Error type for issues constructing a sequence item header.
 #[derive(Debug, Snafu)]
@@ -1356,7 +1356,7 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dicom_value, value::PixelFragmentSequence, DicomValue};
+    use crate::{DicomValue, dicom_value, value::PixelFragmentSequence};
 
     #[test]
     fn to_clean_string() {

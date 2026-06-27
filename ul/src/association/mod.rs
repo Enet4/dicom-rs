@@ -167,9 +167,7 @@ pub enum Error {
     SendTooLongPdu { length: usize, backtrace: Backtrace },
 
     #[snafu(display("connection closed by peer"))]
-    ConnectionClosed {
-        backtrace: Backtrace,
-    },
+    ConnectionClosed { backtrace: Backtrace },
 
     /// TLS configuration is missing
     #[cfg(feature = "sync-tls")]
@@ -308,16 +306,14 @@ pub trait Association {
     ///
     /// Returns `None` if that SOP class was rejected or not requested.
     fn extended_negotiation_for(&self, sop_class_uid: &str) -> Option<&[u8]> {
-        self.user_variables()
-            .iter()
-            .find_map(|uv| match uv {
-                UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data)
-                    if uid == sop_class_uid =>
-                {
-                    Some(data.as_slice())
-                }
-                _ => None,
-            })
+        self.user_variables().iter().find_map(|uv| match uv {
+            UserVariableItem::SopClassExtendedNegotiationSubItem(uid, data)
+                if uid == sop_class_uid =>
+            {
+                Some(data.as_slice())
+            }
+            _ => None,
+        })
     }
 
     /// Roles that the Association-requestor may assume. Returns a

@@ -2,12 +2,13 @@
 
 use crate::encode::basic::BigEndianBasicEncoder;
 use crate::encode::{
-    BasicEncode, Encode, Result, WriteHeaderSnafu, WriteHeaderTooLongSnafu, WriteItemDelimiterSnafu,
-    WriteItemHeaderSnafu, WriteOffsetTableSnafu, WriteSequenceDelimiterSnafu, WriteTagSnafu,
+    BasicEncode, Encode, Result, WriteHeaderSnafu, WriteHeaderTooLongSnafu,
+    WriteItemDelimiterSnafu, WriteItemHeaderSnafu, WriteOffsetTableSnafu,
+    WriteSequenceDelimiterSnafu, WriteTagSnafu,
 };
 
-use byteordered::byteorder::{BigEndian, ByteOrder};
 use byteordered::Endianness;
+use byteordered::byteorder::{BigEndian, ByteOrder};
 use dicom_core::header::{DataElementHeader, HasLength, Header};
 use dicom_core::{PrimitiveValue, Tag, VR};
 use snafu::ResultExt;
@@ -126,9 +127,7 @@ impl Encode for ExplicitVRBigEndianEncoder {
             | VR::US => {
                 let length = de.length().0;
                 if length > u16::MAX as u32 {
-                    return WriteHeaderTooLongSnafu {
-                        length,
-                    }.fail();
+                    return WriteHeaderTooLongSnafu { length }.fail();
                 }
                 let mut buf = [0u8; 8];
                 BigEndian::write_u16(&mut buf[0..], de.tag().group());
@@ -465,15 +464,13 @@ mod tests {
             value: &[u8],
         ) {
             let from = writer.position() as usize;
-            let de = DataElementHeader::new(
-                Tag(group, element),
-                vr,
-                Length(value.len() as u32),
-            );
+            let de = DataElementHeader::new(Tag(group, element), vr, Length(value.len() as u32));
             let _written_len = enc
                 .encode_element_header(&mut writer, de)
                 .expect("should write it fine");
-            writer.write_all(value).expect("should write the value fine");
+            writer
+                .write_all(value)
+                .expect("should write the value fine");
             let to = writer.position() as usize;
 
             // Compare the current slice
@@ -503,14 +500,7 @@ mod tests {
         write_elem(&enc, &mut writer, 0x0010, 0x0040, VR::CS, b"O ");
         write_elem(&enc, &mut writer, 0x0010, 0x0030, VR::DA, b"19800101");
         write_elem(&enc, &mut writer, 0x0010, 0x1020, VR::DS, b"1.70");
-        write_elem(
-            &enc,
-            &mut writer,
-            0x0008,
-            0x0015,
-            VR::DT,
-            b"20051231235960",
-        );
+        write_elem(&enc, &mut writer, 0x0008, 0x0015, VR::DT, b"20051231235960");
         write_elem(
             &enc,
             &mut writer,

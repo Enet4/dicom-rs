@@ -4,8 +4,8 @@ use std::{marker::PhantomData, str::FromStr};
 
 use crate::DicomJson;
 use dicom_core::{
-    value::{InMemFragment, Value, C},
     DataDictionary, DataElement, PrimitiveValue, Tag, VR,
+    value::{C, InMemFragment, Value},
 };
 use dicom_object::InMemDicomObject;
 use serde::de::{Deserialize, DeserializeOwned, Error as _, Visitor};
@@ -419,7 +419,7 @@ impl<'de> Deserialize<'de> for DicomJson<Tag> {
 #[cfg(test)]
 mod tests {
     use super::from_str;
-    use dicom_core::{dicom_value, DataElement, Tag, VR};
+    use dicom_core::{DataElement, Tag, VR, dicom_value};
     use dicom_object::InMemDicomObject;
     use num_traits::Float;
 
@@ -427,10 +427,12 @@ mod tests {
     /// It needs a special comparison for NAN values since assert_eq will not match.
     fn assert_float_slice_eq<T: Float>(actual: &[T], expected: &[T]) {
         assert_eq!(actual.len(), expected.len());
-        assert!(actual
-            .iter()
-            .zip(actual.iter())
-            .all(|(&a, &b)| (a == b) || (a.is_nan() && b.is_nan())));
+        assert!(
+            actual
+                .iter()
+                .zip(actual.iter())
+                .all(|(&a, &b)| (a == b) || (a.is_nan() && b.is_nan()))
+        );
     }
 
     #[test]

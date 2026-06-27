@@ -125,11 +125,11 @@ use attribute::VoiLut;
 use byteorder::{ByteOrder, NativeEndian};
 #[cfg(not(feature = "gdcm"))]
 use dicom_core::{DataDictionary, DicomValue};
+#[cfg(not(feature = "gdcm"))]
+use dicom_encoding::Codec;
 use dicom_encoding::adapters::DecodeError;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-#[cfg(not(feature = "gdcm"))]
-use dicom_encoding::Codec;
 #[cfg(not(feature = "gdcm"))]
 use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
@@ -143,10 +143,10 @@ use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
-#[cfg(not(feature = "gdcm"))]
-use snafu::ensure;
 #[cfg(any(not(feature = "gdcm"), feature = "image"))]
 use snafu::OptionExt;
+#[cfg(not(feature = "gdcm"))]
+use snafu::ensure;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
 #[cfg(not(feature = "gdcm"))]
@@ -251,25 +251,33 @@ enum InnerError {
         frame_number: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    #[snafu(display(
+        "Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"
+    ))]
     LengthMismatchVoiLutFunction {
         vm: u32,
         nr_frames: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"))]
+    #[snafu(display(
+        "Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"
+    ))]
     LengthMismatchRescale {
         intercept_vm: u32,
         slope_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"))]
+    #[snafu(display(
+        "Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"
+    ))]
     LengthMismatchWindowLevel {
         wc_vm: u32,
         ww_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    #[snafu(display(
+        "Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"
+    ))]
     LengthMismatchVoiLut {
         vm: u32,
         nr_frames: u32,
@@ -659,7 +667,11 @@ impl DecodedPixelData<'_> {
                         }
                         .fail()?
                     }
-                    tracing::warn!("Expected `{:?}` rescale parameters, found `{:?}`, using first value for all", self.number_of_frames, len);
+                    tracing::warn!(
+                        "Expected `{:?}` rescale parameters, found `{:?}`, using first value for all",
+                        self.number_of_frames,
+                        len
+                    );
                     Ok(&self.rescale[0..1])
                 }
             }
@@ -684,7 +696,11 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        tracing::warn!("Expected `{:?}` VOI LUT functions, found `{:?}`, using first value for all", self.number_of_frames, len);
+                        tracing::warn!(
+                            "Expected `{:?}` VOI LUT functions, found `{:?}`, using first value for all",
+                            self.number_of_frames,
+                            len
+                        );
                         Ok(Some(&inner[0..1]))
                     }
                 }
@@ -711,7 +727,11 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        tracing::warn!("Expected `{:?}` Window Levels, found `{:?}`, using first value for all", self.number_of_frames, len);
+                        tracing::warn!(
+                            "Expected `{:?}` Window Levels, found `{:?}`, using first value for all",
+                            self.number_of_frames,
+                            len
+                        );
                         Ok(Some(&inner[0..1]))
                     }
                 }

@@ -12,7 +12,10 @@ use std::ops::RangeInclusive;
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
-    #[snafu(display("To combine a DicomDate with a DicomTime value, the DicomDate has to be precise. Precision is: '{:?}'", value))]
+    #[snafu(display(
+        "To combine a DicomDate with a DicomTime value, the DicomDate has to be precise. Precision is: '{:?}'",
+        value
+    ))]
     DateTimeFromPartials {
         value: DateComponent,
         backtrace: Backtrace,
@@ -1219,12 +1222,16 @@ mod tests {
             DicomTime(DicomTimeImpl::Hour(1))
         );
         // cheap precision checks
-        assert!(DicomTime::from_hms_micro(9, 1, 1, 123456)
-            .unwrap()
-            .is_precise());
-        assert!(!DicomTime::from_hms_milli(9, 1, 1, 123)
-            .unwrap()
-            .is_precise());
+        assert!(
+            DicomTime::from_hms_micro(9, 1, 1, 123456)
+                .unwrap()
+                .is_precise()
+        );
+        assert!(
+            !DicomTime::from_hms_milli(9, 1, 1, 123)
+                .unwrap()
+                .is_precise()
+        );
 
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 123)
@@ -1256,9 +1263,11 @@ mod tests {
             NaiveTime::from_hms_micro_opt(9, 1, 1, /* 00 */ 2999).unwrap()
         );
 
-        assert!(DicomTime::from_hms_micro(9, 1, 1, 123456)
-            .unwrap()
-            .is_precise());
+        assert!(
+            DicomTime::from_hms_micro(9, 1, 1, 123456)
+                .unwrap()
+                .is_precise()
+        );
 
         assert_eq!(
             DicomTime::from_hms_milli(9, 1, 1, 1).unwrap(),
@@ -1700,18 +1709,22 @@ mod tests {
         ));
 
         // simple precision checks
-        assert!(!DicomDateTime::from_date_and_time(
-            DicomDate::from_ymd(2000, 1, 1).unwrap(),
-            DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
-        )
-        .unwrap()
-        .is_precise());
+        assert!(
+            !DicomDateTime::from_date_and_time(
+                DicomDate::from_ymd(2000, 1, 1).unwrap(),
+                DicomTime::from_hms_milli(23, 59, 59, 10).unwrap()
+            )
+            .unwrap()
+            .is_precise()
+        );
 
-        assert!(DicomDateTime::from_date_and_time(
-            DicomDate::from_ymd(2000, 1, 1).unwrap(),
-            DicomTime::from_hms_micro(23, 59, 59, 654_321).unwrap()
-        )
-        .unwrap()
-        .is_precise());
+        assert!(
+            DicomDateTime::from_date_and_time(
+                DicomDate::from_ymd(2000, 1, 1).unwrap(),
+                DicomTime::from_hms_micro(23, 59, 59, 654_321).unwrap()
+            )
+            .unwrap()
+            .is_precise()
+        );
     }
 }

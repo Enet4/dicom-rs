@@ -6,8 +6,8 @@ mod adapters;
 use adapters::TestDataObject;
 use dicom_core::value::PixelFragmentSequence;
 use dicom_encoding::{
-    adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
     Codec,
+    adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
 };
 use dicom_transfer_syntax_registry::entries::DEFLATED_IMAGE_FRAME_COMPRESSION;
 
@@ -64,7 +64,9 @@ fn write_and_read_deflated_frames() {
 
     // fetch adapters for Deflated Image Frame Compression
 
-    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) = DEFLATED_IMAGE_FRAME_COMPRESSION.codec() else {
+    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) =
+        DEFLATED_IMAGE_FRAME_COMPRESSION.codec()
+    else {
         panic!("Deflated Image Frame Compression pixel data adapters not found")
     };
 

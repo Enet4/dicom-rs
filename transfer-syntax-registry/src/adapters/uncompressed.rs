@@ -1,13 +1,13 @@
 //! Support for encapsulated uncompressed via pixel data adapter.
 
 use dicom_core::{
-    ops::{AttributeAction, AttributeOp},
     PrimitiveValue, Tag,
+    ops::{AttributeAction, AttributeOp},
 };
 use dicom_encoding::{
     adapters::{
-        decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
-        PixelDataReader, PixelDataWriter,
+        DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader,
+        PixelDataWriter, decode_error, encode_error,
     },
     snafu::OptionExt,
 };

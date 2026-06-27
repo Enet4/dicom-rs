@@ -2,11 +2,11 @@
 
 use std::str::FromStr;
 
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu, ensure};
 
 use crate::{
-    ops::{AttributeSelector, AttributeSelectorStep},
     Tag, VR,
+    ops::{AttributeSelector, AttributeSelectorStep},
 };
 
 /// Specification of a range of tags pertaining to an attribute.

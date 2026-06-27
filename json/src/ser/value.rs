@@ -1,8 +1,8 @@
 //! DICOM value serialization
 
 use dicom_core::PrimitiveValue;
-use serde::ser::SerializeSeq;
 use serde::Serialize;
+use serde::ser::SerializeSeq;
 
 use crate::{INFINITY, NAN, NEG_INFINITY};
 
@@ -210,8 +210,8 @@ mod tests {
     use dicom_core::dicom_value;
     use dicom_core::value::DicomDate;
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use serde_json::Value;
+    use serde_json::json;
 
     use super::*;
 

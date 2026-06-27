@@ -1,12 +1,13 @@
 //! Support for deflated image frame compression via pixel data adapter.
 
 use dicom_core::{
-    ops::{AttributeAction, AttributeOp},
     PrimitiveValue, Tag,
+    ops::{AttributeAction, AttributeOp},
 };
 use dicom_encoding::{
     adapters::{
-        DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader, PixelDataWriter, decode_error, encode_error
+        DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader,
+        PixelDataWriter, decode_error, encode_error,
     },
     snafu::{OptionExt, ResultExt},
 };
@@ -31,15 +32,12 @@ impl PixelDataReader for DeflatedImageFrameAdapter {
 
         // set up decoder with the first frame
         let mut it = pixeldata.fragments.iter();
-        let mut decoder = DeflateDecoder::new(
-            &it.next().expect("fragments should not be empty")[..]
-        );
-        std::io::copy(&mut decoder, dst)
-            .whatever_context("failed to deflate frame")?;
+        let mut decoder =
+            DeflateDecoder::new(&it.next().expect("fragments should not be empty")[..]);
+        std::io::copy(&mut decoder, dst).whatever_context("failed to deflate frame")?;
         for fragment in it {
             decoder.reset(&fragment[..]);
-            std::io::copy(&mut decoder, dst)
-                .whatever_context("failed to deflate frame")?;
+            std::io::copy(&mut decoder, dst).whatever_context("failed to deflate frame")?;
         }
 
         Ok(())
@@ -51,7 +49,6 @@ impl PixelDataReader for DeflatedImageFrameAdapter {
         frame: u32,
         dst: &mut Vec<u8>,
     ) -> DecodeResult<()> {
-
         // just copy the specific fragment into the output vector
         let pixeldata = src
             .raw_pixel_data()
@@ -63,8 +60,7 @@ impl PixelDataReader for DeflatedImageFrameAdapter {
             .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
 
         let mut decoder = DeflateDecoder::new(&fragment[..]);
-        std::io::copy(&mut decoder, dst)
-            .whatever_context("failed to deflate frame")?;
+        std::io::copy(&mut decoder, dst).whatever_context("failed to deflate frame")?;
 
         Ok(())
     }
@@ -121,9 +117,11 @@ impl PixelDataWriter for DeflatedImageFrameAdapter {
             Some(e) => Compression::new((e.min(100) / 11) as u32),
         };
         let mut encoder = DeflateEncoder::new(&mut *dst, compression);
-        encoder.write_all(frame_data)
+        encoder
+            .write_all(frame_data)
             .whatever_context("failed to encode deflated data")?;
-        encoder.finish()
+        encoder
+            .finish()
             .whatever_context("failed to finish deflated data encoding")?;
 
         if dst.len() % 2 == 1 {

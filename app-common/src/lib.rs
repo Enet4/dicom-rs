@@ -1,12 +1,16 @@
 use clap::Args;
 #[cfg(feature = "tls")]
-use rustls::{ClientConfig, ServerConfig, SupportedProtocolVersion, pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer, pem::PemObject}, server::WebPkiClientVerifier};
-#[cfg(feature = "tls")]
-use tracing::debug;
+use rustls::{
+    ClientConfig, ServerConfig, SupportedProtocolVersion,
+    pki_types::{CertificateDer, CertificateRevocationListDer, PrivateKeyDer, pem::PemObject},
+    server::WebPkiClientVerifier,
+};
+use snafu::prelude::*;
 use std::path::PathBuf;
 #[cfg(feature = "tls")]
 use std::sync::Arc;
-use snafu::prelude::*;
+#[cfg(feature = "tls")]
+use tracing::debug;
 
 #[derive(Snafu, Debug)]
 pub enum MissingPemObject {
@@ -22,22 +26,18 @@ pub enum MissingPemObject {
 pub enum TlsError {
     #[cfg(feature = "tls")]
     #[snafu(display("PEM parse error in path: {}", path.as_ref().map(|p| p.display().to_string()).unwrap_or("unknown".into())))]
-    ParsePem { 
+    ParsePem {
         source: rustls::pki_types::pem::Error,
         path: Option<PathBuf>,
     },
 
     /// Could not set up protocol versions
     #[cfg(feature = "tls")]
-    SetProtocolVersions {
-        source: rustls::Error,
-    },
+    SetProtocolVersions { source: rustls::Error },
 
     /// Could not set certificate
     #[cfg(feature = "tls")]
-    SetCertificate {
-        source: rustls::Error,
-    },
+    SetCertificate { source: rustls::Error },
 
     #[cfg(feature = "tls")]
     #[snafu(display("Could not build certificate verifier"))]
@@ -120,7 +120,7 @@ impl Default for TlsOptions {
             add_certs: None,
             add_crls: None,
             system_roots: false,
-            peer_cert: PeerCertOption::Ignore
+            peer_cert: PeerCertOption::Ignore,
         }
     }
 }
@@ -136,7 +136,7 @@ pub struct TlsAcceptorOptions {
 
 /// Crypto provider options
 ///
-/// See rustls 
+/// See rustls
 /// [Cryptograpy providers](https://docs.rs/rustls/latest/rustls/#cryptography-providers)
 /// for more details
 ///
@@ -150,9 +150,9 @@ pub enum CryptoProvider {
 }
 
 /// TLS protocol version options
-/// 
-/// Subset of rustls 
-/// [`ProtocolVersion`](https://docs.rs/rustls/latest/rustls/enum.ProtocolVersion.html#variants) 
+///
+/// Subset of rustls
+/// [`ProtocolVersion`](https://docs.rs/rustls/latest/rustls/enum.ProtocolVersion.html#variants)
 /// supported
 #[derive(clap::ValueEnum, Clone, Debug)]
 #[non_exhaustive]
@@ -177,7 +177,8 @@ pub enum PeerCertOption {
 /// Show the supported cipher suites for the default crypto provider
 #[cfg(feature = "tls")]
 pub fn show_cipher_suites() {
-    let provider = rustls::crypto::CryptoProvider::get_default().expect("No default crypto provider found");
+    let provider =
+        rustls::crypto::CryptoProvider::get_default().expect("No default crypto provider found");
     println!("Supported cipher suites: ");
     for suite in &provider.cipher_suites {
         println!("{:?}", suite.suite());
@@ -200,17 +201,20 @@ impl TlsOptions {
         // Load system roots unless disabled
         if self.system_roots {
             let system_roots = rustls_native_certs::load_native_certs();
-            debug!("Adding {} native certificates from system", system_roots.certs.len()); 
+            debug!(
+                "Adding {} native certificates from system",
+                system_roots.certs.len()
+            );
             root_store.add_parsable_certificates(system_roots.certs);
         } else {
             debug!("Not adding native certificates");
         }
         // Add any extra certs
-        if let Some(certs) = &self.add_certs{
+        if let Some(certs) = &self.add_certs {
             let mut loaded_certs = Vec::new();
             for path in certs {
                 let cert = CertificateDer::from_pem_file(path)
-                    .with_context(|_| ParsePemSnafu{path: path.clone()})?;
+                    .with_context(|_| ParsePemSnafu { path: path.clone() })?;
                 loaded_certs.push(cert);
             }
             root_store.add_parsable_certificates(loaded_certs);
@@ -224,9 +228,9 @@ impl TlsOptions {
         match self.cert.as_ref() {
             Some(path) => {
                 let certs = CertificateDer::pem_file_iter(path)
-                    .with_context(|_| ParsePemSnafu{path: path.clone()})?
+                    .with_context(|_| ParsePemSnafu { path: path.clone() })?
                     .collect::<Result<Vec<_>, _>>()
-                    .with_context(|_| ParsePemSnafu{path: path.clone()})?;
+                    .with_context(|_| ParsePemSnafu { path: path.clone() })?;
                 Ok(Some(certs))
             }
             None => Ok(None),
@@ -240,7 +244,7 @@ impl TlsOptions {
                 let mut loaded_crls = Vec::new();
                 for path in crls {
                     let crl = CertificateRevocationListDer::from_pem_file(path)
-                        .with_context(|_| ParsePemSnafu{path: path.clone()})?;
+                        .with_context(|_| ParsePemSnafu { path: path.clone() })?;
                     loaded_crls.push(crl);
                 }
                 Ok(Some(loaded_crls))
@@ -251,10 +255,13 @@ impl TlsOptions {
 
     /// Map selected protocol versions to rustls types
     fn protocol_versions(&self) -> Vec<&'static SupportedProtocolVersion> {
-        self.protocol_versions.iter().map(|v| match v {
-            TlsProtocolVersion::TLS1_2 => &rustls::version::TLS12,
-            TlsProtocolVersion::TLS1_3 => &rustls::version::TLS13,
-        }).collect()
+        self.protocol_versions
+            .iter()
+            .map(|v| match v {
+                TlsProtocolVersion::TLS1_2 => &rustls::version::TLS12,
+                TlsProtocolVersion::TLS1_3 => &rustls::version::TLS13,
+            })
+            .collect()
     }
 
     /// Consume the options to create a client config
@@ -270,10 +277,13 @@ impl TlsOptions {
             .context(SetProtocolVersionsSnafu)?;
 
         let builder = if self.peer_cert == PeerCertOption::Ignore {
-            tracing::warn!("It is dangerous to skip server peer certificate verification. Prefer registering trusted certificates instead.");
+            tracing::warn!(
+                "It is dangerous to skip server peer certificate verification. Prefer registering trusted certificates instead."
+            );
 
             builder
-                .dangerous().with_custom_certificate_verifier(SkipServerCertVerification::new())
+                .dangerous()
+                .with_custom_certificate_verifier(SkipServerCertVerification::new())
         } else {
             builder.with_root_certificates(self.root_cert_store()?)
         };
@@ -282,14 +292,16 @@ impl TlsOptions {
             (Some(certs), Some(key)) => {
                 debug!("Using client certificate authentication");
                 let key = PrivateKeyDer::from_pem_file(key)
-                    .with_context(|_| ParsePemSnafu{path: key.clone()})?;
-                let config = builder.with_client_auth_cert(certs, key)
+                    .with_context(|_| ParsePemSnafu { path: key.clone() })?;
+                let config = builder
+                    .with_client_auth_cert(certs, key)
                     .context(SetCertificateSnafu)?;
                 Ok(config)
             }
-            (Some(_), None) => {
-                ConfigSnafu{ missing: MissingPemObject::PrivateKey }.fail()
+            (Some(_), None) => ConfigSnafu {
+                missing: MissingPemObject::PrivateKey,
             }
+            .fail(),
             (None, _) => {
                 let config = builder.with_no_client_auth();
                 debug!("Using client without certificate authentication");
@@ -299,7 +311,10 @@ impl TlsOptions {
     }
 
     /// Consume the options to create a server config
-    pub fn server_config(&self, acceptor_options: &TlsAcceptorOptions) -> Result<ServerConfig, TlsError> {
+    pub fn server_config(
+        &self,
+        acceptor_options: &TlsAcceptorOptions,
+    ) -> Result<ServerConfig, TlsError> {
         // Get the crypto provider
         let provider = match self.crypto_provider {
             CryptoProvider::AwsLC => Arc::new(rustls::crypto::aws_lc_rs::default_provider()),
@@ -311,7 +326,8 @@ impl TlsOptions {
             builder.with_no_client_auth()
         } else {
             let mut cert_verifier = WebPkiClientVerifier::builder_with_provider(
-                self.root_cert_store()?.into(), provider
+                self.root_cert_store()?.into(),
+                provider,
             );
             if let Some(crl_paths) = self.crls()? {
                 cert_verifier = cert_verifier.with_crls(crl_paths);
@@ -320,7 +336,8 @@ impl TlsOptions {
                 debug!("Allowing unauthenticated clients");
                 cert_verifier = cert_verifier.allow_unauthenticated();
             }
-            let cert_verifier = cert_verifier.build()
+            let cert_verifier = cert_verifier
+                .build()
                 .context(BuildCertificateVerifierSnafu)?;
             builder.with_client_cert_verifier(cert_verifier)
         };
@@ -328,16 +345,19 @@ impl TlsOptions {
             (Some(certs), Some(key)) => {
                 let key = PrivateKeyDer::from_pem_file(key)
                     .with_context(|_| ParsePemSnafu { path: key.clone() })?;
-                let config = builder.with_single_cert(certs, key)
+                let config = builder
+                    .with_single_cert(certs, key)
                     .context(SetCertificateSnafu)?;
                 Ok(config)
             }
-            (Some(_), None) => {
-                ConfigSnafu{ missing: MissingPemObject::PrivateKey }.fail()
+            (Some(_), None) => ConfigSnafu {
+                missing: MissingPemObject::PrivateKey,
             }
-            (None, _) => {
-                ConfigSnafu{ missing: MissingPemObject::Certificate }.fail()
+            .fail(),
+            (None, _) => ConfigSnafu {
+                missing: MissingPemObject::Certificate,
             }
+            .fail(),
         }
     }
 }

@@ -1,14 +1,15 @@
 use std::{
-    net::{Ipv4Addr, SocketAddrV4}, path::PathBuf
+    net::{Ipv4Addr, SocketAddrV4},
+    path::PathBuf,
 };
 
-use dicom_app_common::{TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
-use dicom_core::{dicom_value, DataElement, VR};
+use dicom_app_common::{TlsAcceptorOptions, TlsOptions};
+use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, StandardDataDictionary};
 use snafu::{Report, ResultExt, Whatever};
-use tracing::{error, info, Level};
+use tracing::{Level, error, info};
 
 mod store_async;
 mod store_sync;
@@ -115,8 +116,24 @@ fn main() {
             .with_max_level(Level::INFO)
             .with_env_filter(
                 EnvFilter::from_default_env()
-                    .add_directive(if app.verbose { "dicom_app_common=debug" } else { "dicom_app_common=info" }.parse().unwrap() )
-                    .add_directive(if app.verbose { "dicom_storescp=debug" } else { "dicom_storescp=info" }.parse().unwrap())
+                    .add_directive(
+                        if app.verbose {
+                            "dicom_app_common=debug"
+                        } else {
+                            "dicom_app_common=info"
+                        }
+                        .parse()
+                        .unwrap(),
+                    )
+                    .add_directive(
+                        if app.verbose {
+                            "dicom_storescp=debug"
+                        } else {
+                            "dicom_storescp=info"
+                        }
+                        .parse()
+                        .unwrap(),
+                    ),
             )
             .finish(),
     )

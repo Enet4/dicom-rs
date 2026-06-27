@@ -17,11 +17,11 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use dicom_core::{
-    value::{PixelFragmentSequence, PrimitiveValue},
     DataElement, DicomValue, VR,
+    value::{PixelFragmentSequence, PrimitiveValue},
 };
 use dicom_dictionary_std::tags;
-use dicom_object::{open_file, DefaultDicomObject, FileMetaTableBuilder};
+use dicom_object::{DefaultDicomObject, FileMetaTableBuilder, open_file};
 use image::DynamicImage;
 
 type Result<T, E = snafu::Whatever> = std::result::Result<T, E>;

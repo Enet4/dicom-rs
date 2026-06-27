@@ -34,12 +34,12 @@
 //! ```
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
+use dicom_core::VR;
 #[cfg(feature = "sop-class")]
 use dicom_core::dictionary::UidDictionary;
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::Header;
 use dicom_core::value::{PrimitiveValue, Value as DicomValue};
-use dicom_core::VR;
 #[cfg(feature = "sop-class")]
 use dicom_dictionary_std::StandardSopClassDictionary;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -50,7 +50,7 @@ use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use owo_colors::*;
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};
-use std::io::{stdout, Result as IoResult, Write};
+use std::io::{Result as IoResult, Write, stdout};
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -971,7 +971,7 @@ fn determine_width(user_width: Option<u32>) -> u32 {
 #[cfg(test)]
 mod tests {
 
-    use dicom_core::{value::DicomDate, DataElement, PrimitiveValue, VR};
+    use dicom_core::{DataElement, PrimitiveValue, VR, value::DicomDate};
     use dicom_dictionary_std::tags;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 

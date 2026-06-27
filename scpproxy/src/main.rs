@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use clap::{crate_version, value_parser, Arg, ArgAction, Command};
+use clap::{Arg, ArgAction, Command, crate_version, value_parser};
 use dicom_ul::association::read_pdu_from_wire;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::{Pdu, UserVariableItem};

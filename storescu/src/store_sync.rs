@@ -1,20 +1,22 @@
-use std::{
-    io::{stderr, Write},
-};
+use std::io::{Write, stderr};
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::TransferSyntaxIndex;
-use dicom_object::{open_file, InMemDicomObject};
+use dicom_object::{InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
-    ClientAssociation, Pdu, association::CloseSocket, pdu::{PDataValue, PDataValueType}
+    ClientAssociation, Pdu,
+    association::CloseSocket,
+    pdu::{PDataValue, PDataValueType},
 };
 use indicatif::ProgressBar;
 use snafu::{OptionExt, Report, ResultExt};
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu, ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu, WriteDatasetSnafu, WriteIOSnafu, check_presentation_contexts, into_ts, store_req_command
+    ConvertFieldSnafu, CreateCommandSnafu, DicomFile, Error, MissingAttributeSnafu,
+    ReadDatasetSnafu, ReadFilePathSnafu, ScuSnafu, UnsupportedFileTransferSyntaxSnafu,
+    WriteDatasetSnafu, WriteIOSnafu, check_presentation_contexts, into_ts, store_req_command,
 };
 
 pub fn send_file<T>(
@@ -24,8 +26,10 @@ pub fn send_file<T>(
     progress_bar: Option<&ProgressBar>,
     verbose: bool,
     fail_first: bool,
-) -> Result<ClientAssociation<T>, Error> 
-where T: std::io::Read + std::io::Write + CloseSocket{
+) -> Result<ClientAssociation<T>, Error>
+where
+    T: std::io::Read + std::io::Write + CloseSocket,
+{
     if let (Some(pc_selected), Some(ts_uid_selected)) = (file.pc_selected, file.ts_selected) {
         if let Some(pb) = &progress_bar {
             pb.set_message(file.sop_instance_uid.clone());
@@ -201,7 +205,6 @@ where T: std::io::Read + std::io::Write + CloseSocket{
     Ok(scu)
 }
 
-
 pub fn inner<T>(
     mut scu: ClientAssociation<T>,
     d_files: Vec<DicomFile>,
@@ -211,11 +214,17 @@ pub fn inner<T>(
     never_transcode: bool,
     ignore_sop_class: bool,
 ) -> Result<(), Error>
-where T: std::io::Read + std::io::Write + CloseSocket{
+where
+    T: std::io::Read + std::io::Write + CloseSocket,
+{
     for (message_id, mut file) in (1..).zip(d_files) {
         // identify the right transfer syntax to use
-        let r: Result<_, Error> =
-            check_presentation_contexts(&file, scu.presentation_contexts(), ignore_sop_class, never_transcode);
+        let r: Result<_, Error> = check_presentation_contexts(
+            &file,
+            scu.presentation_contexts(),
+            ignore_sop_class,
+            never_transcode,
+        );
         match r {
             Ok((pc, ts)) => {
                 if verbose {
@@ -236,14 +245,7 @@ where T: std::io::Read + std::io::Write + CloseSocket{
                 }
             }
         }
-        scu = send_file(
-            scu,
-            file,
-            message_id,
-            pbx.as_ref(),
-            verbose,
-            fail_first,
-        )?;
+        scu = send_file(scu, file, message_id, pbx.as_ref(), verbose, fail_first)?;
     }
     scu.release().map_err(Box::from).context(ScuSnafu)?;
     if let Some(pb) = pbx {

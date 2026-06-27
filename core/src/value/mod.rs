@@ -1319,10 +1319,9 @@ mod tests {
         ));
 
         assert_eq!(
-            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
-                2014, 10, 12
-            )
-            .unwrap()]))
+            Value::new(PrimitiveValue::Date(smallvec![
+                DicomDate::from_ymd(2014, 10, 12).unwrap()
+            ]))
             .date()
             .ok(),
             Some(DicomDate::from_ymd(2014, 10, 12).unwrap()),
@@ -1338,10 +1337,9 @@ mod tests {
         );
 
         assert!(matches!(
-            Value::new(PrimitiveValue::Date(smallvec![DicomDate::from_ymd(
-                2014, 10, 12
-            )
-            .unwrap()]))
+            Value::new(PrimitiveValue::Date(smallvec![
+                DicomDate::from_ymd(2014, 10, 12).unwrap()
+            ]))
             .time(),
             Err(CastValueError {
                 requested: "time",

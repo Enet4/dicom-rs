@@ -110,27 +110,27 @@ use std::{
 };
 
 use dicom_core::{
-    header::HasLength,
-    value::{PixelFragmentSequence, C},
     DataDictionary, DataElement, DicomValue, Length, Tag, VR,
+    header::HasLength,
+    value::{C, PixelFragmentSequence},
 };
-use dicom_dictionary_std::{tags, StandardDataDictionary};
-use dicom_encoding::{decode::DecodeFrom, TransferSyntaxIndex};
+use dicom_dictionary_std::{StandardDataDictionary, tags};
+use dicom_encoding::{TransferSyntaxIndex, decode::DecodeFrom};
 use dicom_parser::{
-    dataset::{
-        lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
-        DataToken, LazyDataToken,
-    },
     DynStatefulDecoder, StatefulDecode, StatefulDecoder,
+    dataset::{
+        DataToken, LazyDataToken,
+        lazy_read::{LazyDataSetReader, LazyDataSetReaderOptions},
+    },
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
-use snafu::prelude::*;
 use snafu::Backtrace;
+use snafu::prelude::*;
 
 use crate::{
+    FileMetaTable, InMemDicomObject,
     file::ReadPreamble,
     mem::{InMemElement, InMemFragment},
-    FileMetaTable, InMemDicomObject,
 };
 
 // re-export parsing options in public API
@@ -794,7 +794,15 @@ where
             self.source.parser()
         };
 
-        Self::collect_to_object(&mut self.state, parser, false, None, None, to, &self.dictionary)
+        Self::collect_to_object(
+            &mut self.state,
+            parser,
+            false,
+            None,
+            None,
+            to,
+            &self.dictionary,
+        )
     }
 
     /// Read a DICOM data set until it reaches the given stop tag
@@ -1074,7 +1082,15 @@ where
         dict: &D,
     ) -> Result<()> {
         let mut elements = Vec::new();
-        Self::collect_elements(state, token_src, in_item, read_until, read_to, &mut elements, dict)?;
+        Self::collect_elements(
+            state,
+            token_src,
+            in_item,
+            read_until,
+            read_to,
+            &mut elements,
+            dict,
+        )?;
         to.extend(elements);
         Ok(())
     }
@@ -1102,10 +1118,7 @@ where
                         break;
                     }
                     // stop reading if exceeded `read_to` tag (inclusive)
-                    if read_to
-                        .map(|t| t < Tag(0x7fe0, 0x0010))
-                        .unwrap_or(false)
-                    {
+                    if read_to.map(|t| t < Tag(0x7fe0, 0x0010)).unwrap_or(false) {
                         break;
                     }
                     *state = CollectorState::InPixelData;
@@ -1187,7 +1200,7 @@ where
                         token: token.clone(),
                     }
                     .fail()
-                    .map_err(From::from)
+                    .map_err(From::from);
                 }
             };
             to.push(elem);
@@ -1292,15 +1305,15 @@ where
 mod tests {
     use std::io::{BufReader, Write};
 
-    use dicom_core::{prelude::*, value::DataSetSequence, PrimitiveValue};
-    use dicom_dictionary_std::{tags, uids, StandardDataDictionary};
+    use dicom_core::{PrimitiveValue, prelude::*, value::DataSetSequence};
+    use dicom_dictionary_std::{StandardDataDictionary, tags, uids};
     use dicom_encoding::TransferSyntaxIndex;
     use dicom_parser::dataset::read::OddLengthStrategy;
     use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 
     use crate::{
-        file::ReadPreamble, DicomCollectorOptions, FileMetaTable, FileMetaTableBuilder,
-        InMemDicomObject,
+        DicomCollectorOptions, FileMetaTable, FileMetaTableBuilder, InMemDicomObject,
+        file::ReadPreamble,
     };
 
     use super::DicomCollector;
@@ -1777,10 +1790,12 @@ mod tests {
         assert_eq!(&fragment[664 + 659..], &[0x00, 0x9D, 0x00, 0x9D, 0x00]);
 
         // no more fragments
-        assert!(collector
-            .read_next_fragment(&mut fragment)
-            .expect("attempt to read the next fragment should not have failed")
-            .is_none());
+        assert!(
+            collector
+                .read_next_fragment(&mut fragment)
+                .expect("attempt to read the next fragment should not have failed")
+                .is_none()
+        );
     }
 
     // test loading portions of a DICOM in steps with the collector API

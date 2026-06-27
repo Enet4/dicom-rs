@@ -3,12 +3,12 @@
 //! The [`StatefulEncoder`] supports encoding of binary data and text
 //! while applying the necessary padding to conform to DICOM encoding rules.
 
-use dicom_core::{value::PrimitiveValue, DataElementHeader, Length, Tag, VR};
+use dicom_core::{DataElementHeader, Length, Tag, VR, value::PrimitiveValue};
 use dicom_encoding::transfer_syntax::DynEncoder;
 use dicom_encoding::{
+    TransferSyntax,
     encode::EncodeTo,
     text::{DefaultCharacterSetCodec, SpecificCharacterSet, TextCodec},
-    TransferSyntax,
 };
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::Write;
@@ -429,11 +429,11 @@ fn even_len(l: u32) -> u32 {
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, value::DicomTime, DataElement, DataElementHeader, DicomValue, Length,
-        PrimitiveValue, Tag, VR,
+        DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR, dicom_value,
+        value::DicomTime,
     };
     use dicom_encoding::{
-        encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor},
+        encode::{EncoderFor, explicit_le::ExplicitVRLittleEndianEncoder},
         text::{SpecificCharacterSet, TextCodec},
     };
 

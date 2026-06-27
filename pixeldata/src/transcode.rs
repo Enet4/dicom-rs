@@ -9,13 +9,13 @@
 use std::borrow::Cow;
 
 use dicom_core::{
-    ops::ApplyOp, value::PixelFragmentSequence, DataDictionary, DataElement, Length,
-    PrimitiveValue, VR,
+    DataDictionary, DataElement, Length, PrimitiveValue, VR, ops::ApplyOp,
+    value::PixelFragmentSequence,
 };
 use dicom_dictionary_std::{tags, uids};
-use dicom_encoding::{adapters::EncodeOptions, Codec, TransferSyntax, TransferSyntaxIndex};
+use dicom_encoding::{Codec, TransferSyntax, TransferSyntaxIndex, adapters::EncodeOptions};
 use dicom_object::{FileDicomObject, InMemDicomObject};
-use dicom_transfer_syntax_registry::{entries::EXPLICIT_VR_LITTLE_ENDIAN, TransferSyntaxRegistry};
+use dicom_transfer_syntax_registry::{TransferSyntaxRegistry, entries::EXPLICIT_VR_LITTLE_ENDIAN};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::PixelDecoder;
@@ -90,7 +90,7 @@ pub trait Transcode {
     /// the object may be left in an intermediate state,
     /// which should not be assumed to be consistent.
     fn transcode_with_options(&mut self, ts: &TransferSyntax, options: EncodeOptions)
-        -> Result<()>;
+    -> Result<()>;
 
     /// Convert the receiving object's transfer syntax
     /// to the one specified in `ts`.
@@ -161,7 +161,7 @@ where
                 let writer = match ts.codec() {
                     Codec::EncapsulatedPixelData(_, Some(writer)) => writer,
                     Codec::EncapsulatedPixelData(..) => {
-                        return UnsupportedTransferSyntaxSnafu.fail()?
+                        return UnsupportedTransferSyntaxSnafu.fail()?;
                     }
                     Codec::Dataset(None) => return UnsupportedTransferSyntaxSnafu.fail()?,
                     Codec::Dataset(Some(_)) => return UnsupportedTranscodingSnafu.fail()?,

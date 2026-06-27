@@ -5,7 +5,7 @@ use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, 
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
 use crate::value::deserialize::{
-    parse_date_partial, parse_datetime_partial, parse_time_partial, Error as DeserializeError,
+    Error as DeserializeError, parse_date_partial, parse_datetime_partial, parse_time_partial,
 };
 use crate::value::partial::{DicomDate, DicomDateTime, DicomTime, PreciseDateTime};
 
@@ -29,7 +29,9 @@ pub enum Error {
     NoRangeSeparator { backtrace: Backtrace },
     #[snafu(display("Date-time range can contain 1-3 '-' characters, {} were found", value))]
     SeparatorCount { value: usize, backtrace: Backtrace },
-    #[snafu(display("Converting a time-zone naive value '{naive}' to a time-zone '{offset}' leads to invalid date-time or ambiguous results."))]
+    #[snafu(display(
+        "Converting a time-zone naive value '{naive}' to a time-zone '{offset}' leads to invalid date-time or ambiguous results."
+    ))]
     InvalidDateTime {
         naive: NaiveDateTime,
         offset: FixedOffset,

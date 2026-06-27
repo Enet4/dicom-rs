@@ -4,11 +4,11 @@ use std::io::Write;
 
 use crate::DicomJson;
 use dicom_core::{
-    header::Header, value::PixelFragmentSequence, DicomValue, PrimitiveValue, Tag, VR,
+    DicomValue, PrimitiveValue, Tag, VR, header::Header, value::PixelFragmentSequence,
 };
 use dicom_dictionary_std::StandardDataDictionary;
-use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
-use serde::{ser::SerializeMap, Serialize, Serializer};
+use dicom_object::{DefaultDicomObject, InMemDicomObject, mem::InMemElement};
+use serde::{Serialize, Serializer, ser::SerializeMap};
 
 use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
@@ -319,8 +319,8 @@ impl Serialize for DicomJson<Tag> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use dicom_core::value::DataSetSequence;
     use dicom_core::Length;
+    use dicom_core::value::DataSetSequence;
     use dicom_core::{dicom_value, value::DicomDate};
     use dicom_dictionary_std::tags;
     use serde_json::json;

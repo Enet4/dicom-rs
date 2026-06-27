@@ -4,8 +4,8 @@ use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::{tags, uids};
 use dicom_dump::DumpOptions;
 use dicom_encoding::transfer_syntax;
-use dicom_object::{mem::InMemDicomObject, open_file, StandardDataDictionary};
-use dicom_transfer_syntax_registry::{entries, TransferSyntaxRegistry};
+use dicom_object::{StandardDataDictionary, mem::InMemDicomObject, open_file};
+use dicom_transfer_syntax_registry::{TransferSyntaxRegistry, entries};
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
     association::ClientAssociationOptions,
@@ -13,9 +13,9 @@ use dicom_ul::{
 };
 use query::parse_queries;
 use snafu::prelude::*;
-use std::io::{stderr, BufRead as _, Read};
+use std::io::{BufRead as _, Read, stderr};
 use std::path::PathBuf;
-use tracing::{debug, error, info, warn, Level};
+use tracing::{Level, debug, error, info, warn};
 use transfer_syntax::TransferSyntaxIndex;
 
 mod query;

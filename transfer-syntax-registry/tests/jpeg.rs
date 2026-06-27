@@ -12,8 +12,8 @@ use std::{
 use adapters::TestDataObject;
 use dicom_core::value::PixelFragmentSequence;
 use dicom_encoding::{
-    adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
     Codec,
+    adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
 };
 use dicom_transfer_syntax_registry::entries::JPEG_BASELINE;
 

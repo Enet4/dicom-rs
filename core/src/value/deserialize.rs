@@ -1,7 +1,7 @@
 //! Parsing of primitive values
 use crate::value::partial::{
-    check_component, DateComponent, DicomDate, DicomDateTime, DicomTime,
-    Error as PartialValuesError,
+    DateComponent, DicomDate, DicomDateTime, DicomTime, Error as PartialValuesError,
+    check_component,
 };
 use chrono::{FixedOffset, NaiveDate, NaiveTime};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};

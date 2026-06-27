@@ -5,7 +5,7 @@
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_A.html#table_A-1
 
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufWriter, Write},
     path::Path,
     str::FromStr,

@@ -433,14 +433,7 @@ mod tests {
         test_vr(&dec, &mut cursor, 0x0010, 0x0040, VR::CS, b"O ");
         test_vr(&dec, &mut cursor, 0x0010, 0x0030, VR::DA, b"19800101");
         test_vr(&dec, &mut cursor, 0x0010, 0x1020, VR::DS, b"1.70");
-        test_vr(
-            &dec,
-            &mut cursor,
-            0x0008,
-            0x0015,
-            VR::DT,
-            b"20051231235960",
-        );
+        test_vr(&dec, &mut cursor, 0x0008, 0x0015, VR::DT, b"20051231235960");
         test_vr(
             &dec,
             &mut cursor,

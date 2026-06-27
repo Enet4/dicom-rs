@@ -5,11 +5,12 @@
 #![cfg(feature = "inventory-registry")]
 
 use dicom_encoding::{
+    Codec, NeverAdapter, TransferSyntax, TransferSyntaxIndex,
     adapters::{
         DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader,
         PixelDataWriter,
     },
-    submit_transfer_syntax, Codec, NeverAdapter, TransferSyntax, TransferSyntaxIndex,
+    submit_transfer_syntax,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 

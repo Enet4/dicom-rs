@@ -1,6 +1,6 @@
 //! DICOM data element (tag) dictionary builder
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufRead, BufReader, BufWriter, Write},
     path::Path,
 };

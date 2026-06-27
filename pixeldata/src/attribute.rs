@@ -1,9 +1,9 @@
 //! Utility module for fetching key attributes from a DICOM object.
 
-use dicom_core::{header::HasLength, DataDictionary, Tag};
+use dicom_core::{DataDictionary, Tag, header::HasLength};
 use dicom_dictionary_std::tags;
-use dicom_object::{mem::InMemElement, FileDicomObject, InMemDicomObject};
-use snafu::{ensure, Backtrace, OptionExt, ResultExt, Snafu};
+use dicom_object::{FileDicomObject, InMemDicomObject, mem::InMemElement};
+use snafu::{Backtrace, OptionExt, ResultExt, Snafu, ensure};
 use std::fmt;
 
 /// An enum for a DICOM attribute which can be retrieved
@@ -311,8 +311,7 @@ pub fn number_of_frames<D: DataDictionary + Clone>(
 pub fn window_center<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Option<Vec<f64>> {
-    obj
-        .get(tags::WINDOW_CENTER)
+    obj.get(tags::WINDOW_CENTER)
         .and_then(|e| {
             vec![e.to_float64().ok()]
                 .into_iter()
@@ -332,8 +331,7 @@ pub fn window_center<D: DataDictionary + Clone>(
 pub fn window_width<D: DataDictionary + Clone>(
     obj: &FileDicomObject<InMemDicomObject<D>>,
 ) -> Option<Vec<f64>> {
-    obj
-        .get(tags::WINDOW_WIDTH)
+    obj.get(tags::WINDOW_WIDTH)
         .and_then(|e| {
             vec![e.to_float64().ok()]
                 .into_iter()
@@ -775,10 +773,9 @@ pub fn voi_lut_sequence<D: DataDictionary + Clone>(
 mod tests {
     use super::rescale_intercept;
     use dicom_core::{
-        dicom_value,
+        DataElement, PrimitiveValue, VR, dicom_value,
         ops::{ApplyOp, AttributeAction, AttributeOp},
         value::DataSetSequence,
-        DataElement, PrimitiveValue, VR,
     };
     use dicom_dictionary_std::{tags, uids};
     use dicom_object::{

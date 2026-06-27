@@ -28,6 +28,8 @@
 //! [OpenJPEG-rs]: https://crates.io/crates/openjp2
 //! [jxl-oxide]: https://crates.io/crates/jxl-oxide
 //! [zune-jpegxl]: https://crates.io/crates/zune-jpegxl
+#[cfg(feature = "deflate")]
+pub mod deflated;
 #[cfg(feature = "jpeg")]
 pub mod jpeg;
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
@@ -38,8 +40,6 @@ pub mod jpegls;
 pub mod jpegxl;
 #[cfg(feature = "rle")]
 pub mod rle_lossless;
-#[cfg(feature = "deflate")]
-pub mod deflated;
 
 pub mod uncompressed;
 
