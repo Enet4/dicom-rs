@@ -1,0 +1,37 @@
+[package]
+name = "dicom-parser-fuzz"
+version = "0.0.0"
+description = "Fuzz testing for the dicom-parser crate"
+authors = []
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.dicom-parser]
+path = ".."
+
+[dependencies.dicom-transfer-syntax-registry]
+path = "../../transfer-syntax-registry"
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "dataset_tokens"
+path = "fuzz_targets/dataset_tokens.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "lazy_dataset_tokens"
+path = "fuzz_targets/lazy_dataset_tokens.rs"
+test = false
+doc = false
+
+[profile.release]
+debug = true

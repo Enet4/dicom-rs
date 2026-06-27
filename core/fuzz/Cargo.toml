@@ -1,0 +1,28 @@
+[package]
+name = "dicom-core-fuzz"
+version = "0.0.0"
+description = "Fuzz testing for the dicom-core crate"
+authors = []
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.dicom-core]
+path = ".."
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "value_parse"
+path = "fuzz_targets/value_parse.rs"
+test = false
+doc = false
+
+[profile.release]
+debug = true
