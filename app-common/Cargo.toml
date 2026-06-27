@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Enet4/dicom-rs"
 readme = "README.md"
 keywords = ["dicom", "cli"]
-version = "0.9.0"
+version = "0.10.0"
 edition = "2024"
 
 [features]
