@@ -342,6 +342,12 @@ impl From<PersonName<'_>> for PrimitiveValue {
     }
 }
 
+impl From<Cow<'_, str>> for PrimitiveValue {
+    fn from(value: Cow<'_, str>) -> Self {
+        PrimitiveValue::Str(value.into_owned())
+    }
+}
+
 impl From<()> for PrimitiveValue {
     /// constructs an empty DICOM value
     #[inline]
@@ -756,6 +762,102 @@ impl PrimitiveValue {
             PrimitiveValue::F64(values) => Cow::Owned(seq_to_str(values)),
             PrimitiveValue::Tags(values) => Cow::Owned(seq_to_str(values)),
         }
+    }
+
+    /// Convert this primitive value into a text-based primitive value.
+    ///
+    /// This method consumes the original value and returns a `PrimitiveValue`
+    /// that represents the same data as text.
+    ///
+    /// # Behavior
+    ///
+    /// - All possible variants are converted to `PrimitiveValue::Str`
+    ///   using their string representation (via [`to_raw_str()`]):
+    ///   In the case of `Strs`,
+    ///   the strings are first joined together with a backslash ('\\').
+    ///   All other type variants are first converted to a string,
+    ///   then joined together with a backslash.
+    ///
+    /// # When to use `into_text_value()`
+    ///
+    /// You can use `into_text_value` to
+    /// turn an existing DICOM value into a textual DICOM value
+    /// stored in a single string underneath,
+    /// regardless of the value's original format.
+    /// It is also an alternative to converting each number into strings
+    /// before they are encased in `PrimitiveValue`.
+    ///
+    /// The methods [`to_str`] or [`to_multi_str`]
+    /// would be preferred when the intent is to
+    /// retrieve the underlying values as a string type.
+    ///
+    /// [`to_str`]: PrimitiveValue::to_str
+    /// [`to_multi_str`]: PrimitiveValue::to_multi_str
+    /// [`to_raw_str()`]: PrimitiveValue::to_raw_str
+    ///
+    /// # Examples
+    ///
+    /// Converting numeric values to text:
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// # use smallvec::smallvec;
+    /// let value = PrimitiveValue::U16(smallvec![100, 200, 300]);
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(
+    ///     text_value,
+    ///     PrimitiveValue::Str("100\\200\\300".to_string())
+    /// );
+    /// ```
+    ///
+    /// Converting dates to text:
+    ///
+    /// ```
+    /// # use dicom_core::value::{PrimitiveValue, DicomDate};
+    /// # use smallvec::smallvec;
+    /// let value = PrimitiveValue::Date(
+    ///     smallvec![DicomDate::from_ymd(2024, 12, 25).unwrap()]
+    /// );
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(
+    ///     text_value,
+    ///     PrimitiveValue::Str("2024-12-25".to_string())
+    /// );
+    /// ```
+    ///
+    /// Text variants normalize to `Primitive::Str` but use `to_raw_str()`
+    /// and preserves extra spaces, etc. (no trimming that `to_str()` would do)
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// let value = PrimitiveValue::Str("Hello ".to_string());
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(text_value, PrimitiveValue::Str("Hello ".to_string()));
+    /// ```
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// # use dicom_core::dicom_value;
+    /// let value = dicom_value!(Strs, ["Hello ", "World\0"]);
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(text_value, PrimitiveValue::Str("Hello \\World\0".to_string()));
+    /// ```
+    ///
+    /// Empty values also convert:
+    ///
+    /// ```
+    /// # use dicom_core::value::PrimitiveValue;
+    /// let value = PrimitiveValue::Empty;
+    /// let text_value = value.into_text_value();
+    ///
+    /// assert_eq!(text_value, PrimitiveValue::Str("".to_string()));
+    /// ```
+    pub fn into_text_value(self) -> PrimitiveValue {
+        PrimitiveValue::from(self.to_raw_str())
     }
 
     /// Retrieve this DICOM value as raw bytes.
@@ -4459,6 +4561,55 @@ mod tests {
         // maintains the leading whitespace on multiple strings and maintains at the end
         let value = dicom_value!(Strs, [" ONE", "TWO", "THREE", " SIX "]);
         assert_eq!(&value.to_raw_str(), " ONE\\TWO\\THREE\\ SIX ");
+    }
+    #[test]
+    fn primitive_value_to_primitive_text() {
+        // Test Strs variant - option 1, use ::from() explicitly
+        let value = dicom_value!(Strs, ["DERIVED", "PRIMARY", "WHOLE BODY"]);
+        let cow_str = value.to_str();
+        assert_eq!(
+            PrimitiveValue::from(cow_str),
+            PrimitiveValue::Str("DERIVED\\PRIMARY\\WHOLE BODY".to_string())
+        );
+
+        // Test Date variant - option 2, use .into()
+        let value = PrimitiveValue::Date(smallvec![DicomDate::from_ymd(2014, 10, 12).unwrap()]);
+        let cow_str = value.to_str();
+        let primitive_text: PrimitiveValue = cow_str.into();
+        assert_eq!(
+            primitive_text,
+            PrimitiveValue::Str("2014-10-12".to_string())
+        );
+
+        // Test DateTime variant - option 3, use into_text_value()
+        let value = PrimitiveValue::DateTime(smallvec![DicomDateTime::from_date_and_time(
+            DicomDate::from_ymd(2012, 12, 21).unwrap(),
+            DicomTime::from_hms(9, 30, 1).unwrap()
+        )
+        .unwrap()]);
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("2012-12-21 09:30:01".to_string())
+        );
+
+        // Test that Str and Strs get returned unchanged (no trimming)
+        let value = PrimitiveValue::Str("Hello ".to_string());
+        assert_eq!(
+            value.into_text_value(),
+            PrimitiveValue::Str("Hello ".to_string())
+        );
+
+        let value = dicom_value!(Strs, ["Hello ", "World\0"]);
+        let text_value = value.into_text_value();
+        assert_eq!(
+            text_value,
+            PrimitiveValue::Str("Hello \\World\0".to_string())
+        );
+
+        // Test that Empty converts to Str as well
+        let value = PrimitiveValue::Empty;
+        let text_value = value.into_text_value();
+        assert_eq!(text_value, PrimitiveValue::Str("".to_string()));
     }
 
     #[test]
