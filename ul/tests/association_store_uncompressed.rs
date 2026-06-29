@@ -2,10 +2,10 @@
 //! which only accepts uncompressed transfer syntaxes
 
 #[cfg(feature = "async")]
-use dicom_ul::association::AsyncServerAssociation;
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 use dicom_ul::{
-    ServerAssociation,
-    association::client::ClientAssociationOptions,
+    ClientAssociationOptions, ServerAssociation,
+    association::{Association, SyncAssociation},
     pdu::{Pdu, PresentationContextNegotiated, PresentationContextResultReason},
 };
 use std::net::SocketAddr;

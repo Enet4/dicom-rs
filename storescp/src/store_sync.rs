@@ -7,7 +7,7 @@ use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::{
     Pdu, ServerAssociation,
-    association::{Association, CloseSocket},
+    association::{Association, CloseSocket, SetReadTimeout, SyncAssociation},
     pdu::{PDataValueType, PresentationContextResultReason},
 };
 use snafu::{OptionExt, Report, ResultExt, Whatever};
@@ -129,7 +129,7 @@ fn inner<T>(
     out_dir: &Path,
 ) -> Result<(), Whatever>
 where
-    T: std::io::Read + std::io::Write + CloseSocket,
+    T: std::io::Read + std::io::Write + CloseSocket + SetReadTimeout,
 {
     let mut instance_buffer: Vec<u8> = Vec::with_capacity(1024 * 1024);
     let mut msgid = 1;

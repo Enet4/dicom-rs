@@ -360,7 +360,14 @@ pub async fn run_store_async(
         }
     }
 
-    let msg = if let Ok(peer_addr) = association.inner_stream().peer_addr() {
+    let Some(socket) = association.inner_stream().as_mut() else {
+        warn!(
+            "Socket was closed by this application entity, probably in response to an abort request"
+        );
+        return Ok(false);
+    };
+
+    let msg = if let Ok(peer_addr) = socket.peer_addr() {
         format!(
             "Dropping connection with {} ({peer_addr})",
             association.peer_ae_title(),
