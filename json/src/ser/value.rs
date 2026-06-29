@@ -2,7 +2,7 @@
 
 use dicom_core::PrimitiveValue;
 use serde::Serialize;
-use serde::ser::SerializeSeq;
+use serde::ser::{Error, SerializeSeq};
 
 use crate::{INFINITY, NAN, NEG_INFINITY};
 
@@ -167,7 +167,7 @@ impl Serialize for InlineBinary<'_> {
 /// Wrapper type for [primitive values][1]
 /// which should always be encoded as person names.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 ///
 /// [1]: dicom_core::PrimitiveValue
 #[derive(Debug, Clone)]
@@ -192,7 +192,7 @@ impl Serialize for AsPersonNames<'_> {
 /// Wrapper type for a string
 /// to be interpreted as a person's name.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 #[derive(Debug, Clone, Serialize)]
 pub struct PersonNameDef<'a> {
     #[serde(rename = "Alphabetic")]
@@ -202,6 +202,37 @@ pub struct PersonNameDef<'a> {
 impl<'a> From<&'a str> for PersonNameDef<'a> {
     fn from(value: &'a str) -> Self {
         PersonNameDef { alphabetic: value }
+    }
+}
+
+/// Wrapper type for [primitive values][1]
+/// which should be encoded as attribute tags (group,element).
+///
+/// Should only be used for the value representation AT.
+///
+/// [1]: dicom_core::PrimitiveValue
+pub struct AsAttributeTags<'a>(&'a PrimitiveValue);
+
+impl<'a> From<&'a PrimitiveValue> for AsAttributeTags<'a> {
+    fn from(value: &'a PrimitiveValue) -> Self {
+        AsAttributeTags(value)
+    }
+}
+
+impl Serialize for AsAttributeTags<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let PrimitiveValue::Tags(tags) = self.0 else {
+            return Err(S::Error::custom(
+                "AsAttributeTags created with a non-Tags value",
+            ));
+        };
+        serializer.collect_seq(
+            tags.iter()
+                .map(|tag| format!("{:04X}{:04X}", tag.group(), tag.element())),
+        )
     }
 }
 
