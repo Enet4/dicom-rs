@@ -2,7 +2,7 @@
 
 use dicom_core::PrimitiveValue;
 use serde::Serialize;
-use serde::ser::SerializeSeq;
+use serde::ser::{Error, SerializeSeq};
 
 use crate::{INFINITY, NAN, NEG_INFINITY};
 
@@ -10,7 +10,7 @@ use crate::{INFINITY, NAN, NEG_INFINITY};
 /// which should always be encoded as strings.
 ///
 /// Should be used for the value representations
-/// AE, AS, AT, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
+/// AE, AS, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
 /// Can also be used for the value representations
 /// DS, IS, SV, and UV.
 ///
@@ -167,7 +167,7 @@ impl Serialize for InlineBinary<'_> {
 /// Wrapper type for [primitive values][1]
 /// which should always be encoded as person names.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 ///
 /// [1]: dicom_core::PrimitiveValue
 #[derive(Debug, Clone)]
@@ -192,7 +192,7 @@ impl Serialize for AsPersonNames<'_> {
 /// Wrapper type for a string
 /// to be interpreted as a person's name.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 #[derive(Debug, Clone, Serialize)]
 pub struct PersonNameDef<'a> {
     #[serde(rename = "Alphabetic")]
@@ -205,10 +205,42 @@ impl<'a> From<&'a str> for PersonNameDef<'a> {
     }
 }
 
+/// Wrapper type for [primitive values][1]
+/// which should be encoded as attribute tags (group,element).
+///
+/// Should only be used for the value representation AT.
+///
+/// [1]: dicom_core::PrimitiveValue
+#[derive(Debug, Clone)]
+pub struct AsAttributeTags<'a>(&'a PrimitiveValue);
+
+impl<'a> From<&'a PrimitiveValue> for AsAttributeTags<'a> {
+    fn from(value: &'a PrimitiveValue) -> Self {
+        AsAttributeTags(value)
+    }
+}
+
+impl Serialize for AsAttributeTags<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let PrimitiveValue::Tags(tags) = self.0 else {
+            return Err(S::Error::custom(
+                "AsAttributeTags created with a non-Tags value",
+            ));
+        };
+        serializer.collect_seq(
+            tags.iter()
+                .map(|tag| format!("{:04X}{:04X}", tag.group(), tag.element())),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use dicom_core::dicom_value;
     use dicom_core::value::DicomDate;
+    use dicom_core::{Tag, dicom_value};
     use pretty_assertions::assert_eq;
     use serde_json::Value;
     use serde_json::json;
@@ -242,6 +274,13 @@ mod tests {
         let v = dicom_value!(Date, [DicomDate::from_ymd(2023, 6, 13).unwrap()]);
         let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(json, Value::Array(vec![Value::from("20230613")]));
+
+        let v = dicom_value!(Tags, [Tag(0x0008, 0x009C), Tag(0x7FE0, 0x0010)]);
+        let json = serde_json::to_value(AsAttributeTags(&v)).unwrap();
+        assert_eq!(
+            json,
+            Value::Array(vec![Value::from("0008009C"), Value::from("7FE00010")]),
+        );
     }
 
     #[test]
