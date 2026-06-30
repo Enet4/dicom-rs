@@ -262,9 +262,14 @@ mod tests {
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([]));
 
-        let v = PrimitiveValue::from("5 ");  // padded with a space to make length even
+        // Check values that are space-padded to make the lengths even
+        let v = dicom_value!(Str, "5 ");
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
-        assert_eq!(json, json!(["5"]),);
+        assert_eq!(json, json!(["5"]));
+
+        let v = dicom_value!(Strs, ["5 ", "6 ", "-7"]);
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
+        assert_eq!(json, json!(["5", "6", "-7"]));
 
         let v = dicom_value!(U16, [20, 40, 60]);
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
