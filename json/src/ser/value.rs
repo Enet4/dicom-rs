@@ -238,8 +238,8 @@ impl Serialize for AsAttributeTags<'_> {
 
 #[cfg(test)]
 mod tests {
-    use dicom_core::dicom_value;
     use dicom_core::value::DicomDate;
+    use dicom_core::{Tag, dicom_value};
     use pretty_assertions::assert_eq;
     use serde_json::Value;
     use serde_json::json;
@@ -273,6 +273,13 @@ mod tests {
         let v = dicom_value!(Date, [DicomDate::from_ymd(2023, 6, 13).unwrap()]);
         let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(json, Value::Array(vec![Value::from("20230613")]));
+
+        let v = dicom_value!(Tags, [Tag(0x0008, 0x009C), Tag(0x7FE0, 0x0010)]);
+        let json = serde_json::to_value(AsAttributeTags(&v)).unwrap();
+        assert_eq!(
+            json,
+            Value::Array(vec![Value::from("0008009C"), Value::from("7FE00010")]),
+        );
     }
 
     #[test]
