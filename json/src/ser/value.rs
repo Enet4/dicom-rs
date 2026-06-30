@@ -10,7 +10,7 @@ use crate::{INFINITY, NAN, NEG_INFINITY};
 /// which should always be encoded as strings.
 ///
 /// Should be used for the value representations
-/// AE, AS, AT, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
+/// AE, AS, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
 /// Can also be used for the value representations
 /// DS, IS, SV, and UV.
 ///
@@ -211,6 +211,7 @@ impl<'a> From<&'a str> for PersonNameDef<'a> {
 /// Should only be used for the value representation AT.
 ///
 /// [1]: dicom_core::PrimitiveValue
+#[derive(Debug, Clone)]
 pub struct AsAttributeTags<'a>(&'a PrimitiveValue);
 
 impl<'a> From<&'a PrimitiveValue> for AsAttributeTags<'a> {
