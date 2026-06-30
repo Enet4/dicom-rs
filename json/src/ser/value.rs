@@ -66,8 +66,8 @@ impl Serialize for AsNumbers<'_> {
             PrimitiveValue::Time(_) => panic!("wrong impl: cannot encode Time as numbers"),
             PrimitiveValue::Tags(_) => panic!("wrong impl: cannot encode Tags as numbers"),
             // strings
-            PrimitiveValue::Strs(strings) => serializer.collect_seq(strings),
-            PrimitiveValue::Str(string) => serializer.collect_seq([string]),
+            PrimitiveValue::Strs(_) => serializer.collect_seq(&*self.0.to_multi_str()),
+            PrimitiveValue::Str(_) => serializer.collect_seq(&*self.0.to_multi_str()),
             // no risk of precision loss
             PrimitiveValue::U8(numbers) => serializer.collect_seq(numbers),
             PrimitiveValue::I16(numbers) => serializer.collect_seq(numbers),
@@ -262,7 +262,7 @@ mod tests {
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([]));
 
-        let v = PrimitiveValue::from("5");
+        let v = PrimitiveValue::from("5 ");  // padded with a space to make length even
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["5"]),);
 
