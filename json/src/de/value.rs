@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct DicomJsonPerson {
-    #[serde(rename = "Alphabetic")]
+    #[serde(rename = "Alphabetic", default)]
     alphabetic: String,
     #[serde(rename = "Ideographic")]
     ideographic: Option<String>,
