@@ -195,13 +195,23 @@ impl Serialize for AsPersonNames<'_> {
 /// Should only used for the value representation PN.
 #[derive(Debug, Clone, Serialize)]
 pub struct PersonNameDef<'a> {
-    #[serde(rename = "Alphabetic")]
+    #[serde(rename = "Alphabetic", skip_serializing_if = "str::is_empty")]
     alphabetic: &'a str,
+    #[serde(rename = "Ideographic", skip_serializing_if = "str::is_empty")]
+    ideographic: &'a str,
+    #[serde(rename = "Phonetic", skip_serializing_if = "str::is_empty")]
+    phonetic: &'a str,
 }
 
 impl<'a> From<&'a str> for PersonNameDef<'a> {
     fn from(value: &'a str) -> Self {
-        PersonNameDef { alphabetic: value }
+        let mut parts = value.split('=');
+
+        PersonNameDef {
+            alphabetic: parts.next().unwrap_or(""),
+            ideographic: parts.next().unwrap_or(""),
+            phonetic: parts.next().unwrap_or(""),
+        }
     }
 }
 
@@ -274,5 +284,54 @@ mod tests {
         let v = dicom_value!(U64, [876543245678]);
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["876543245678"]),);
+    }
+
+    #[test]
+    fn serialize_names_with_ideographic_and_phonetic() {
+        let v = dicom_value!(
+            Strs,
+            [
+                "House^Gregory^^M.D.",
+                "Wang^XiaoDong=\u{738b}^\u{5c0f}\u{4e1c}=",
+                "Orl\u{e9}ans de Gallia^Charlotte^H\u{e9}l\u{e8}ne==\
+                \u{30aa}\u{30eb}\u{30ec}\u{30a2}\u{30f3}\u{30fb}\u{30c7}\
+                \u{30fb}\u{30ac}\u{30fc}\u{30ea}\u{30e4}^\u{30b7}\u{30e3}\
+                \u{30eb}\u{30ed}\u{30c3}\u{30c8}^\u{30a8}\u{30ec}\u{30fc}\u{30cc}",
+                "=\u{559c}\u{591a}\u{5ddd}^\u{6d77}\u{5922}=\u{30ad}\u{30bf}\
+                \u{30ac}\u{30ef}^\u{30de}\u{30ea}\u{30f3}",
+                "Mashiro^Moritaka^^^San=\u{771f}\u{57ce}^\u{6700}\u{9ad8}^^^\
+                \u{3055}\u{3093}=\u{30de}\u{30b7}\u{30ed}^\u{30e2}\u{30ea}\
+                \u{30bf}\u{30ab}^^^\u{3055}\u{3093}",
+            ]
+        );
+        let json = serde_json::to_value(AsPersonNames(&v)).unwrap();
+        assert_eq!(
+            json,
+            json!([
+                {
+                    "Alphabetic": "House^Gregory^^M.D.",
+                },
+                {
+                    "Alphabetic": "Wang^XiaoDong",
+                    "Ideographic": "\u{738b}^\u{5c0f}\u{4e1c}",
+                },
+                {
+                    "Alphabetic": "Orl\u{e9}ans de Gallia^Charlotte^H\u{e9}l\u{e8}ne",
+                    "Phonetic": "\u{30aa}\u{30eb}\u{30ec}\u{30a2}\u{30f3}\u{30fb}\u{30c7}\
+                    \u{30fb}\u{30ac}\u{30fc}\u{30ea}\u{30e4}^\u{30b7}\u{30e3}\
+                    \u{30eb}\u{30ed}\u{30c3}\u{30c8}^\u{30a8}\u{30ec}\u{30fc}\u{30cc}",
+                },
+                {
+                    "Ideographic": "\u{559c}\u{591a}\u{5ddd}^\u{6d77}\u{5922}",
+                    "Phonetic": "\u{30ad}\u{30bf}\u{30ac}\u{30ef}^\u{30de}\u{30ea}\u{30f3}",
+                },
+                {
+                    "Alphabetic": "Mashiro^Moritaka^^^San",
+                    "Ideographic": "\u{771f}\u{57ce}^\u{6700}\u{9ad8}^^^\u{3055}\u{3093}",
+                    "Phonetic": "\u{30de}\u{30b7}\u{30ed}^\u{30e2}\u{30ea}\u{30bf}\u{30ab}^^^\
+                    \u{3055}\u{3093}",
+                },
+            ])
+        );
     }
 }
