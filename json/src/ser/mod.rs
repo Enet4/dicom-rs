@@ -10,7 +10,7 @@ use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::{DefaultDicomObject, InMemDicomObject, mem::InMemElement};
 use serde::{Serialize, Serializer, ser::SerializeMap};
 
-use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
+use self::value::{AsAttributeTags, AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
 
 /// Serialize a piece of DICOM data as a string of JSON.
@@ -227,7 +227,6 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
             DicomValue::Primitive(v) => match vr {
                 VR::AE
                 | VR::AS
-                | VR::AT
                 | VR::CS
                 | VR::DA
                 | VR::DT
@@ -256,6 +255,9 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
                 | VR::US
                 | VR::UV => {
                     serializer.serialize_entry("Value", &AsNumbers::from(v))?;
+                }
+                VR::AT => {
+                    serializer.serialize_entry("Value", &AsAttributeTags::from(v))?;
                 }
                 VR::OB | VR::OD | VR::OF | VR::OL | VR::OV | VR::OW | VR::UN => {
                     serializer.serialize_entry("InlineBinary", &InlineBinary::from(v))?;
