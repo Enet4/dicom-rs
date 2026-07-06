@@ -163,3 +163,36 @@ fn read_rle_2() {
 
     check_u16_rgb_pixel(&dest, 100, 10, 95, [0xFFFF, 0xFFFF, 0xFFFF]);
 }
+
+#[test]
+fn read_rle_dangerous_image() {
+    let mut buf = vec![0; 66];
+    buf[0] = 1;
+
+    let obj = TestDataObject {
+        // RLE lossless
+        ts_uid: "1.2.840.10008.1.2.5".to_string(),
+        rows: 51220,
+        columns: 58804,
+        bits_allocated: 8,
+        bits_stored: 8,
+        samples_per_pixel: 1,
+        photometric_interpretation: "MONOCHROME2",
+        number_of_frames: 1,
+        flat_pixel_data: None,
+        pixel_data_sequence: Some(PixelFragmentSequence::new(vec![0], vec![buf])),
+    };
+
+    // instantiate RLE lossless adapter
+
+    let Codec::EncapsulatedPixelData(Some(adapter), _) = RLE_LOSSLESS.codec() else {
+        panic!("RLE lossless pixel data reader not found")
+    };
+
+    let mut dest = vec![];
+
+    // decode the whole image (1 frame)
+
+    let out = adapter.decode(&obj, &mut dest);
+    assert!(matches!(out, Err(_)));
+}
