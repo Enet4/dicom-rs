@@ -14,7 +14,7 @@ use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
 use crate::{App, create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES};
-pub fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
+pub(crate) fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Whatever> {
     let App {
         verbose,
         calling_ae_title,
