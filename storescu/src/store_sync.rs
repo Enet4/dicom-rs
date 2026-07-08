@@ -19,7 +19,7 @@ use crate::{
     WriteDatasetSnafu, WriteIOSnafu, check_presentation_contexts, into_ts, store_req_command,
 };
 
-pub fn send_file<T>(
+pub(crate) fn send_file<T>(
     mut scu: ClientAssociation<T>,
     file: DicomFile,
     message_id: u16,
@@ -205,7 +205,7 @@ where
     Ok(scu)
 }
 
-pub fn inner<T>(
+pub(crate) fn inner<T>(
     mut scu: ClientAssociation<T>,
     d_files: Vec<DicomFile>,
     pbx: &Option<ProgressBar>,
