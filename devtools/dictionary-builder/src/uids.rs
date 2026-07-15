@@ -340,7 +340,7 @@ where
             f,
             "#[rustfmt::skip]\npub const {}: &str = {:?};",
             e.keyword.to_shouty_snake_case(),
-            &e.uid,
+            e.uid,
         )?;
     }
 
