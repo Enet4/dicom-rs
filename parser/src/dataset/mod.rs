@@ -738,12 +738,8 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         // ensure a token sequence
         if self.tokens.is_none() {
-            match self.seq.next() {
-                Some(entries) => {
-                    self.tokens = Some(entries.into_tokens_with_options(self.into_token_options));
-                }
-                None => return None,
-            }
+            let entries = self.seq.next()?;
+            self.tokens = Some(entries.into_tokens_with_options(self.into_token_options));
         }
 
         // retrieve the next token
