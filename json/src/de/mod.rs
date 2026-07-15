@@ -468,7 +468,10 @@ mod tests {
                 "vr": "PN",
                 "Value": [
                   {
-                    "Alphabetic": "^Bob^^Dr."
+                    "Alphabetic": "^Bob^^Dr.",
+                  },
+                  {
+                    "Ideographic": "月野^うさぎ",
                   }
                 ]
             },

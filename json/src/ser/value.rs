@@ -195,13 +195,23 @@ impl Serialize for AsPersonNames<'_> {
 /// Should only be used for the value representation PN.
 #[derive(Debug, Clone, Serialize)]
 pub struct PersonNameDef<'a> {
-    #[serde(rename = "Alphabetic")]
+    #[serde(rename = "Alphabetic", skip_serializing_if = "str::is_empty")]
     alphabetic: &'a str,
+    #[serde(rename = "Ideographic", skip_serializing_if = "str::is_empty")]
+    ideographic: &'a str,
+    #[serde(rename = "Phonetic", skip_serializing_if = "str::is_empty")]
+    phonetic: &'a str,
 }
 
 impl<'a> From<&'a str> for PersonNameDef<'a> {
     fn from(value: &'a str) -> Self {
-        PersonNameDef { alphabetic: value }
+        let mut parts = value.split('=');
+
+        PersonNameDef {
+            alphabetic: parts.next().unwrap_or(""),
+            ideographic: parts.next().unwrap_or(""),
+            phonetic: parts.next().unwrap_or(""),
+        }
     }
 }
 
@@ -318,5 +328,45 @@ mod tests {
         let v = dicom_value!(U64, [876543245678]);
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["876543245678"]),);
+    }
+
+    #[test]
+    fn serialize_names_with_ideographic_and_phonetic() {
+        let v = dicom_value!(
+            Strs,
+            [
+                "House^Gregory^^M.D.",
+                "Wang^XiaoDong=王^小东=",
+                "Orléans de Gallia^Charlotte^Hélène==オルレアン・デ・ガーリヤ^シャルロット^エレーヌ",
+                "=喜多川^海夢=キタガワ^マリン",
+                "Mashiro^Moritaka^^^San=真城^最高^^^さん=マシロ^モリタカ^^^さん"
+            ]
+        );
+        let json = serde_json::to_value(AsPersonNames(&v)).unwrap();
+        assert_eq!(
+            json,
+            json!([
+                {
+                    "Alphabetic": "House^Gregory^^M.D.",
+                },
+                {
+                    "Alphabetic": "Wang^XiaoDong",
+                    "Ideographic": "王^小东",
+                },
+                {
+                    "Alphabetic": "Orléans de Gallia^Charlotte^Hélène",
+                    "Phonetic": "オルレアン・デ・ガーリヤ^シャルロット^エレーヌ",
+                },
+                {
+                    "Ideographic": "喜多川^海夢",
+                    "Phonetic": "キタガワ^マリン",
+                },
+                {
+                    "Alphabetic": "Mashiro^Moritaka^^^San",
+                    "Ideographic": "真城^最高^^^さん",
+                    "Phonetic": "マシロ^モリタカ^^^さん",
+                },
+            ])
+        );
     }
 }
