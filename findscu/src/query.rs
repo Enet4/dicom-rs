@@ -56,7 +56,7 @@ where
             AttributeAction::Set(v),
         ))
         .with_whatever_context(|_| {
-            format!("could not set query attribute {}", &term_query.selector)
+            format!("could not set query attribute {}", term_query.selector)
         })?;
     }
     Ok(obj)
