@@ -661,8 +661,8 @@ where
             let byte_len = offset_table.len() * 4;
             let summary = offset_table_summary(
                 offset_table,
-                Some(width)
-                    .filter(|_| !no_limit)
+                (!no_limit)
+                    .then_some(width)
                     .map(|w| w.saturating_sub(38 + depth * 2)),
             );
             writeln!(
@@ -679,8 +679,8 @@ where
                 let byte_len = fragment.len();
                 let summary = item_value_summary(
                     fragment,
-                    Some(width)
-                        .filter(|_| !no_limit)
+                    (!no_limit)
+                        .then_some(width)
                         .map(|w| w.saturating_sub(38 + depth * 2)),
                 );
                 writeln!(
