@@ -56,13 +56,15 @@ impl PixelDataReader for Jpeg2000Adapter {
 
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
-        dst.reserve_exact(samples_per_pixel as usize * stride);
         let base_offset = dst.len();
-        dst.resize(base_offset + (samples_per_pixel as usize * stride), 0);
 
         let frame_data = src
             .frame_pixel_data(frame)
             .context(decode_error::FrameRangeOutOfBoundsSnafu)?;
+
+        // extend output vector
+        guarded_resize(dst, samples_per_pixel as usize * stride, frame_data.len())?;
+
         let image = Image::from_bytes(&frame_data).whatever_context("jpeg2k decoder failure")?;
 
         // Note: we cannot use `get_pixels`
@@ -92,4 +94,17 @@ impl PixelDataReader for Jpeg2000Adapter {
 
         Ok(())
     }
+}
+
+const COMPRESSION_RATIO_THRESHOLD: u32 = 64;
+
+/// Perform a resize of a vector (with zeros), safeguarded from extreme cases.
+fn guarded_resize(
+    out: &mut Vec<u8>,
+    additional_capacity: usize,
+    fragment_size: usize,
+) -> DecodeResult<()> {
+    crate::alloc::guarded_resize(out, additional_capacity, fragment_size, COMPRESSION_RATIO_THRESHOLD)
+        .ok()
+        .whatever_context("Could not allocate frame")
 }
