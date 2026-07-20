@@ -1,6 +1,6 @@
 //! Declaration and implementation of a DICOM primitive value.
 //!
-//! See [`PrimitiveValue`](./enum.PrimitiveValue.html).
+//! See [`PrimitiveValue`].
 
 use super::{AsRange, DicomValueType};
 use crate::header::{HasLength, Length, Tag};
@@ -119,10 +119,12 @@ pub enum ModifyValueError {
 /// an error of this type is returned.
 ///
 /// If such a conversion is acceptable, please use conversion methods instead:
-/// `to_date` instead of `date`, `to_str` instead of `string`, and so on.
+/// [`PrimitiveValue::to_date`] instead of `date`,
+/// [`PrimitiveValue::to_str`] instead of `string`, and so on.
 /// The error type would then be [`ConvertValueError`].
 ///
-/// [`ConvertValueError`]: ./struct.ConvertValueError.html
+/// [`PrimitiveValue::to_date`]: crate::value::primitive::PrimitiveValue::to_date
+/// [`PrimitiveValue::to_str`]: crate::value::primitive::PrimitiveValue::to_str
 #[derive(Debug, Clone, PartialEq)]
 pub struct CastValueError {
     /// The value format requested
@@ -193,13 +195,15 @@ pub type C<T> = SmallVec<[T; 2]>;
 /// depending on its content and value representation.
 ///
 /// Multiple elements are contained in a [`smallvec`] vector,
-/// conveniently aliased to the type [`C`].
+/// conveniently aliased to the type [`crate::value::C`].
 ///
 /// See the macro [`dicom_value!`] for a more intuitive means
 /// of constructing these values.
-/// Alternatively, `From` conversions into `PrimitiveValue` exist
+/// Alternatively, `From` conversions into [`PrimitiveValue`] exist
 /// for single element types,
-/// including numeric types, `String`, and `&str`.
+/// including numeric types, [`String`], and [`&str`].
+///
+/// [`dicom_value!`]: crate::dicom_value!
 ///
 /// # Example
 ///
@@ -213,10 +217,6 @@ pub type C<T> = SmallVec<[T; 2]>;
 /// let value = PrimitiveValue::from(512_u16);
 /// assert_eq!(value, PrimitiveValue::U16(smallvec![512]));
 /// ```
-///
-/// [`smallvec`]: ../../smallvec/index.html
-/// [`C`]: ./type.C.html
-/// [`dicom_value!`]: ../macro.dicom_value.html
 #[derive(Debug, Clone)]
 pub enum PrimitiveValue {
     /// No data. Usually employed for zero-length values.
@@ -523,9 +523,10 @@ impl PrimitiveValue {
 
     /// Convert the primitive value into a string representation.
     ///
-    /// String values already encoded with the `Str` and `Strs` variants
+    /// String values already encoded with the [`Str`] and
+    /// [`Strs`] variants
     /// are provided as is.
-    /// In the case of `Strs`, the strings are first joined together
+    /// In the case of [`Strs`], the strings are first joined together
     /// with a backslash (`'\\'`).
     /// All other type variants are first converted to a string,
     /// then joined together with a backslash.
@@ -535,14 +536,18 @@ impl PrimitiveValue {
     /// **Note:**
     /// As the process of reading a DICOM value
     /// may not always preserve its original nature,
-    /// it is not guaranteed that `to_str()` returns a string with
+    /// it is not guaranteed that [`to_str`] returns a string with
     /// the exact same byte sequence as the one originally found
     /// at the source of the value,
     /// even for the string variants.
     /// Therefore, this method is not reliable
     /// for compliant DICOM serialization.
     ///
-    /// # Examples
+    /// [`Str`]: Self::Str
+    /// [`Strs`]: Self::Strs
+    /// [`to_str`]: Self::to_str
+    ///
+    /// # Example
     ///
     /// ```
     /// # use dicom_core::dicom_value;
@@ -596,27 +601,33 @@ impl PrimitiveValue {
 
     /// Convert the primitive value into a raw string representation.
     ///
-    /// String values already encoded with the `Str` and `Strs` variants
+    /// String values already encoded with the [`Str`] and
+    /// [`Strs`] variants
     /// are provided as is.
-    /// In the case of `Strs`, the strings are first joined together
+    /// In the case of [`Strs`], the strings are first joined together
     /// with a backslash (`'\\'`).
     /// All other type variants are first converted to a string,
     /// then joined together with a backslash.
     ///
     /// This method keeps all trailing whitespace,
-    /// unlike [`to_str()`](PrimitiveValue::to_str).
+    /// unlike [`to_str`].
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
     /// may not always preserve its original nature,
-    /// it is not guaranteed that `to_raw_str()` returns a string with
+    /// it is not guaranteed that [`to_raw_str`] returns a string with
     /// the exact same byte sequence as the one originally found
     /// at the source of the value,
     /// even for the string variants.
     /// Therefore, this method is not reliable
     /// for compliant DICOM serialization.
     ///
-    /// # Examples
+    /// [`Str`]: Self::Str
+    /// [`Strs`]: Self::Strs
+    /// [`to_str`]: Self::to_str
+    /// [`to_raw_str`]: Self::to_raw_str
+    ///
+    /// # Example
     ///
     /// ```
     /// # use dicom_core::dicom_value;
@@ -658,26 +669,31 @@ impl PrimitiveValue {
 
     /// Convert the primitive value into a multi-string representation.
     ///
-    /// String values already encoded with the `Str` and `Strs` variants
-    /// are provided as is.
+    /// String values already encoded with the [`Str`] and
+    /// [`Strs`] variants are provided as is.
     /// All other type variants are first converted to a string,
     /// then collected into a vector.
     ///
     /// Trailing whitespace is stripped from each string.
     /// If keeping it is desired,
-    /// use [`to_raw_str()`](PrimitiveValue::to_raw_str).
+    /// use [`to_raw_str`].
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
     /// may not always preserve its original nature,
-    /// it is not guaranteed that `to_multi_str()` returns strings with
+    /// it is not guaranteed that [`to_multi_str`] returns strings with
     /// the exact same byte sequence as the one originally found
     /// at the source of the value,
     /// even for the string variants.
     /// Therefore, this method is not reliable
     /// for compliant DICOM serialization.
     ///
-    /// # Examples
+    /// [`Str`]: Self::Str
+    /// [`Strs`]: Self::Strs
+    /// [`to_raw_str`]: Self::to_raw_str
+    /// [`to_multi_str`]: Self::to_multi_str
+    ///
+    /// # Example
     ///
     /// ```
     /// # use dicom_core::dicom_value;
@@ -765,25 +781,28 @@ impl PrimitiveValue {
     /// without copying,
     /// under the platform's native byte order.
     ///
-    /// String values already encoded with the `Str` and `Strs` variants
-    /// are provided as their respective bytes in UTF-8.
-    /// In the case of `Strs`, the strings are first joined together
+    /// String values already encoded with the [`Str`] and [`Strs`]
+    /// variants are provided as their respective bytes in UTF-8.
+    /// In the case of [`Strs`], the strings are first joined together
     /// with a backslash (`'\\'`).
     /// Other type variants are first converted to a string,
     /// joined together with a backslash,
     /// then turned into a byte vector.
     /// For values which are inherently textual according the standard,
-    /// this is equivalent to calling `as_bytes()` after [`to_str()`].
+    /// this is equivalent to calling [`String::as_bytes`] after [`to_str`].
     ///
     /// **Note:**
     /// As the process of reading a DICOM value
     /// may not always preserve its original nature,
-    /// it is not guaranteed that `to_bytes()` returns the same byte sequence
+    /// it is not guaranteed that [`to_bytes`] returns the same byte sequence
     /// as the one originally found at the source of the value.
     /// Therefore, this method is not reliable
     /// for compliant DICOM serialization.
     ///
-    /// [`to_str()`]: #method.to_str
+    /// [`Str`]: Self::Str
+    /// [`Strs`]: Self::Strs
+    /// [`to_str`]: Self::to_str
+    /// [`to_bytes`]: Self::to_bytes
     ///
     /// # Examples
     ///
@@ -878,8 +897,8 @@ impl PrimitiveValue {
     /// retrieve a float via [`to_float32`] or [`to_float64`] instead,
     /// then cast it to an integer.
     ///
-    /// [`to_float32`]: #method.to_float32
-    /// [`to_float64`]: #method.to_float64
+    /// [`to_float32`]: Self::to_float32
+    /// [`to_float64`]: Self::to_float64
     ///
     /// # Example
     ///
@@ -1033,19 +1052,20 @@ impl PrimitiveValue {
     /// each string is parsed to obtain an integer,
     /// potentially failing if the string does not represent a valid integer.
     /// The string is stripped of leading/trailing whitespace before parsing.
-    /// If the value is a sequence of U8 bytes,
+    /// If the value is a sequence of [`U8`] bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
     ///
     /// Note that this method does not enable
     /// the conversion of floating point numbers to integers via truncation.
     /// If this is intentional,
-    /// retrieve a float via [`to_float32`] or [`to_float64`] instead,
-    /// then cast it to an integer.
+    /// retrieve a float via [`to_float32`] or
+    /// [`to_float64`] instead, then cast it to
+    /// an integer.
     ///
-    /// [`NumCast`]: ../num_traits/cast/trait.NumCast.html
-    /// [`to_float32`]: #method.to_float32
-    /// [`to_float64`]: #method.to_float64
+    /// [`U8`]: Self::U8
+    /// [`to_float32`]: Self::to_float32
+    /// [`to_float64`]: Self::to_float64
     ///
     /// # Example
     ///
@@ -1222,16 +1242,18 @@ impl PrimitiveValue {
     /// Retrieve one single-precision floating point from this value.
     ///
     /// If the value is already represented as a number,
-    /// it is returned after a conversion to `f32`.
+    /// it is returned after a conversion to [`f32`].
     /// An error is returned if the number cannot be represented
     /// by the given number type.
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
     /// The string is stripped of leading/trailing whitespace before parsing.
-    /// If the value is a sequence of U8 bytes,
+    /// If the value is a sequence of [`U8`] bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -1389,16 +1411,18 @@ impl PrimitiveValue {
     /// from this value.
     ///
     /// If the value is already represented as numbers,
-    /// they are returned after a conversion to `f32`.
+    /// they are returned after a conversion to [`f32`].
     /// An error is returned if any of the numbers cannot be represented
-    /// by an `f32`.
+    /// by an [`f32`].
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
     /// The string is stripped of leading/trailing whitespace before parsing.
-    /// If the value is a sequence of U8 bytes,
+    /// If the value is a sequence of [`U8`] bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -1587,16 +1611,18 @@ impl PrimitiveValue {
     /// Retrieve one double-precision floating point from this value.
     ///
     /// If the value is already represented as a number,
-    /// it is returned after a conversion to `f64`.
+    /// it is returned after a conversion to [`f64`].
     /// An error is returned if the number cannot be represented
     /// by the given number type.
     /// If the value is a string or sequence of strings,
     /// the first string is parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
     /// The string is stripped of leading/trailing whitespace before parsing.
-    /// If the value is a sequence of U8 bytes,
+    /// If the value is a sequence of [`U8`] bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -1754,16 +1780,18 @@ impl PrimitiveValue {
     /// from this value.
     ///
     /// If the value is already represented as numbers,
-    /// they are returned after a conversion to `f64`.
+    /// they are returned after a conversion to [`f64`].
     /// An error is returned if any of the numbers cannot be represented
-    /// by an `f64`.
+    /// by an [`f64`].
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
     /// The string is stripped of leading/trailing whitespace before parsing.
-    /// If the value is a sequence of U8 bytes,
+    /// If the value is a sequence of [`U8`] bytes,
     /// the bytes are individually interpreted as independent numbers.
     /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -1948,14 +1976,14 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `chrono::NaiveDate` from this value.
+    /// Retrieve a single [`chrono::NaiveDate`] from this value.
     ///
     /// Please note, that this is a shortcut to obtain a usable date from a primitive value.
     /// As per standard, the stored value might not be precise. It is highly recommended to
-    /// use [`.to_date()`](PrimitiveValue::to_date) as the only way to obtain dates.
+    /// use [`to_date`] as the only way to obtain dates.
     ///
-    /// If the value is already represented as a precise `DicomDate`, it is converted
-    ///  to a `NaiveDate` value. It fails for imprecise values.
+    /// If the value is already represented as a precise [`DicomDate`], it is converted
+    ///  to a [`NaiveDate`] value. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a date, potentially failing if the
     /// string does not represent a valid date.
@@ -1964,9 +1992,11 @@ impl PrimitiveValue {
     ///
     /// Users are advised that this method is DICOM compliant and a full
     /// date representation of YYYYMMDD is required. Otherwise, the operation fails.
-    ///  
-    /// Partial precision dates are handled by `DicomDate`, which can be retrieved
-    /// by [`.to_date()`](PrimitiveValue::to_date).
+    ///
+    /// Partial precision dates are handled by [`DicomDate`], which can be retrieved
+    /// by [`to_date`].
+    ///
+    /// [`to_date`]: Self::to_date
     ///
     /// # Example
     ///
@@ -2040,26 +2070,29 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of `chrono::NaiveDate`s from this value.
+    /// Retrieve the full sequence of [`chrono::NaiveDate`]s from this value.
     ///
     /// Please note, that this is a shortcut to obtain usable dates from a primitive value.
     /// As per standard, the stored values might not be precise. It is highly recommended to
-    /// use [`.to_multi_date()`](PrimitiveValue::to_multi_date) as the only way to obtain dates.
+    /// use [`to_multi_date`] as the only way to obtain dates.
     ///
-    /// If the value is already represented as a sequence of precise `DicomDate` values,
+    /// If the value is already represented as a sequence of precise [`DicomDate`] values,
     /// it is converted. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the strings are decoded to obtain a date, potentially failing if
     /// any of the strings does not represent a valid date.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string,
     /// then as a backslash-separated list of dates.
-    ///  
+    ///
     /// Users are advised that this method is DICOM compliant and a full
     /// date representation of YYYYMMDD is required. Otherwise, the operation fails.
-    ///  
-    /// Partial precision dates are handled by `DicomDate`, which can be retrieved
-    /// by [`.to_multi_date()`](PrimitiveValue::to_multi_date).
+    ///
+    /// Partial precision dates are handled by [`DicomDate`], which can be retrieved
+    /// by [`to_multi_date`].
+    ///
+    /// [`U8`]: Self::U8
+    /// [`to_multi_date`]: Self::to_multi_date
     ///
     /// # Example
     ///
@@ -2143,21 +2176,25 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `DicomDate` from this value.
+    /// Retrieve a single [`DicomDate`] from this value.
     ///
-    /// If the value is already represented as a `DicomDate`, it is returned.
+    /// If the value is already represented as a [`DicomDate`], it is returned.
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a DicomDate, potentially failing if the
-    /// string does not represent a valid DicomDate.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DicomDate`], potentially failing if the
+    /// string does not represent a valid [`DicomDate`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
     ///
-    /// Unlike Rust's `chrono::NaiveDate`, `DicomDate` allows for missing date components.
-    /// DicomDate implements `AsRange` trait, so specific `chrono::NaiveDate` values can be retrieved.
-    /// - [`.exact()`](crate::value::range::AsRange::exact)
-    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
-    /// - [`.latest()`](crate::value::range::AsRange::latest)
-    /// - [`.range()`](crate::value::range::AsRange::range)
+    /// Unlike Rust's [`chrono::NaiveDate`], [`DicomDate`] allows for missing date components.
+    /// [`DicomDate`] implements [`AsRange`] trait, so specific
+    /// [`chrono::NaiveDate`] values can be retrieved.
+    ///
+    /// - [`AsRange::exact`]
+    /// - [`AsRange::earliest`]
+    /// - [`AsRange::latest`]
+    /// - [`AsRange::range`]
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -2238,7 +2275,7 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of `DicomDate`s from this value.
+    /// Retrieve the full sequence of [`DicomDate`]s from this value.
     ///
     /// # Example
     /// ```
@@ -2307,25 +2344,28 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `chrono::NaiveTime` from this value.
+    /// Retrieve a single [`chrono::NaiveTime`] from this value.
     ///
     /// Please note, that this is a shortcut to obtain a usable time from a primitive value.
     /// As per standard, the stored value might not be precise. It is highly recommended to
-    /// use [`.to_time()`](PrimitiveValue::to_time) as the only way to obtain times.
+    /// use [`Self::to_time`] as the only way to obtain times.
     ///
-    /// If the value is represented as a precise `DicomTime`,
-    /// it is converted to a `NaiveTime`.
+    /// If the value is represented as a precise [`DicomTime`],
+    /// it is converted to a [`NaiveTime`].
     /// It fails for imprecise values,
     /// as in, those which do not specify up to at least the seconds.
     /// If the value is a string or sequence of strings,
     /// the first string is decoded to obtain a time, potentially failing if the
     /// string does not represent a valid time.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
     /// Otherwise, the operation fails.
     ///
-    /// Partial precision times are handled by `DicomTime`,
-    /// which can be retrieved by [`.to_time()`](PrimitiveValue::to_time).
+    /// Partial precision times are handled by [`DicomTime`],
+    /// which can be retrieved by [`to_time`].
+    ///
+    /// [`U8`]: Self::U8
+    /// [`to_time`]: Self::to_time
     ///
     /// # Example
     ///
@@ -2398,27 +2438,30 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of `chrono::NaiveTime`s from this value.
+    /// Retrieve the full sequence of [`chrono::NaiveTime`]s from this value.
     ///
     /// Please note, that this is a shortcut to obtain a usable time from a primitive value.
     /// As per standard, the stored values might not be precise. It is highly recommended to
-    /// use [`.to_multi_time()`](PrimitiveValue::to_multi_time) as the only way to obtain times.
+    /// use [`to_multi_time`] as the only way to obtain times.
     ///
-    /// If the value is already represented as a sequence of precise `DicomTime` values,
-    /// it is converted to a sequence of `NaiveTime` values. It fails for imprecise values.
+    /// If the value is already represented as a sequence of precise [`DicomTime`] values,
+    /// it is converted to a sequence of [`NaiveTime`] values. It fails for imprecise values.
     /// If the value is a string or sequence of strings,
     /// the strings are decoded to obtain a date, potentially failing if
     /// any of the strings does not represent a valid date.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string,
     /// then as a backslash-separated list of times.
     /// Otherwise, the operation fails.
     ///
     /// Users are advised that this method requires at least 1 out of 6 digits of the second
-    /// fraction .F to be present. Otherwise, the operation fails.
+    /// fraction `.F` to be present. Otherwise, the operation fails.
     ///
-    /// Partial precision times are handled by `DicomTime`,
-    /// which can be retrieved by [`.to_multi_time()`](PrimitiveValue::to_multi_time).
+    /// Partial precision times are handled by [`DicomTime`],
+    /// which can be retrieved by [`to_multi_time`].
+    ///
+    /// [`to_multi_time`]: Self::to_multi_time
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -2502,21 +2545,24 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `DicomTime` from this value.
+    /// Retrieve a single [`DicomTime`] from this value.
     ///
-    /// If the value is already represented as a time, it is converted into DicomTime.
+    /// If the value is already represented as a time, it is converted into [`DicomTime`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a DicomTime, potentially failing if the
-    /// string does not represent a valid DicomTime.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DicomTime`], potentially failing if the
+    /// string does not represent a valid [`DicomTime`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
     ///
-    /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
-    /// DicomTime implements `AsRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
-    /// - [`.exact()`](crate::value::range::AsRange::exact)
-    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
-    /// - [`.latest()`](crate::value::range::AsRange::latest)
-    /// - [`.range()`](crate::value::range::AsRange::range)
+    /// Unlike Rust's [`chrono::NaiveTime`], [`DicomTime`] allows for missing time components.
+    /// [`DicomTime`] implements [`AsRange`] trait, so specific [`chrono::NaiveTime`] values can be retrieved.
+    ///
+    /// - [`AsRange::exact`]
+    /// - [`AsRange::earliest`]
+    /// - [`AsRange::latest`]
+    /// - [`AsRange::range`]
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -2558,7 +2604,7 @@ impl PrimitiveValue {
     ///
     ///  let fraction6 = PrimitiveValue::Str("101259.123456".into());
     ///  let fraction5 = PrimitiveValue::Str("101259.12345".into());
-    ///  
+    ///
     ///  // is not precise, last digit of second fraction is unspecified
     ///  assert!(
     ///     fraction5.to_time()?.exact().is_err()
@@ -2566,7 +2612,7 @@ impl PrimitiveValue {
     ///  assert!(
     ///     fraction6.to_time()?.exact().is_ok()
     ///  );
-    ///  
+    ///
     ///  assert_eq!(
     ///     fraction6.to_time()?.exact()?,
     ///     fraction6.to_time()?.to_naive_time()?
@@ -2618,21 +2664,24 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of `DicomTime`s from this value.
+    /// Retrieve the full sequence of [`DicomTime`]s from this value.
     ///
-    /// If the value is already represented as a time, it is converted into DicomTime.
+    /// If the value is already represented as a time, it is converted into [`DicomTime`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a DicomTime, potentially failing if the
-    /// string does not represent a valid DicomTime.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DicomTime`], potentially failing if the
+    /// string does not represent a valid [`DicomTime`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
     ///
-    /// Unlike Rust's `chrono::NaiveTime`, `DicomTime` allows for missing time components.
-    /// DicomTime implements `AsRange` trait, so specific `chrono::NaiveTime` values can be retrieved.
-    /// - [`.exact()`](crate::value::range::AsRange::exact)
-    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
-    /// - [`.latest()`](crate::value::range::AsRange::latest)
-    /// - [`.range()`](crate::value::range::AsRange::range)
+    /// Unlike Rust's [`chrono::NaiveTime`], [`DicomTime`] allows for missing time components.
+    /// [`DicomTime`] implements [`AsRange`] trait, so specific [`chrono::NaiveTime`] values can be retrieved.
+    ///
+    /// - [`AsRange::exact`]
+    /// - [`AsRange::earliest`]
+    /// - [`AsRange::latest`]
+    /// - [`AsRange::range`]
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -2703,21 +2752,25 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `DicomDateTime` from this value.
+    /// Retrieve a single [`DicomDateTime`] from this value.
     ///
-    /// If the value is already represented as a date-time, it is converted into DicomDateTime.
+    /// If the value is already represented as a date-time, it is converted into [`DicomDateTime`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a DicomDateTime, potentially failing if the
-    /// string does not represent a valid DicomDateTime.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DicomDateTime`], potentially failing if the
+    /// string does not represent a valid [`DicomDateTime`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
     ///
-    /// Unlike Rust's `chrono::DateTime`, `DicomDateTime` allows for missing date or time components.
-    /// DicomDateTime implements `AsRange` trait, so specific `chrono::DateTime` values can be retrieved.
-    /// - [`.exact()`](crate::value::range::AsRange::exact)
-    /// - [`.earliest()`](crate::value::range::AsRange::earliest)
-    /// - [`.latest()`](crate::value::range::AsRange::latest)
-    /// - [`.range()`](crate::value::range::AsRange::range)
+    /// Unlike Rust's [`chrono::DateTime`], [`DicomDateTime`] allows for missing date or time components.
+    /// [`DicomDateTime`] implements [`AsRange`] trait, so specific [`chrono::DateTime`] values can be retrieved.
+    ///
+    /// - [`AsRange::exact`]
+    /// - [`AsRange::earliest`]
+    /// - [`AsRange::latest`]
+    /// - [`AsRange::range`]
+    ///
+    /// [`U8`]: Self::U8
+    ///
     /// # Example
     ///
     /// ```
@@ -2761,7 +2814,7 @@ impl PrimitiveValue {
     ///     .ymd_opt(2012, 12, 21).unwrap()
     ///     .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
     ///     )
-    ///        
+    ///
     /// );
     ///
     /// // ranges are inclusive, for a precise value, two identical values are returned
@@ -2775,7 +2828,7 @@ impl PrimitiveValue {
     ///             .ymd_opt(2012, 12, 21).unwrap()
     ///             .and_hms_micro_opt(9, 30, 1, 123_456).unwrap()
     ///     )?
-    ///     
+    ///
     /// );
     /// # Ok(())
     /// # }
@@ -2820,7 +2873,7 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve the full sequence of `DicomDateTime`s from this value.
+    /// Retrieve the full sequence of [`DicomDateTime`]s from this value.
     ///
     pub fn to_multi_datetime(&self) -> Result<Vec<DicomDateTime>, ConvertValueError> {
         match self {
@@ -2866,14 +2919,16 @@ impl PrimitiveValue {
             }),
         }
     }
-    /// Retrieve a single `DateRange` from this value.
+    /// Retrieve a single [`DateRange`] from this value.
     ///
-    /// If the value is already represented as a `DicomDate`, it is converted into `DateRange`.
+    /// If the value is already represented as a [`DicomDate`], it is converted into [`DateRange`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a `DateRange`, potentially failing if the
-    /// string does not represent a valid `DateRange`.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DateRange`], potentially failing if the
+    /// string does not represent a valid [`DateRange`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -2950,14 +3005,16 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `TimeRange` from this value.
+    /// Retrieve a single [`TimeRange`] from this value.
     ///
-    /// If the value is already represented as a `DicomTime`, it is converted into a `TimeRange`.
+    /// If the value is already represented as a [`DicomTime`], it is converted into a [`TimeRange`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a `TimeRange`, potentially failing if the
-    /// string does not represent a valid `DateRange`.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`TimeRange`], potentially failing if the
+    /// string does not represent a valid [`DateRange`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -3037,14 +3094,17 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `DateTimeRange` from this value.
+    /// Retrieve a single [`DateTimeRange`] from this value.
     ///
-    /// If the value is already represented as a `DicomDateTime`, it is converted into `DateTimeRange`.
+    /// If the value is already represented as a [`DicomDateTime`], it is
+    /// converted into [`DateTimeRange`].
     /// If the value is a string or sequence of strings,
-    /// the first string is decoded to obtain a `DateTimeRange`, potentially failing if the
-    /// string does not represent a valid `DateTimeRange`.
-    /// If the value is a sequence of U8 bytes, the bytes are
+    /// the first string is decoded to obtain a [`DateTimeRange`], potentially
+    /// failing if the  string does not represent a valid [`DateTimeRange`].
+    /// If the value is a sequence of [`U8`] bytes, the bytes are
     /// first interpreted as an ASCII character string.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -3067,7 +3127,7 @@ impl PrimitiveValue {
     ///     Some(PreciseDateTime::TimeZone(
     ///         FixedOffset::east_opt(5*3600).unwrap().ymd_opt(1992, 1, 1).unwrap()
     ///         .and_hms_micro_opt(15, 30, 20, 123_000).unwrap()
-    ///         )  
+    ///         )
     ///     )
     /// );
     ///
@@ -3077,7 +3137,7 @@ impl PrimitiveValue {
     ///     Some(PreciseDateTime::TimeZone(
     ///         FixedOffset::east_opt(3*3600).unwrap().ymd_opt(1993, 12, 31).unwrap()
     ///         .and_hms_micro_opt(23, 59, 59, 999_999).unwrap()
-    ///         )  
+    ///         )
     ///     )
     /// );
     ///
@@ -3155,11 +3215,15 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single `DateTimeRange` from this value.
+    /// Retrieve a single [`DateTimeRange`] from this value.
     ///
     /// Use a custom ambiguous date-time range parser.
     ///
-    /// For full description see [PrimitiveValue::to_datetime_range] and [AmbiguousDtRangeParser].
+    /// For full description see [`to_datetime_range`] and
+    /// [`AmbiguousDtRangeParser`].
+    ///
+    /// [`to_datetime_range`]: Self::to_datetime_range
+    ///
     /// # Example
     ///
     /// ```
@@ -3263,12 +3327,10 @@ impl PrimitiveValue {
         }
     }
 
-    /// Retrieve a single [`PersonName`][1] from this value.
+    /// Retrieve a single [`PersonName`] from this value.
     ///
     /// If the value is a string or sequence of strings,
-    /// the first string is split to obtain a `PersonName`.
-    ///
-    /// [1]: super::person_name::PersonName
+    /// the first string is split to obtain a [`PersonName`].
     ///
     /// # Example
     ///
@@ -3317,7 +3379,7 @@ impl PrimitiveValue {
 
 /// Macro for implementing getters to single and multi-values of each variant.
 ///
-/// Should be placed inside `PrimitiveValue`'s impl block.
+/// Should be placed inside [`PrimitiveValue`]'s impl block.
 macro_rules! impl_primitive_getters {
     ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
         /// Get a single value of the requested type.
@@ -3365,9 +3427,9 @@ impl PrimitiveValue {
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
-    /// see [`to_str()`] instead.
+    /// see [`to_str`] instead.
     ///
-    /// [`to_str()`]: #method.to_str
+    /// [`to_str`]: Self::to_str
     pub fn string(&self) -> Result<&str, CastValueError> {
         use self::PrimitiveValue::*;
         match self {
@@ -3385,14 +3447,17 @@ impl PrimitiveValue {
     }
 
     /// Get the inner sequence of string values
-    /// if the variant is either `Str` or `Strs`.
+    /// if the variant is either [`Str`] or
+    /// [`Strs`].
     ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
-    /// see [`to_str()`] instead.
+    /// see [`to_str`] instead.
     ///
-    /// [`to_str()`]: #method.to_str
+    /// [`Str`]: Self::Str
+    /// [`Strs`]: Self::Strs
+    /// [`to_str`]: Self::to_str
     pub fn strings(&self) -> Result<&[String], CastValueError> {
         use self::PrimitiveValue::*;
         match self {
@@ -3500,7 +3565,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -3605,7 +3672,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -3710,7 +3779,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -3815,7 +3886,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -3920,7 +3993,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -4025,7 +4100,9 @@ impl PrimitiveValue {
     ///
     /// An error is returned
     /// if the current value is not compatible with the insertion of integers,
-    /// such as `Tag` or `Date`.
+    /// such as [`Tag`] or [`Date`].
+    ///
+    /// [`Date`]: Self::Date
     ///
     /// # Example
     ///
@@ -4117,11 +4194,13 @@ impl PrimitiveValue {
     /// to fit the given limit.
     ///
     /// Elements are counted by the number of individual value items
-    /// (note that bytes in a [`PrimitiveValue::U8`]
+    /// (note that bytes in a [`U8`]
     /// are treated as individual items).
     ///
     /// Nothing is done if the value's cardinality
     /// is already lower than or equal to the limit.
+    ///
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
@@ -4157,7 +4236,9 @@ impl PrimitiveValue {
     }
 }
 
-/// The output of this method is equivalent to calling the method `to_str`
+/// The output of this method is equivalent to calling the method [`to_str`]
+///
+/// [`to_str`]: Self::to_str
 impl Display for PrimitiveValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         /// Auxiliary function for turning a sequence of values
@@ -4253,8 +4334,11 @@ impl PartialEq<&str> for PrimitiveValue {
 }
 
 /// An enum representing an abstraction of a DICOM element's data value type.
-/// This should be the equivalent of `PrimitiveValue` without the content,
-/// plus the `DataSetSequence` and `PixelSequence` entries.
+/// This should be the equivalent of [`PrimitiveValue`] without the content,
+/// plus the [`DataSetSequence`] and [`PixelSequence`] entries.
+///
+/// [`DataSetSequence`]: Self::DataSetSequence
+/// [`PixelSequence`]: Self::PixelSequence
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ValueType {
     /// No data. Used for any value of length 0.
