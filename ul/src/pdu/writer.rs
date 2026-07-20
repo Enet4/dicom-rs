@@ -2,7 +2,7 @@
 use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, WriteBytesExt};
 use dicom_encoding::text::TextCodec;
-use snafu::{Backtrace, ResultExt, Snafu};
+use snafu::{Backtrace, ResultExt, Snafu, ensure};
 use std::io::Write;
 
 pub type Error = crate::pdu::WriteError;
@@ -83,25 +83,25 @@ fn encode_ae_title(
 ) -> Result<Vec<u8>> {
     let mut bytes = codec.encode(ae_title).context(EncodeFieldSnafu { field })?;
 
-    if validate_value && bytes.iter().all(|&byte| byte == b' ') {
-        return InvalidFixedSizeTextFieldSnafu {
-            field,
-            length: AE_TITLE_FIELD_LENGTH,
-            actual_length: bytes.len(),
-            reason: "must contain at least one non-space character",
-        }
-        .fail();
-    }
-
-    if bytes.len() > AE_TITLE_FIELD_LENGTH {
-        return InvalidFixedSizeTextFieldSnafu {
+    ensure!(
+        bytes.len() <= AE_TITLE_FIELD_LENGTH,
+        InvalidFixedSizeTextFieldSnafu {
             field,
             length: AE_TITLE_FIELD_LENGTH,
             actual_length: bytes.len(),
             reason: "exceeds fixed field length",
         }
-        .fail();
-    }
+    );
+
+    ensure!(
+        !validate_value || bytes.iter().any(|&byte| byte != b' '),
+        InvalidFixedSizeTextFieldSnafu {
+            field,
+            length: AE_TITLE_FIELD_LENGTH,
+            actual_length: bytes.len(),
+            reason: "must contain at least one non-space character",
+        }
+    );
 
     bytes.resize(AE_TITLE_FIELD_LENGTH, b' ');
 
