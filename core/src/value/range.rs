@@ -1,6 +1,8 @@
 //! Handling of date, time, date-time ranges. Needed for range matching.
-//! Parsing into ranges happens via partial precision  structures (DicomDate, DicomTime,
-//! DicomDatime) so ranges can handle null components in date, time, date-time values.
+//! Parsing into ranges happens via partial precision  structures
+//! ([`DicomDate`], [`DicomTime`], [`DicomDateTime`])
+//! so ranges can handle null components in date, time, date-time values.
+
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 
@@ -83,14 +85,14 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// This trait is implemented by date / time structures with partial precision.
 ///
-/// [AsRange::is_precise()] method will check if the given value has full precision. If so, it can be
-/// converted with [AsRange::exact()] to a precise value. If not, [AsRange::range()] will yield a
+/// [`AsRange::is_precise`] method will check if the given value has full precision. If so, it can be
+/// converted with [`AsRange::exact`] to a precise value. If not, [`AsRange::range`] will yield a
 /// date / time / date-time range.
 ///
-/// Please note that precision does not equal validity. A precise 'YYYYMMDD' [DicomDate] can still
-/// fail to produce a valid [chrono::NaiveDate]
+/// Please note that precision does not equal validity. A precise 'YYYYMMDD' [`DicomDate`] can still
+/// fail to produce a valid [`chrono::NaiveDate`]
 ///
-/// # Examples
+/// # Example
 ///
 /// ```
 /// # use dicom_core::value::{C, PrimitiveValue};
@@ -174,11 +176,16 @@ pub trait AsRange {
 
     /// Returns the earliest possible value from a partial precision structure.
     /// Missing components default to 1 (days, months) or 0 (hours, minutes, ...)
-    /// If structure contains invalid combination of `DateComponent`s, it fails.
+    /// If the structure contains an invalid combination of [`DateComponent`]s, it fails.
+    ///
+    /// [`DateComponent`]: crate::value::partial::DateComponent
     fn earliest(&self) -> Result<Self::PreciseValue>;
 
     /// Returns the latest possible value from a partial precision structure.
-    /// If structure contains invalid combination of `DateComponent`s, it fails.
+    /// If the structure contains an invalid combination of [`DateComponent`]s, it fails.
+    ///
+    ///
+    /// [`DateComponent`]: crate::value::partial::DateComponent
     fn latest(&self) -> Result<Self::PreciseValue>;
 
     /// Returns a tuple of the earliest and latest possible value from a partial precision structure.
@@ -393,7 +400,7 @@ impl AsRange for DicomDateTime {
 }
 
 impl DicomDate {
-    /// Retrieves a `chrono::NaiveDate`
+    /// Retrieves a [`chrono::NaiveDate`]
     /// if the value is precise up to the day of the month.
     pub fn to_naive_date(self) -> Result<NaiveDate> {
         self.exact()
@@ -401,7 +408,7 @@ impl DicomDate {
 }
 
 impl DicomTime {
-    /// Retrieves a `chrono::NaiveTime`
+    /// Retrieves a [`chrono::NaiveTime`]
     /// if the value is precise up to the second.
     ///
     /// Missing second fraction defaults to zero.
@@ -415,7 +422,7 @@ impl DicomTime {
 }
 
 impl DicomDateTime {
-    /// Retrieves a [PreciseDateTime] from a date-time value.
+    /// Retrieves a [`PreciseDateTime`] from a date-time value.
     /// If the date-time value is not precise or the conversion leads to ambiguous results,
     /// it fails.
     pub fn to_precise_datetime(&self) -> Result<PreciseDateTime> {
@@ -424,7 +431,8 @@ impl DicomDateTime {
 }
 
 /// Represents a date range as two [`Option<chrono::NaiveDate>`] values.
-/// [None] means no upper or no lower bound for range is present.
+/// [`None`] means no upper or no lower bound for range is present.
+///
 /// # Example
 /// ```
 /// use chrono::NaiveDate;
@@ -441,7 +449,8 @@ pub struct DateRange {
     end: Option<NaiveDate>,
 }
 /// Represents a time range as two [`Option<chrono::NaiveTime>`] values.
-/// [None] means no upper or no lower bound for range is present.
+/// [`None`] means no upper or no lower bound for range is present.
+///
 /// # Example
 /// ```
 /// use chrono::NaiveTime;
@@ -457,9 +466,12 @@ pub struct TimeRange {
     start: Option<NaiveTime>,
     end: Option<NaiveTime>,
 }
-/// Represents a date-time range, that can either be time-zone naive or time-zone aware. It is stored as two [`Option<chrono::DateTime<FixedOffset>>`] or
+
+/// Represents a date-time range, that can either be time-zone naive or
+/// time-zone aware.
+/// It is stored as two [`Option<chrono::DateTime<FixedOffset>>`] or
 /// two [`Option<chrono::NaiveDateTime>`] values.
-/// [None] means no upper or no lower bound for range is present.
+/// [`None`] means no upper or no lower bound for range is present.
 ///
 /// # Example
 /// ```
@@ -501,7 +513,7 @@ pub enum DateTimeRange {
 }
 
 impl DateRange {
-    /// Constructs a new `DateRange` from two `chrono::NaiveDate` values
+    /// Constructs a new [`DateRange`] from two [`chrono::NaiveDate`] values
     /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveDate, end: NaiveDate) -> Result<DateRange> {
         if start > end {
@@ -518,7 +530,7 @@ impl DateRange {
         }
     }
 
-    /// Constructs a new `DateRange` beginning with a `chrono::NaiveDate` value
+    /// Constructs a new [`DateRange`] beginning with a [`chrono::NaiveDate`] value
     /// and no upper limit.
     pub fn from_start(start: NaiveDate) -> DateRange {
         DateRange {
@@ -527,7 +539,8 @@ impl DateRange {
         }
     }
 
-    /// Constructs a new `DateRange` with no lower limit, ending with a `chrono::NaiveDate` value.
+    /// Constructs a new [`DateRange`] with no lower limit, ending with a
+    /// [`chrono::NaiveDate`] value.
     pub fn from_end(end: NaiveDate) -> DateRange {
         DateRange {
             start: None,
@@ -547,7 +560,7 @@ impl DateRange {
 }
 
 impl TimeRange {
-    /// Constructs a new `TimeRange` from two `chrono::NaiveTime` values
+    /// Constructs a new [`TimeRange`] from two [`chrono::NaiveTime`] values
     /// monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveTime, end: NaiveTime) -> Result<TimeRange> {
         if start > end {
@@ -564,8 +577,8 @@ impl TimeRange {
         }
     }
 
-    /// Constructs a new `TimeRange` beginning with a `chrono::NaiveTime` value
-    /// and no upper limit.
+    /// Constructs a new [`TimeRange`] beginning with a [`chrono::NaiveTime`]
+    /// value and no upper limit.
     pub fn from_start(start: NaiveTime) -> TimeRange {
         TimeRange {
             start: Some(start),
@@ -573,7 +586,8 @@ impl TimeRange {
         }
     }
 
-    /// Constructs a new `TimeRange` with no lower limit, ending with a `chrono::NaiveTime` value.
+    /// Constructs a new [`TimeRange`] with no lower limit, ending with a
+    /// [`chrono::NaiveTime`] value.
     pub fn from_end(end: NaiveTime) -> TimeRange {
         TimeRange {
             start: None,
@@ -593,8 +607,8 @@ impl TimeRange {
 }
 
 impl DateTimeRange {
-    /// Constructs a new time-zone aware `DateTimeRange` from two `chrono::DateTime<FixedOffset>` values
-    /// monotonically ordered in time.
+    /// Constructs a new time-zone aware [`DateTimeRange`] from two
+    /// [`chrono::DateTime<FixedOffset>`] values monotonically ordered in time.
     pub fn from_start_to_end_with_time_zone(
         start: DateTime<FixedOffset>,
         end: DateTime<FixedOffset>,
@@ -613,8 +627,8 @@ impl DateTimeRange {
         }
     }
 
-    /// Constructs a new time-zone naive `DateTimeRange` from two `chrono::NaiveDateTime` values
-    /// monotonically ordered in time.
+    /// Constructs a new time-zone naive [`DateTimeRange`] from two
+    /// [`chrono::NaiveDateTime`] values monotonically ordered in time.
     pub fn from_start_to_end(start: NaiveDateTime, end: NaiveDateTime) -> Result<DateTimeRange> {
         if start > end {
             RangeInversionSnafu {
@@ -630,8 +644,8 @@ impl DateTimeRange {
         }
     }
 
-    /// Constructs a new time-zone aware `DateTimeRange` beginning with a `chrono::DateTime<FixedOffset>` value
-    /// and no upper limit.
+    /// Constructs a new time-zone aware [`DateTimeRange`] beginning with a
+    /// [`chrono::DateTime<FixedOffset>`] value and no upper limit.
     pub fn from_start_with_time_zone(start: DateTime<FixedOffset>) -> DateTimeRange {
         DateTimeRange::TimeZone {
             start: Some(start),
@@ -639,8 +653,8 @@ impl DateTimeRange {
         }
     }
 
-    /// Constructs a new time-zone naive `DateTimeRange` beginning with a `chrono::NaiveDateTime` value
-    /// and no upper limit.
+    /// Constructs a new time-zone naive [`DateTimeRange`] beginning with a
+    /// [`chrono::NaiveDateTime`] value and no upper limit.
     pub fn from_start(start: NaiveDateTime) -> DateTimeRange {
         DateTimeRange::Naive {
             start: Some(start),
@@ -648,7 +662,8 @@ impl DateTimeRange {
         }
     }
 
-    /// Constructs a new time-zone aware `DateTimeRange` with no lower limit, ending with a `chrono::DateTime<FixedOffset>` value.
+    /// Constructs a new time-zone aware [`DateTimeRange`] with no lower limit,
+    /// ending with a [`chrono::DateTime<FixedOffset>`] value.
     pub fn from_end_with_time_zone(end: DateTime<FixedOffset>) -> DateTimeRange {
         DateTimeRange::TimeZone {
             start: None,
@@ -656,7 +671,8 @@ impl DateTimeRange {
         }
     }
 
-    /// Constructs a new time-zone naive `DateTimeRange` with no lower limit, ending with a `chrono::NaiveDateTime` value.
+    /// Constructs a new time-zone naive [`DateTimeRange`] with no lower limit,
+    /// ending with a [`chrono::NaiveDateTime`] value.
     pub fn from_end(end: NaiveDateTime) -> DateTimeRange {
         DateTimeRange::Naive {
             start: None,
@@ -681,9 +697,10 @@ impl DateTimeRange {
     }
 
     /// For combined datetime range matching,
-    /// this method constructs a `DateTimeRange` from a `DateRange` and a `TimeRange`.
-    /// As 'DateRange' and 'TimeRange' are always time-zone unaware, the resulting DateTimeRange
-    /// will always be time-zone unaware.
+    /// this method constructs a [`DateTimeRange`] from a [`DateRange`] and a
+    /// [`TimeRange`].
+    /// As [`DateRange`] and [`TimeRange`] are always time-zone unaware, the
+    /// resulting [`DateTimeRange`] will always be time-zone unaware.
     pub fn from_date_and_time_range(dr: DateRange, tr: TimeRange) -> Result<DateTimeRange> {
         let start_date = dr.start();
         let end_date = dr.end();
@@ -724,10 +741,9 @@ impl DateTimeRange {
     }
 }
 
-/**
- *  Looks for a range separator '-'.
- *  Returns a `DateRange`.
- */
+/// Looks for a range separator '-'.
+///
+/// Returns a [`DateRange`].
 pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
     // minimum length of one valid DicomDate (YYYY) and one '-' separator
     if buf.len() < 5 {
@@ -761,7 +777,8 @@ pub fn parse_date_range(buf: &[u8]) -> Result<DateRange> {
 }
 
 /// Looks for a range separator '-'.
-///  Returns a `TimeRange`.
+///
+///  Returns a [`TimeRange`].
 pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
     // minimum length of one valid DicomTime (HH) and one '-' separator
     if buf.len() < 3 {
@@ -804,6 +821,7 @@ pub fn parse_time_range(buf: &[u8]) -> Result<TimeRange> {
 ///
 /// This trait is implemented by parsers handling the aforementioned situation.
 /// For concrete implementations, see:
+///
 /// - [`ToLocalTimeZone`] (the default implementation)
 /// - [`ToKnownTimeZone`]
 /// - [`FailOnAmbiguousRange`]
@@ -823,20 +841,22 @@ pub trait AmbiguousDtRangeParser {
 
 /// For the missing time-zone,
 /// use time-zone information of the local system clock.
-/// Retrieves a [DateTimeRange::TimeZone].
+/// Retrieves a [`DateTimeRange::TimeZone`].
 ///
 /// This is the default behavior of the parser,
 /// which helps attain compliance with the standard
-/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// as per [`DICOM PS3.5 6.2`]:
 ///
 /// > A Date Time Value without the optional suffix
 /// > is interpreted to be in the local time zone of the application creating the Data Element,
 /// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
+///
+/// [`DICOM PS3.5 6.2`]: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_6.2.html
 #[derive(Debug)]
 pub struct ToLocalTimeZone;
 
 /// Use time-zone information from the time-zone aware value.
-/// Retrieves a [DateTimeRange::TimeZone].
+/// Retrieves a [`DateTimeRange::TimeZone`].
 #[derive(Debug)]
 pub struct ToKnownTimeZone;
 
@@ -845,7 +865,7 @@ pub struct ToKnownTimeZone;
 pub struct FailOnAmbiguousRange;
 
 /// Discard known (parsed) time-zone information.
-/// Retrieves a [DateTimeRange::Naive].
+/// Retrieves a [`DateTimeRange::Naive`].
 #[derive(Debug)]
 pub struct IgnoreTimeZone;
 
@@ -1024,20 +1044,21 @@ impl AmbiguousDtRangeParser for IgnoreTimeZone {
 }
 
 /// Looks for a range separator '-'.
-/// Returns a `DateTimeRange`.
+///
+/// Returns a [`DateTimeRange`].
 ///
 /// If the parser encounters two date-time values, where one is time-zone aware and the other is not,
 /// it will use the local time-zone offset and use it instead of the missing time-zone.
 ///
 /// This is the default behavior of the parser,
 /// which helps attain compliance with the standard
-/// as per [DICOM PS3.5 6.2](https://dicom.nema.org/medical/dicom/2023e/output/chtml/part05/sect_6.2.html):
+/// as per [`DICOM PS3.5 6.2`]:
 ///
 /// > A Date Time Value without the optional suffix
 /// > is interpreted to be in the local time zone of the application creating the Data Element,
 /// > unless explicitly specified by the Timezone Offset From UTC (0008,0201).
 ///
-/// To customize this behavior, please use [parse_datetime_range_custom()].
+/// To customize this behavior, please use [`parse_datetime_range_custom`].
 ///
 /// Users are advised, that for very specific inputs, inconsistent behavior can occur.
 /// This behavior can only be produced when all of the following is true:
@@ -1046,13 +1067,15 @@ impl AmbiguousDtRangeParser for IgnoreTimeZone {
 /// - only one west UTC offset is presented. e.g. (1000-1100-0100)
 ///
 /// In such cases, two '-' characters are present and the parser will favor the first one as a range separator,
-/// if it produces a valid `DateTimeRange`. Otherwise, it tries the second one.
+/// if it produces a valid [`DateTimeRange`]. Otherwise, it tries the second one.
+///
+/// [`DICOM PS3.5 6.2`]: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_6.2.html
 pub fn parse_datetime_range(buf: &[u8]) -> Result<DateTimeRange> {
     parse_datetime_range_impl::<ToLocalTimeZone>(buf)
 }
 
-/// Same as [parse_datetime_range()] but allows for custom handling of ambiguous Date-time ranges.
-/// See [AmbiguousDtRangeParser].
+/// Same as [`parse_datetime_range`] but allows for custom handling of ambiguous Date-time ranges.
+/// See [`AmbiguousDtRangeParser`].
 pub fn parse_datetime_range_custom<T: AmbiguousDtRangeParser>(buf: &[u8]) -> Result<DateTimeRange> {
     parse_datetime_range_impl::<T>(buf)
 }

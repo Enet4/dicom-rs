@@ -13,9 +13,9 @@ use std::mem;
 ///
 /// # Example
 ///
-/// A value of type `PersonName` can be obtained
-/// either by parsing a DICOM formatted string via [`from_text`](PersonName::from_text)
-/// or by using the [builder](PersonNameBuilder) API.
+/// A value of type [`PersonName`] can be obtained
+/// either by parsing a DICOM formatted string via [`PersonName::from_text`]
+/// or by using the [`PersonNameBuilder`] API.
 ///
 /// ```
 /// # use dicom_core::value::person_name::PersonName;
@@ -74,23 +74,23 @@ impl Display for PersonName<'_> {
 }
 
 impl<'a> PersonName<'a> {
-    /// Retrieve PersonName prefix
+    /// Retrieve [`PersonName`] prefix
     pub fn prefix(&self) -> Option<&str> {
         self.prefix.as_deref()
     }
-    /// Retrieve PersonName suffix
+    /// Retrieve [`PersonName`] suffix
     pub fn suffix(&self) -> Option<&str> {
         self.suffix.as_deref()
     }
-    /// Retrieve family name from PersonName
+    /// Retrieve family name from [`PersonName`]
     pub fn family(&self) -> Option<&str> {
         self.family.as_deref()
     }
-    /// Retrieve given name from PersonName
+    /// Retrieve given name from [`PersonName`]
     pub fn given(&self) -> Option<&str> {
         self.given.as_deref()
     }
-    /// Retrieve middle name from PersonName
+    /// Retrieve middle name from [`PersonName`]
     pub fn middle(&self) -> Option<&str> {
         self.middle.as_deref()
     }

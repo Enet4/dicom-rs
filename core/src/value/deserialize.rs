@@ -56,7 +56,7 @@ pub enum Error {
 
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Decode a single DICOM Date (DA) into a `chrono::NaiveDate` value.
+/// Decode a single DICOM Date (DA) into a [`chrono::NaiveDate`] value.
 /// As per standard, a full 8 byte representation (YYYYMMDD) is required,
 /// otherwise, the operation fails.
 pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
@@ -83,10 +83,9 @@ pub fn parse_date(buf: &[u8]) -> Result<NaiveDate> {
     }
 }
 
-/** Decode a single DICOM Date (DA) into a `DicomDate` value.
- * Unlike `parse_date`, this method accepts incomplete dates such as YYYY and YYYYMM
- * The precision of the value is stored.
- */
+/// Decode a single DICOM Date (DA) into a [`DicomDate`] value.
+/// Unlike [`parse_date`], this method accepts incomplete dates such as YYYY and YYYYMM
+/// The precision of the value is stored.
 pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
     if buf.len() < 4 {
         UnexpectedEndOfElementSnafu.fail()
@@ -127,10 +126,9 @@ pub fn parse_date_partial(buf: &[u8]) -> Result<(DicomDate, &[u8])> {
     }
 }
 
-/** Decode a single DICOM Time (TM) into a `DicomTime` value.
- * Unlike `parse_time`, this method allows for missing Time components.
- * The precision of the second fraction is stored and can be returned as a range later.
- */
+/// Decode a single DICOM Time (TM) into a [`DicomTime`] value.
+/// Unlike [`parse_time`], this method allows for missing Time components.
+/// The precision of the second fraction is stored and can be returned as a range later.
 pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
     if buf.len() < 2 {
         UnexpectedEndOfElementSnafu.fail()
@@ -188,13 +186,12 @@ pub fn parse_time_partial(buf: &[u8]) -> Result<(DicomTime, &[u8])> {
     }
 }
 
-/** Decode a single DICOM Time (TM) into a `chrono::NaiveTime` value.
-* If a time component is missing, the operation fails.
-* Presence of the second fraction component `.FFFFFF` is mandatory with at
-  least one digit accuracy `.F` while missing digits default to zero.
-* For Time with missing components, or if exact second fraction accuracy needs to be preserved,
-  use `parse_time_partial`.
-*/
+/// Decode a single DICOM Time (TM) into a [`chrono::NaiveTime`] value.
+/// If a time component is missing, the operation fails.
+/// Presence of the second fraction component `.FFFFFF` is mandatory with at
+/// least one digit accuracy `.F` while missing digits default to zero.
+/// For Time with missing components, or if exact second fraction accuracy needs to be preserved,
+/// use [`parse_time_partial`].
 pub fn parse_time(buf: &[u8]) -> Result<(NaiveTime, &[u8])> {
     // at least HHMMSS.F required
     match buf.len() {
@@ -332,8 +329,8 @@ where
 /// Decode the text from the byte slice into a [`DicomDateTime`] value,
 /// which allows for missing Date / Time components.
 ///
-/// This is the underlying implementation of [`FromStr`](std::str::FromStr)
-/// for `DicomDateTime`.
+/// This is the underlying implementation of [`std::str::FromStr`]
+/// for [`DicomDateTime`].
 ///
 /// # Example
 ///

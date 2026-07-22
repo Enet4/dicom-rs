@@ -146,7 +146,7 @@ impl FromStr for TagRange {
 /// It is used by element dictionary entries to describe circumstances
 /// in which the real VR may depend on context.
 /// As an example, the _Pixel Data_ attribute
-/// can have a value representation of either [`OB`](VR::OB) or [`OW`](VR::OW).
+/// can have a value representation of either [`VR::OB`] or [`VR::OW`].
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum VirtualVr {
@@ -162,19 +162,19 @@ pub enum VirtualVr {
     /// (represented by a _Pixel Representation_ value of `1`),
     /// then values with this virtual VR
     /// should be interpreted as signed 16 bit integers
-    /// ([`SS`](VR::SS)),
+    /// ([`VR::SS`]),
     /// otherwise they should be interpreted as unsigned 16 bit integers
-    /// ([`US`](VR::US)).
+    /// ([`VR::US`]).
     Xs,
     /// Represents overlay data sample values.
     ///
-    /// It can be either [`OB`](VR::OB) or [`OW`](VR::OW).
+    /// It can be either [`VR::OB`] or [`VR::OW`].
     Ox,
     /// Represents pixel data sample value.
     ///
-    /// It can be either [`OB`](VR::OB) or [`OW`](VR::OW).
+    /// It can be either [`VR::OB`] or [`VR::OW`].
     Px,
-    /// Represents LUT data, which can be [`US`](VR::US) or [`OW`](VR::OW)
+    /// Represents LUT data, which can be [`VR::US`] or [`VR::OW`].
     Lt,
 }
 
@@ -198,10 +198,10 @@ impl VirtualVr {
     /// making a relaxed conversion if it cannot be
     /// accurately resolved without context.
     ///
-    /// - [`Xs`](VirtualVr::Xs) is relaxed to [`US`](VR::US)
-    /// - [`Ox`](VirtualVr::Ox) is relaxed to [`OW`](VR::OW)
-    /// - [`Px`](VirtualVr::Px) is relaxed to [`OW`](VR::OW)
-    /// - [`Lt`](VirtualVr::Lt) is relaxed to [`OW`](VR::OW)
+    /// - [`VirtualVr::Xs`] is relaxed to [`VR::US`]
+    /// - [`VirtualVr::Ox`] is relaxed to [`VR::OW`]
+    /// - [`VirtualVr::Px`] is relaxed to [`VR::OW`]
+    /// - [`VirtualVr::Lt`] is relaxed to [`VR::OW`]
     ///
     /// This method is ill-advised for uses where
     /// the corresponding attribute is important.
@@ -238,27 +238,27 @@ enum ParseSelectorErrorInner {
 /// to retrieve a record containing additional information about a data element,
 /// in one of the following ways:
 ///
-/// - By DICOM tag, via [`by_tag`][1];
-/// - By its keyword (also known as alias) via [`by_name`][2];
+/// - By DICOM tag, via [`by_tag`];
+/// - By its keyword (also known as alias) via [`by_name`];
 /// - By an expression which may either be a keyword
 ///   or a tag printed in one of its standard forms,
-///   using [`by_expr`][3].
+///   using [`by_expr`].
 ///
-/// These methods will return `None`
+/// These methods will return [`None`]
 /// when the tag or name is not recognized by the dictionary.
 ///
 /// In addition,
 /// the data element dictionary provides
 /// built-in DICOM tag and selector (path) parsers for convenience.
-/// [`parse_tag`][4] converts an arbitrary expression to a tag,
-/// whereas [`parse_selector`][5] produces an [attribute selector][6].
+/// [`parse_tag`] converts an arbitrary expression to a tag,
+/// whereas [`parse_selector`] produces an [AttributeSelector].
 ///
-/// [1]: DataDictionary::by_tag
-/// [2]: DataDictionary::by_name
-/// [3]: DataDictionary::by_expr
-/// [4]: DataDictionary::parse_tag
-/// [5]: DataDictionary::parse_selector
-/// [6]: crate::ops::AttributeSelector
+/// [`by_tag`]: Self::by_tag
+/// [`by_name`]: Self::by_name
+/// [`by_expr`]: Self::by_expr
+/// [`parse_tag`]: Self::parse_tag
+/// [`parse_selector`]: Self::parse_selector
+/// [`AttributeSelector`]: crate::ops::AttributeSelector
 pub trait DataDictionary {
     /// The type of the dictionary entry.
     type Entry: DataDictionaryEntry;
@@ -277,14 +277,15 @@ pub trait DataDictionary {
     /// slightly more expensive than by DICOM tag.
     /// If the parameter provided is a string literal
     /// (e.g. `"StudyInstanceUID"`),
-    /// then it may be better to use [`by_tag`][1]
+    /// then it may be better to use [`by_tag`]
     /// with a known tag constant
-    /// (such as [`tags::STUDY_INSTANCE_UID`][2]
-    /// from the [`dicom-dictionary-std`][3] crate).
+    /// (such as [`tags::STUDY_INSTANCE_UID`]
+    /// from the [`dicom-dictionary-std`] crate).
     ///
-    /// [1]: DataDictionary::by_tag
-    /// [2]: https://docs.rs/dicom-dictionary-std/0.5.0/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
-    /// [3]: https://docs.rs/dicom-dictionary-std/0.5.0
+    ///
+    /// [`by_tag`]: Self::by_tag
+    /// [`tags::STUDY_INSTANCE_UID`]: https://docs.rs/dicom-dictionary-std/latest/dicom_dictionary_std/tags/constant.STUDY_INSTANCE_UID.html
+    /// [`dicom-dictionary-std`]: https://docs.rs/dicom-dictionary-std/latest/dicom_dictionary_std/
     fn by_name(&self, name: &str) -> Option<&Self::Entry>;
 
     /// Fetch an entry by its alias or by DICOM tag expression.
@@ -303,7 +304,7 @@ pub trait DataDictionary {
     ///   an exact match (case sensitive) by DICOM tag keyword
     ///
     /// When failing to identify the intended syntax or the tag keyword,
-    /// `None` is returned.
+    /// [`None`] is returned.
     fn by_expr(&self, tag: &str) -> Option<&Self::Entry> {
         match tag.parse() {
             Ok(tag) => self.by_tag(tag),
@@ -327,7 +328,7 @@ pub trait DataDictionary {
     ///   an exact match (case sensitive) by DICOM tag keyword
     ///
     /// When failing to identify the intended syntax or the tag keyword,
-    /// `None` is returned.
+    /// [`None`] is returned.
     fn parse_tag(&self, tag: &str) -> Option<Tag> {
         tag.parse().ok().or_else(|| {
             // look for tag in standard data dictionary
@@ -335,20 +336,18 @@ pub trait DataDictionary {
         })
     }
 
-    /// Parse a string as an [attribute selector][1].
+    /// Parse a string as an [crate::ops::attribute selector].
     ///
     /// Attribute selectors are defined by the syntax
     /// `( «key»([«item»])? . )* «key» `
     /// where_`«key»`_ is either a DICOM tag or keyword
     /// as accepted by this dictionary
-    /// when calling the method [`parse_tag`](DataDictionary::parse_tag).
+    /// when calling the method [`parse_tag`].
     /// More details about the syntax can be found
-    /// in the documentation of [`AttributeSelector`][1].
+    /// in the documentation of [`AttributeSelector`].
     ///
     /// Returns an error if the string does not follow the given syntax,
     /// or one of the key components could not be resolved.
-    ///
-    /// [1]: crate::ops::AttributeSelector
     ///
     /// ### Examples of valid input:
     ///
@@ -360,6 +359,8 @@ pub trait DataDictionary {
     ///   _Code Value_ in first item of _Concept Code Sequence_
     /// - `SequenceOfUltrasoundRegions.RegionSpatialFormat`:
     ///   _Region Spatial Format_ in first item of _Sequence of Ultrasound Regions_
+    ///
+    /// [`parse_tag`]: Self::parse_tag
     fn parse_selector(&self, selector_text: &str) -> Result<AttributeSelector, ParseSelectorError> {
         let mut steps = crate::value::C::new();
         for part in selector_text.split('.') {
