@@ -2,7 +2,7 @@
 //!
 //! The standard data dictionary documentation is available in the latest
 //! version of
-//! [`dicom-dictionary-std`](https://docs.rs/dicom-dictionary-std).
+//! [`dicom-dictionary-std`](../dictionary-std).
 //!
 //! **Note:** The link above always points to the latest release.
 //! For older releases, select the appropriate documentation version tag.
