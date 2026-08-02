@@ -12,10 +12,16 @@ use std::sync::Arc;
 #[cfg(feature = "tls")]
 use tracing::debug;
 
+/// A required PEM object is missing from the provided data.
+///
+/// Indicates that a PEM file is expected to contain both an X.509 certificate
+/// and a private key, but one or more of the required objects are missing.
 #[derive(Snafu, Debug)]
 pub enum MissingPemObject {
+    /// No certificate found in the PEM data.
     #[snafu(display("Missing Certificate"))]
     Certificate,
+    /// No private key found in the PEM data.
     #[snafu(display("Missing Private Key"))]
     PrivateKey,
 }
