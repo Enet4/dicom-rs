@@ -9,7 +9,7 @@ pub mod writer;
 
 use std::fmt::Display;
 
-pub use reader::read_pdu;
+pub use reader::{ReadPduOptions, read_pdu, read_pdu_with_options};
 use snafu::{Backtrace, Snafu};
 pub use writer::{WriteChunkError, write_pdu};
 

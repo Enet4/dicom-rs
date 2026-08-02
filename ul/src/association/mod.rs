@@ -46,8 +46,8 @@ use snafu::{ResultExt, Snafu, ensure};
 use crate::{
     Pdu,
     pdu::{
-        self, AssociationRJ, PresentationContextNegotiated, ReadPduSnafu, RequestorRoles,
-        UserVariableItem,
+        self, AssociationRJ, PresentationContextNegotiated, ReadPduOptions, ReadPduSnafu,
+        RequestorRoles, UserVariableItem,
     },
     write_pdu,
 };
@@ -292,6 +292,13 @@ pub trait Association {
     /// for client objects.
     fn peer_max_pdu_length(&self) -> u32;
 
+    /// Whether to accept trailing bytes in fixed-size PDU bodies.
+    ///
+    /// This defaults to `true` for compatibility with previous releases.
+    fn allow_trailing_fixed_pdu_bytes(&self) -> bool {
+        true
+    }
+
     /// Obtain a view of the negotiated presentation contexts.
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated];
 
@@ -530,8 +537,10 @@ pub trait SyncAssociation<S: std::io::Read + std::io::Write + CloseSocket>:
     /// receives more data PDUs once the bytes collected are consumed.
     fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
+        let allow_trailing_fixed_pdu_bytes = self.allow_trailing_fixed_pdu_bytes();
         let (socket, read_buffer) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
+            .allow_trailing_fixed_pdu_bytes(allow_trailing_fixed_pdu_bytes)
     }
 }
 
@@ -613,8 +622,10 @@ pub trait AsyncAssociation<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unp
     /// receives more data PDUs once the bytes collected are consumed.
     fn receive_pdata(&mut self) -> PDataReader<'_, &mut S> {
         let max_pdu_length = self.local_max_pdu_length();
+        let allow_trailing_fixed_pdu_bytes = self.allow_trailing_fixed_pdu_bytes();
         let (socket, read_buffer) = self.get_mut();
         PDataReader::new(socket, max_pdu_length, read_buffer)
+            .allow_trailing_fixed_pdu_bytes(allow_trailing_fixed_pdu_bytes)
     }
 }
 
@@ -660,11 +671,31 @@ pub fn read_pdu_from_wire<R>(
 where
     R: Read,
 {
+    read_pdu_from_wire_with_options(
+        reader,
+        read_buffer,
+        ReadPduOptions::new(max_pdu_length, strict),
+    )
+}
+
+/// Helper function to get a PDU from a reader using explicit parser options.
+///
+/// Chunks of data are read into `read_buffer`,
+/// which should be passed in subsequent calls
+/// to receive more PDUs from the same stream.
+pub fn read_pdu_from_wire_with_options<R>(
+    reader: &mut R,
+    read_buffer: &mut BytesMut,
+    options: ReadPduOptions,
+) -> Result<Pdu>
+where
+    R: Read,
+{
     let mut reader = BufReader::new(reader);
     let msg = loop {
         let mut buf = Cursor::new(&read_buffer[..]);
         // try to read a PDU according to what's in the buffer
-        match pdu::read_pdu(&mut buf, max_pdu_length, strict).context(ReceivePduSnafu)? {
+        match pdu::read_pdu_with_options(&mut buf, options).context(ReceivePduSnafu)? {
             Some(pdu) => {
                 read_buffer.advance(buf.position() as usize);
                 break pdu;
@@ -699,12 +730,31 @@ pub async fn read_pdu_from_wire_async<R: tokio::io::AsyncRead + Unpin>(
     max_pdu_length: u32,
     strict: bool,
 ) -> Result<Pdu> {
+    read_pdu_from_wire_async_with_options(
+        reader,
+        read_buffer,
+        ReadPduOptions::new(max_pdu_length, strict),
+    )
+    .await
+}
+
+/// Helper function to get a PDU from an async reader using explicit parser options.
+///
+/// Chunks of data are read into `read_buffer`,
+/// which should be passed in subsequent calls
+/// to receive more PDUs from the same stream.
+#[cfg(feature = "async")]
+pub async fn read_pdu_from_wire_async_with_options<R: tokio::io::AsyncRead + Unpin>(
+    reader: &mut R,
+    read_buffer: &mut BytesMut,
+    options: ReadPduOptions,
+) -> Result<Pdu> {
     use tokio::io::AsyncReadExt;
     // receive response
 
     let msg = loop {
         let mut buf = Cursor::new(&read_buffer[..]);
-        match pdu::read_pdu(&mut buf, max_pdu_length, strict).context(ReceivePduSnafu)? {
+        match pdu::read_pdu_with_options(&mut buf, options).context(ReceivePduSnafu)? {
             Some(pdu) => {
                 read_buffer.advance(buf.position() as usize);
                 break pdu;
