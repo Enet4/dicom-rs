@@ -159,6 +159,7 @@ pub use ndarray;
 
 mod attribute;
 mod lut;
+mod overlay;
 mod transcode;
 
 pub mod encapsulation;
@@ -169,6 +170,7 @@ pub use attribute::{
     AttributeName, PhotometricInterpretation, PixelRepresentation, PlanarConfiguration,
 };
 pub use lut::{CreateLutError, Lut};
+pub use overlay::{OverlayPlane, OverlayType};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
@@ -281,6 +283,21 @@ enum InnerError {
     LengthMismatchVoiLut {
         vm: u32,
         nr_frames: u32,
+        backtrace: Backtrace,
+    },
+    #[snafu(display("Unsupported overlay plane configuration in group {group:#06X}: {reason}"))]
+    UnsupportedOverlay {
+        group: u16,
+        reason: String,
+        backtrace: Backtrace,
+    },
+    #[snafu(display(
+        "Overlay data of group {group:#06X} is too short: got {got} bytes, need at least {needed}"
+    ))]
+    OverlayDataLength {
+        group: u16,
+        got: usize,
+        needed: usize,
         backtrace: Backtrace,
     },
 }
@@ -2120,6 +2137,35 @@ pub trait PixelDecoder {
 
         Ok(px)
     }
+
+    /// Decode all overlay planes in this object,
+    /// scanning the repeating groups `6000` to `601E`
+    /// (see [PS3.3 C.9.2][1] of the DICOM standard).
+    ///
+    /// Overlay data is recorded outside the pixel data
+    /// and is always in native form,
+    /// so no pixel data codec is involved.
+    /// Legacy overlay planes (retired in DICOM 2004)
+    /// which are embedded in unused bits of the pixel data samples
+    /// are also decoded,
+    /// as long as the pixel data is not in an encapsulated form.
+    ///
+    /// The default implementation yields no overlay planes.
+    ///
+    /// [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.9.2.html
+    fn decode_overlays(&self) -> Result<Vec<OverlayPlane>> {
+        Ok(Vec::new())
+    }
+
+    /// Decode the overlay plane with the given index
+    /// (0 to 15, for the repeating groups `6000` to `601E`),
+    /// returning `Ok(None)` if the plane is not present.
+    ///
+    /// The default implementation yields no overlay plane.
+    fn decode_overlay(&self, index: u8) -> Result<Option<OverlayPlane>> {
+        let _ = index;
+        Ok(None)
+    }
 }
 
 /// Aggregator of key properties for imaging data,
@@ -2523,6 +2569,14 @@ where
             voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
+    }
+
+    fn decode_overlays(&self) -> Result<Vec<OverlayPlane>> {
+        overlay::decode_overlays(self)
+    }
+
+    fn decode_overlay(&self, index: u8) -> Result<Option<OverlayPlane>> {
+        overlay::decode_overlay_group(self, 0x6000 + 2 * index as u16)
     }
 }
 

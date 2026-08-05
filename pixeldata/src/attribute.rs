@@ -33,6 +33,15 @@ pub enum AttributeName {
     LutDescriptor,
     LutData,
     LutExplanation,
+    OverlayRows,
+    OverlayColumns,
+    OverlayType,
+    OverlayOrigin,
+    OverlayBitsAllocated,
+    OverlayBitPosition,
+    OverlayData,
+    NumberOfFramesInOverlay,
+    ImageFrameOrigin,
 }
 
 impl std::fmt::Display for AttributeName {
@@ -767,6 +776,196 @@ pub fn voi_lut_sequence<D: DataDictionary + Clone>(
                 },
             )
         })
+}
+
+/// Get the Overlay Rows (60xx,0010) of the overlay plane in the given group
+pub fn overlay_rows<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u16> {
+    retrieve_required_u16(obj, Tag(group, 0x0010), AttributeName::OverlayRows)
+}
+
+/// Get the Overlay Columns (60xx,0011) of the overlay plane in the given group
+pub fn overlay_columns<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u16> {
+    retrieve_required_u16(obj, Tag(group, 0x0011), AttributeName::OverlayColumns)
+}
+
+/// Get the Overlay Type (60xx,0040) of the overlay plane in the given group
+pub fn overlay_type<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<String> {
+    let name = AttributeName::OverlayType;
+    Ok(obj
+        .element_opt(Tag(group, 0x0040))
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
+        .string()
+        .context(CastValueSnafu { name })?
+        .trim_matches(|c: char| c.is_whitespace() || c == '\0')
+        .to_string())
+}
+
+/// Get the Overlay Origin (60xx,0050) of the overlay plane in the given group,
+/// as the 1-based `[row, column]` of the image pixel
+/// under the top left overlay pixel
+/// (values may be zero or negative)
+pub fn overlay_origin<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<[i32; 2]> {
+    let name = AttributeName::OverlayOrigin;
+    let origin = obj
+        .element_opt(Tag(group, 0x0050))
+        .context(RetrieveSnafu { name })?
+        .context(MissingRequiredSnafu { name })?
+        .to_multi_int::<i32>()
+        .context(ConvertValueSnafu { name })?;
+    ensure!(
+        origin.len() >= 2,
+        InvalidValueSnafu {
+            name,
+            value: format!("value with multiplicity {}", origin.len()),
+        }
+    );
+    Ok([origin[0], origin[1]])
+}
+
+/// Get the Overlay Bits Allocated (60xx,0100) of the overlay plane
+/// in the given group
+pub fn overlay_bits_allocated<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u16> {
+    retrieve_required_u16(obj, Tag(group, 0x0100), AttributeName::OverlayBitsAllocated)
+}
+
+/// Get the Overlay Bit Position (60xx,0102) of the overlay plane
+/// in the given group
+pub fn overlay_bit_position<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u16> {
+    retrieve_required_u16(obj, Tag(group, 0x0102), AttributeName::OverlayBitPosition)
+}
+
+/// Get the Number of Frames in Overlay (60xx,0015) of the overlay plane
+/// in the given group,
+/// returning 1 if it is not present
+pub fn number_of_frames_in_overlay<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u32> {
+    let name = AttributeName::NumberOfFramesInOverlay;
+    let elem = if let Some(elem) = obj
+        .element_opt(Tag(group, 0x0015))
+        .context(RetrieveSnafu { name })?
+    {
+        elem
+    } else {
+        return Ok(1);
+    };
+
+    if elem.is_empty() {
+        return Ok(1);
+    }
+
+    let integer = elem.to_int::<i32>().context(ConvertValueSnafu { name })?;
+
+    ensure!(
+        integer > 0,
+        InvalidValueSnafu {
+            name,
+            value: integer.to_string(),
+        }
+    );
+
+    Ok(integer as u32)
+}
+
+/// Get the Image Frame Origin (60xx,0051) of the overlay plane
+/// in the given group,
+/// as the 1-based number of the first image frame the overlay applies to,
+/// returning 1 if it is not present
+pub fn image_frame_origin<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<u32> {
+    let name = AttributeName::ImageFrameOrigin;
+    let elem = if let Some(elem) = obj
+        .element_opt(Tag(group, 0x0051))
+        .context(RetrieveSnafu { name })?
+    {
+        elem
+    } else {
+        return Ok(1);
+    };
+
+    if elem.is_empty() {
+        return Ok(1);
+    }
+
+    let integer = elem.to_int::<i32>().context(ConvertValueSnafu { name })?;
+
+    ensure!(
+        integer > 0,
+        InvalidValueSnafu {
+            name,
+            value: integer.to_string(),
+        }
+    );
+
+    Ok(integer as u32)
+}
+
+/// Get the Overlay Label (60xx,1500) of the overlay plane in the given group,
+/// if it is present
+pub fn overlay_label<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Option<String> {
+    obj.get(Tag(group, 0x1500))
+        .and_then(|e| e.string().ok())
+        .map(|s| {
+            s.trim_matches(|c: char| c.is_whitespace() || c == '\0')
+                .to_string()
+        })
+}
+
+/// Get the Overlay Description (60xx,0022) of the overlay plane
+/// in the given group,
+/// if it is present
+pub fn overlay_description<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Option<String> {
+    obj.get(Tag(group, 0x0022))
+        .and_then(|e| e.string().ok())
+        .map(|s| {
+            s.trim_matches(|c: char| c.is_whitespace() || c == '\0')
+                .to_string()
+        })
+}
+
+/// Get the Overlay Data (60xx,3000) of the overlay plane in the given group
+/// as a byte stream in little endian order,
+/// returning `None` if the element is not present
+pub fn overlay_data<D: DataDictionary + Clone>(
+    obj: &FileDicomObject<InMemDicomObject<D>>,
+    group: u16,
+) -> Result<Option<std::borrow::Cow<'_, [u8]>>> {
+    let name = AttributeName::OverlayData;
+    match obj
+        .element_opt(Tag(group, 0x3000))
+        .context(RetrieveSnafu { name })?
+    {
+        Some(elem) => Ok(Some(elem.to_bytes().context(ConvertValueSnafu { name })?)),
+        None => Ok(None),
+    }
 }
 
 #[cfg(test)]
