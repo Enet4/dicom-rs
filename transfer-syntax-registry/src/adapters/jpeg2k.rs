@@ -104,7 +104,15 @@ fn guarded_resize(
     additional_capacity: usize,
     fragment_size: usize,
 ) -> DecodeResult<()> {
-    crate::alloc::guarded_resize(out, additional_capacity, fragment_size, COMPRESSION_RATIO_THRESHOLD)
-        .ok()
-        .whatever_context("Could not allocate frame")
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        fragment_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "frame",
+        size: additional_capacity,
+    })
 }

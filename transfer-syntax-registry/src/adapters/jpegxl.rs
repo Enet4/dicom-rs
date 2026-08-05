@@ -316,9 +316,17 @@ fn guarded_reserve(
     additional_capacity: usize,
     encapsulated_size: usize,
 ) -> DecodeResult<()> {
-    crate::alloc::guarded_reserve(out, additional_capacity, encapsulated_size, COMPRESSION_RATIO_THRESHOLD)
-        .ok()
-        .whatever_context("Failed to reserve heap space for JPEG XL frame")
+    crate::alloc::guarded_reserve(
+        out,
+        additional_capacity,
+        encapsulated_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "JPEG XL frame",
+        size: additional_capacity,
+    })
 }
 
 fn guarded_resize(
@@ -326,7 +334,15 @@ fn guarded_resize(
     additional_capacity: usize,
     encapsulated_size: usize,
 ) -> DecodeResult<()> {
-    crate::alloc::guarded_resize(out, additional_capacity, encapsulated_size, COMPRESSION_RATIO_THRESHOLD)
-        .ok()
-        .whatever_context("Failed to reserve heap space for JPEG XL frame")
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        encapsulated_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "JPEG XL frame",
+        size: additional_capacity,
+    })
 }

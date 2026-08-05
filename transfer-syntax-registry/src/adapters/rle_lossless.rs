@@ -306,7 +306,10 @@ const COMPRESSION_RATIO_THRESHOLD: u32 = 32;
 fn guarded_alloc(capacity: usize, fragment_size: usize) -> DecodeResult<Vec<u8>> {
     crate::alloc::guarded_alloc(capacity, fragment_size, COMPRESSION_RATIO_THRESHOLD)
         .ok()
-        .whatever_context("Could not allocate RLE segment")
+        .context(decode_error::AllocateSnafu {
+            name: "RLE segment",
+            size: capacity,
+        })
 }
 
 /// Perform a resize of a vector (with zeros), safeguarded from extreme cases.
@@ -315,9 +318,17 @@ fn guarded_resize(
     additional_capacity: usize,
     fragment_size: usize,
 ) -> DecodeResult<()> {
-    crate::alloc::guarded_resize(out, additional_capacity, fragment_size, COMPRESSION_RATIO_THRESHOLD)
-        .ok()
-        .whatever_context("Could not allocate frame")
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        fragment_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "frame",
+        size: additional_capacity,
+    })
 }
 
 #[cfg(test)]

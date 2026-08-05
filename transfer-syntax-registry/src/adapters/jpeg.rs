@@ -374,7 +374,10 @@ fn guarded_resize(
 ) -> DecodeResult<()> {
     crate::alloc::guarded_resize(out, additional_capacity, encapsulated_size, COMPRESSION_RATIO_THRESHOLD)
         .ok()
-        .whatever_context("Could not allocate frame")
+        .context(decode_error::AllocateSnafu {
+            name: "frame",
+            size: additional_capacity,
+        })
 }
 
 /// reduce data precision to 8 bits if necessary.
