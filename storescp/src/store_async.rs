@@ -14,7 +14,7 @@ use snafu::{OptionExt, Report, ResultExt, Whatever};
 use tracing::{debug, info, warn};
 
 use crate::{App, create_cecho_response, create_cstore_response, transfer::ABSTRACT_SYNTAXES};
-pub async fn run_store_async(
+pub(crate) async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
     args: &App,
 ) -> Result<(), Whatever> {

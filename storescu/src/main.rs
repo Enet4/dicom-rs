@@ -183,7 +183,7 @@ enum Error {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn get_scu_options<'a>(
+pub(crate) fn get_scu_options<'a>(
     calling_ae_title: String,
     called_ae_title: Option<String>,
     max_pdu_length: u32,

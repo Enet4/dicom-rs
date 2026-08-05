@@ -42,7 +42,10 @@ impl FromStr for TermQuery {
     }
 }
 
-pub fn parse_queries<T>(base: InMemDicomObject, qs: &[T]) -> Result<InMemDicomObject, Whatever>
+pub(crate) fn parse_queries<T>(
+    base: InMemDicomObject,
+    qs: &[T],
+) -> Result<InMemDicomObject, Whatever>
 where
     T: AsRef<str>,
 {

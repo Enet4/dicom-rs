@@ -20,7 +20,7 @@ use crate::{
     WriteDatasetSnafu, check_presentation_contexts, into_ts, store_req_command,
 };
 
-pub async fn send_file<T>(
+pub(crate) async fn send_file<T>(
     mut scu: AsyncClientAssociation<T>,
     file: DicomFile,
     message_id: u16,
@@ -204,7 +204,7 @@ where
     Ok(scu)
 }
 
-pub async fn inner<T>(
+pub(crate) async fn inner<T>(
     mut scu: AsyncClientAssociation<T>,
     d_files: Arc<Mutex<Vec<DicomFile>>>,
     pbx: Option<Arc<Mutex<ProgressBar>>>,

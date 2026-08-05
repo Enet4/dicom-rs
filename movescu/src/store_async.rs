@@ -16,7 +16,7 @@ use crate::App;
 
 /// A list of supported abstract syntaxes for storage services
 #[allow(deprecated)]
-pub static ABSTRACT_SYNTAXES: &[&str] = &[
+pub(crate) static ABSTRACT_SYNTAXES: &[&str] = &[
     CT_IMAGE_STORAGE,
     ENHANCED_CT_IMAGE_STORAGE,
     STANDALONE_CURVE_STORAGE,
@@ -85,7 +85,7 @@ fn create_cstore_response(
     ])
 }
 
-pub async fn run_store_async(
+pub(crate) async fn run_store_async(
     scu_stream: tokio::net::TcpStream,
     progress: Option<ProgressBar>,
     args: &App,
