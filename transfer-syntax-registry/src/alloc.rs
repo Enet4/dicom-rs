@@ -14,6 +14,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Perform an allocation, safeguarded from extreme cases.
+#[allow(dead_code)]
 pub fn guarded_alloc(
     capacity: usize,
     encapsulated_size: usize,
@@ -31,6 +32,7 @@ pub fn guarded_alloc(
 }
 
 /// Reserve extra capacity for a vector (with zeros), safeguarded from extreme cases.
+#[allow(dead_code)]
 pub fn guarded_reserve(
     out: &mut Vec<u8>,
     additional_capacity: usize,
@@ -50,6 +52,7 @@ pub fn guarded_reserve(
 }
 
 /// Perform a resize of a vector (with zeros), safeguarded from extreme cases.
+#[allow(dead_code)]
 pub fn guarded_resize(
     out: &mut Vec<u8>,
     additional_capacity: usize,
