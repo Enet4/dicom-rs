@@ -1,4 +1,11 @@
 //! Private module to assist in making safe memory allocations
+#![cfg(any(
+    feature = "rle",
+    feature = "jpeg",
+    feature = "jpegxl",
+    feature = "openjp2",
+    feature = "openjpeg-sys"
+))]
 
 const DANGEROUS_CAPACITY: usize = 16_777_216;
 
@@ -32,7 +39,6 @@ pub fn guarded_alloc(
 }
 
 /// Reserve extra capacity for a vector (with zeros), safeguarded from extreme cases.
-#[allow(dead_code)]
 pub fn guarded_reserve(
     out: &mut Vec<u8>,
     additional_capacity: usize,
