@@ -170,7 +170,7 @@ pub use attribute::{
     AttributeName, PhotometricInterpretation, PixelRepresentation, PlanarConfiguration,
 };
 pub use lut::{CreateLutError, Lut};
-pub use overlay::{OverlayPlane, OverlayType};
+pub use overlay::{OverlayError, OverlayPlane, OverlayType};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
@@ -285,20 +285,10 @@ enum InnerError {
         nr_frames: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Unsupported overlay plane configuration in group {group:#06X}: {reason}"))]
-    UnsupportedOverlay {
-        group: u16,
-        reason: String,
-        backtrace: Backtrace,
-    },
-    #[snafu(display(
-        "Overlay data of group {group:#06X} is too short: got {got} bytes, need at least {needed}"
-    ))]
-    OverlayDataLength {
-        group: u16,
-        got: usize,
-        needed: usize,
-        backtrace: Backtrace,
+    #[snafu(transparent)]
+    Overlay {
+        #[snafu(backtrace)]
+        source: overlay::OverlayError,
     },
 }
 
@@ -307,6 +297,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl From<attribute::GetAttributeError> for crate::Error {
     fn from(source: attribute::GetAttributeError) -> Self {
         Error(crate::InnerError::GetAttribute { source })
+    }
+}
+
+impl From<overlay::OverlayError> for crate::Error {
+    fn from(source: overlay::OverlayError) -> Self {
+        Error(crate::InnerError::Overlay { source })
     }
 }
 

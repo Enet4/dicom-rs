@@ -16,14 +16,94 @@
 
 use dicom_core::DataDictionary;
 use dicom_object::{FileDicomObject, InMemDicomObject};
+use snafu::{Backtrace, Snafu};
 
-use crate::{
-    FrameOutOfRangeSnafu, OverlayDataLengthSnafu, Result, UnsupportedOverlaySnafu, attribute,
-};
+use crate::{FrameOutOfRangeSnafu, Result, attribute};
 
 /// The maximum number of overlay planes in a DICOM object,
 /// as per the repeating groups `6000` to `601E`.
 pub(crate) const MAX_OVERLAY_PLANES: u16 = 16;
+
+/// Error type for decoding an overlay plane.
+#[derive(Debug, Snafu)]
+#[non_exhaustive]
+pub enum OverlayError {
+    /// Unsupported Overlay Bits Allocated (60xx,0100)
+    #[snafu(display(
+        "Unsupported Overlay Bits Allocated {bits_allocated} in group {group:#06X}, expected 1"
+    ))]
+    UnsupportedBitsAllocated {
+        group: u16,
+        bits_allocated: u16,
+        backtrace: Backtrace,
+    },
+
+    /// Unsupported Overlay Bit Position (60xx,0102)
+    #[snafu(display(
+        "Unsupported Overlay Bit Position {bit_position} in group {group:#06X}, expected 0"
+    ))]
+    UnsupportedBitPosition {
+        group: u16,
+        bit_position: u16,
+        backtrace: Backtrace,
+    },
+
+    /// Unknown Overlay Type (60xx,0040)
+    #[snafu(display("Unknown Overlay Type `{value}` in group {group:#06X}"))]
+    UnknownOverlayType {
+        group: u16,
+        value: String,
+        backtrace: Backtrace,
+    },
+
+    /// Overlay Data (60xx,3000) is too short
+    #[snafu(display(
+        "Overlay data of group {group:#06X} is too short: got {got} bytes, need at least {needed}"
+    ))]
+    DataLength {
+        group: u16,
+        got: usize,
+        needed: usize,
+        backtrace: Backtrace,
+    },
+
+    /// Unsupported image Bits Allocated for an overlay embedded in the pixel data
+    #[snafu(display(
+        "Embedded overlay in group {group:#06X}: image Bits Allocated {bits_allocated} is not supported"
+    ))]
+    EmbeddedBitsAllocated {
+        group: u16,
+        bits_allocated: u16,
+        backtrace: Backtrace,
+    },
+
+    /// Unsupported Samples per Pixel for an overlay embedded in the pixel data
+    #[snafu(display(
+        "Embedded overlay in group {group:#06X}: Samples per Pixel {samples_per_pixel} is not supported"
+    ))]
+    EmbeddedSamplesPerPixel {
+        group: u16,
+        samples_per_pixel: u16,
+        backtrace: Backtrace,
+    },
+
+    /// Overlay Bit Position out of range of the image Bits Allocated
+    #[snafu(display(
+        "Embedded overlay in group {group:#06X}: Overlay Bit Position {bit_position} is out of range of Bits Allocated {bits_allocated}"
+    ))]
+    EmbeddedBitPositionOutOfRange {
+        group: u16,
+        bit_position: u16,
+        bits_allocated: u16,
+        backtrace: Backtrace,
+    },
+
+    /// Overlays embedded in encapsulated pixel data are not supported
+    #[snafu(display(
+        "Embedded overlay in group {group:#06X}: encapsulated pixel data is not supported"
+    ))]
+    EmbeddedEncapsulated { group: u16, backtrace: Backtrace },
+}
 
 /// A decoded representation of the DICOM _Overlay Type_ attribute (60xx,0040).
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
@@ -206,9 +286,9 @@ where
         "G" => OverlayType::Graphics,
         "R" => OverlayType::Roi,
         other => {
-            return UnsupportedOverlaySnafu {
+            return UnknownOverlayTypeSnafu {
                 group,
-                reason: format!("unknown Overlay Type `{other}`"),
+                value: other.to_string(),
             }
             .fail()
             .map_err(Into::into);
@@ -224,18 +304,18 @@ where
             // standard overlay plane recorded in Overlay Data (60xx,3000)
             let bits_allocated = attribute::overlay_bits_allocated(obj, group).unwrap_or(1);
             if bits_allocated != 1 {
-                return UnsupportedOverlaySnafu {
+                return UnsupportedBitsAllocatedSnafu {
                     group,
-                    reason: format!("Overlay Bits Allocated is {bits_allocated}, expected 1"),
+                    bits_allocated,
                 }
                 .fail()
                 .map_err(Into::into);
             }
             let bit_position = attribute::overlay_bit_position(obj, group).unwrap_or(0);
             if bit_position != 0 {
-                return UnsupportedOverlaySnafu {
+                return UnsupportedBitPositionSnafu {
                     group,
-                    reason: format!("Overlay Bit Position is {bit_position}, expected 0"),
+                    bit_position,
                 }
                 .fail()
                 .map_err(Into::into);
@@ -243,7 +323,7 @@ where
 
             let needed = num_pixels.div_ceil(8);
             if packed.len() < needed {
-                return OverlayDataLengthSnafu {
+                return DataLengthSnafu {
                     group,
                     got: packed.len(),
                     needed,
@@ -290,33 +370,28 @@ where
 {
     let bits_allocated = attribute::bits_allocated(obj)?;
     if bits_allocated != 8 && bits_allocated != 16 {
-        return UnsupportedOverlaySnafu {
+        return EmbeddedBitsAllocatedSnafu {
             group,
-            reason: format!(
-                "embedded overlay in pixel data with Bits Allocated {bits_allocated} is not supported"
-            ),
+            bits_allocated,
         }
         .fail()
         .map_err(Into::into);
     }
     let samples_per_pixel = attribute::samples_per_pixel(obj).unwrap_or(1);
     if samples_per_pixel != 1 {
-        return UnsupportedOverlaySnafu {
+        return EmbeddedSamplesPerPixelSnafu {
             group,
-            reason: format!(
-                "embedded overlay in pixel data with Samples per Pixel {samples_per_pixel} is not supported"
-            ),
+            samples_per_pixel,
         }
         .fail()
         .map_err(Into::into);
     }
     let bit_position = attribute::overlay_bit_position(obj, group)?;
     if bit_position >= bits_allocated {
-        return UnsupportedOverlaySnafu {
+        return EmbeddedBitPositionOutOfRangeSnafu {
             group,
-            reason: format!(
-                "Overlay Bit Position {bit_position} is out of range of Bits Allocated {bits_allocated}"
-            ),
+            bit_position,
+            bits_allocated,
         }
         .fail()
         .map_err(Into::into);
@@ -326,12 +401,9 @@ where
     let samples = match pixel_data.value() {
         dicom_core::DicomValue::Primitive(p) => p.to_bytes(),
         _ => {
-            return UnsupportedOverlaySnafu {
-                group,
-                reason: "embedded overlay in encapsulated pixel data is not supported".to_string(),
-            }
-            .fail()
-            .map_err(Into::into);
+            return EmbeddedEncapsulatedSnafu { group }
+                .fail()
+                .map_err(Into::into);
         }
     };
 
@@ -341,7 +413,7 @@ where
     let offset = (image_frame_origin as usize - 1) * frame_pixels * bytes_per_sample;
     let needed = offset + num_pixels * bytes_per_sample;
     if samples.len() < needed {
-        return OverlayDataLengthSnafu {
+        return DataLengthSnafu {
             group,
             got: samples.len(),
             needed,
