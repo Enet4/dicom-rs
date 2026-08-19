@@ -25,6 +25,9 @@ Options:
       --8bit                  Force output bit depth to 8 bits per sample
       --16bit                 Force output bit depth to 16 bits per sample
       --unwrap                Output the raw pixel data instead of decoding it
+      --overlays              Render the overlay planes (groups 6000-601E) on top of the image (the output becomes RGB when an overlay applies to the frame)
+      --overlay-color <OVERLAY_COLOR>  Color for overlay rendering as an RGB hex code (e.g. "ff0000" or "#00ff00"). May be given multiple times to color each overlay plane differently, assigned in ascending overlay group order and cycled if there are more planes than colors [default: ffffff]
+      --overlay-file <OVERLAY_FILE>    Path to an additional DICOM file to take overlay planes from (e.g. a presentation state object referencing the image). May be given multiple times; planes are appended after those of the image itself
       --fail-first            Stop on the first failed conversion
   -v, --verbose               Print more information about the image and the output file
   -h, --help                  Print help

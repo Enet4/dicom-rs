@@ -360,6 +360,14 @@ where
             enforce_frame_fg_vm_match: false,
         })
     }
+
+    fn decode_overlays(&self) -> Result<Vec<crate::OverlayPlane>> {
+        crate::overlay::decode_overlays(self)
+    }
+
+    fn decode_overlay(&self, index: u8) -> Result<Option<crate::OverlayPlane>> {
+        crate::overlay::decode_overlay_group(self, 0x6000 + 2 * index as u16)
+    }
 }
 
 fn interleave_planes(cols: usize, rows: usize, bits_allocated: usize, data: Vec<u8>) -> Vec<u8> {
