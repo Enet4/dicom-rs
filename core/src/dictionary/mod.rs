@@ -1,6 +1,11 @@
 //! This module contains the concept of a DICOM data dictionary.
 //!
-//! The standard data dictionary is available in the [`dicom-dictionary-std`] crate.
+//! The standard data dictionary documentation is available in the latest
+//! version of
+//! [`dicom-dictionary-std`](https://docs.rs/dicom-dictionary-std).
+//!
+//! **Note:** The link above always points to the latest release.
+//! For older releases, select the appropriate documentation version tag.
 
 mod data_element;
 pub mod stub;

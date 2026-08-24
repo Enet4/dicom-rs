@@ -4,13 +4,13 @@ use std::io::Write;
 
 use crate::DicomJson;
 use dicom_core::{
-    header::Header, value::PixelFragmentSequence, DicomValue, PrimitiveValue, Tag, VR,
+    DicomValue, PrimitiveValue, Tag, VR, header::Header, value::PixelFragmentSequence,
 };
 use dicom_dictionary_std::StandardDataDictionary;
-use dicom_object::{mem::InMemElement, DefaultDicomObject, InMemDicomObject};
-use serde::{ser::SerializeMap, Serialize, Serializer};
+use dicom_object::{DefaultDicomObject, InMemDicomObject, mem::InMemElement};
+use serde::{Serialize, Serializer, ser::SerializeMap};
 
-use self::value::{AsNumbers, AsPersonNames, AsStrings, InlineBinary};
+use self::value::{AsAttributeTags, AsNumbers, AsPersonNames, AsStrings, InlineBinary};
 mod value;
 
 /// Serialize a piece of DICOM data as a string of JSON.
@@ -227,7 +227,6 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
             DicomValue::Primitive(v) => match vr {
                 VR::AE
                 | VR::AS
-                | VR::AT
                 | VR::CS
                 | VR::DA
                 | VR::DT
@@ -257,10 +256,21 @@ impl<D> Serialize for DicomJson<&'_ InMemElement<D>> {
                 | VR::UV => {
                     serializer.serialize_entry("Value", &AsNumbers::from(v))?;
                 }
+                VR::AT => {
+                    serializer.serialize_entry("Value", &AsAttributeTags::from(v))?;
+                }
                 VR::OB | VR::OD | VR::OF | VR::OL | VR::OV | VR::OW | VR::UN => {
                     serializer.serialize_entry("InlineBinary", &InlineBinary::from(v))?;
                 }
-                VR::SQ => unreachable!("unexpected VR SQ in primitive value"),
+                // A primitive value tagged with VR SQ is an inconsistent state
+                // (e.g. built from malformed DICOM JSON declaring `"vr":"SQ"`
+                // alongside inline binary). Surface it as an error instead of
+                // panicking. (#812)
+                VR::SQ => {
+                    return Err(serde::ser::Error::custom(
+                        "cannot serialize a primitive value with VR SQ",
+                    ));
+                }
             },
         }
 
@@ -319,13 +329,26 @@ impl Serialize for DicomJson<Tag> {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use dicom_core::value::DataSetSequence;
     use dicom_core::Length;
+    use dicom_core::value::DataSetSequence;
     use dicom_core::{dicom_value, value::DicomDate};
     use dicom_dictionary_std::tags;
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn serialize_primitive_with_sq_vr_is_error() {
+        // #812: a primitive value tagged with VR SQ is an inconsistent state
+        // (constructible from malformed DICOM JSON, e.g. `"vr":"SQ"` with inline
+        // binary). Serializing it must return an error rather than panic.
+        let obj = InMemDicomObject::from_element_iter([InMemElement::new(
+            Tag(0x0008, 0x0018),
+            VR::SQ,
+            PrimitiveValue::from("x"),
+        )]);
+        assert!(to_string(&obj).is_err());
+    }
 
     #[test]
     fn serialize_simple_data_elements() {

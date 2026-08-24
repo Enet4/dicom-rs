@@ -8,7 +8,7 @@
 //! License: <https://github.com/pydicom/pydicom/blob/master/LICENSE>
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 
-use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataObject, PixelDataReader};
+use dicom_encoding::adapters::{DecodeResult, PixelDataObject, PixelDataReader, decode_error};
 use dicom_encoding::snafu::prelude::*;
 use std::io::{self, Read, Seek};
 

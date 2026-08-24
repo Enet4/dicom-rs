@@ -125,11 +125,11 @@ use attribute::VoiLut;
 use byteorder::{ByteOrder, NativeEndian};
 #[cfg(not(feature = "gdcm"))]
 use dicom_core::{DataDictionary, DicomValue};
+#[cfg(not(feature = "gdcm"))]
+use dicom_encoding::Codec;
 use dicom_encoding::adapters::DecodeError;
 #[cfg(not(feature = "gdcm"))]
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-#[cfg(not(feature = "gdcm"))]
-use dicom_encoding::Codec;
 #[cfg(not(feature = "gdcm"))]
 use dicom_object::{FileDicomObject, InMemDicomObject};
 #[cfg(not(feature = "gdcm"))]
@@ -143,10 +143,10 @@ use num_traits::NumCast;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 #[cfg(all(feature = "rayon", feature = "image"))]
 use rayon::slice::ParallelSliceMut;
-#[cfg(not(feature = "gdcm"))]
-use snafu::ensure;
 #[cfg(any(not(feature = "gdcm"), feature = "image"))]
 use snafu::OptionExt;
+#[cfg(not(feature = "gdcm"))]
+use snafu::ensure;
 use snafu::{Backtrace, ResultExt, Snafu};
 use std::borrow::Cow;
 #[cfg(not(feature = "gdcm"))]
@@ -159,6 +159,7 @@ pub use ndarray;
 
 mod attribute;
 mod lut;
+mod overlay;
 mod transcode;
 
 pub mod encapsulation;
@@ -169,6 +170,7 @@ pub use attribute::{
     AttributeName, PhotometricInterpretation, PixelRepresentation, PlanarConfiguration,
 };
 pub use lut::{CreateLutError, Lut};
+pub use overlay::{OverlayError, OverlayPlane, OverlayType};
 pub use transcode::{Error as TranscodeError, Result as TranscodeResult, Transcode};
 pub use transform::{Rescale, VoiLutFunction, WindowLevel, WindowLevelTransform};
 
@@ -251,29 +253,42 @@ enum InnerError {
         frame_number: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    #[snafu(display(
+        "Value multiplicity of VOI LUT Function must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"
+    ))]
     LengthMismatchVoiLutFunction {
         vm: u32,
         nr_frames: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"))]
+    #[snafu(display(
+        "Value multiplicity of Rescale Slope/Intercept must match. Found `{slope_vm:?}` (slope), `{intercept_vm:?}` (intercept)"
+    ))]
     LengthMismatchRescale {
         intercept_vm: u32,
         slope_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"))]
+    #[snafu(display(
+        "Value multiplicity of Window Center/Width must match. Found `{wc_vm:?}` (center), `{ww_vm:?}` (width)"
+    ))]
     LengthMismatchWindowLevel {
         wc_vm: u32,
         ww_vm: u32,
         backtrace: Backtrace,
     },
-    #[snafu(display("Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"))]
+    #[snafu(display(
+        "Value multiplicity of VOI LUT must match the number of frames. Expected `{nr_frames:?}`, found `{vm:?}`"
+    ))]
     LengthMismatchVoiLut {
         vm: u32,
         nr_frames: u32,
         backtrace: Backtrace,
+    },
+    #[snafu(transparent)]
+    Overlay {
+        #[snafu(backtrace)]
+        source: overlay::OverlayError,
     },
 }
 
@@ -282,6 +297,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 impl From<attribute::GetAttributeError> for crate::Error {
     fn from(source: attribute::GetAttributeError) -> Self {
         Error(crate::InnerError::GetAttribute { source })
+    }
+}
+
+impl From<overlay::OverlayError> for crate::Error {
+    fn from(source: overlay::OverlayError) -> Self {
+        Error(crate::InnerError::Overlay { source })
     }
 }
 
@@ -659,7 +680,11 @@ impl DecodedPixelData<'_> {
                         }
                         .fail()?
                     }
-                    tracing::warn!("Expected `{:?}` rescale parameters, found `{:?}`, using first value for all", self.number_of_frames, len);
+                    tracing::warn!(
+                        "Expected `{:?}` rescale parameters, found `{:?}`, using first value for all",
+                        self.number_of_frames,
+                        len
+                    );
                     Ok(&self.rescale[0..1])
                 }
             }
@@ -684,7 +709,11 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        tracing::warn!("Expected `{:?}` VOI LUT functions, found `{:?}`, using first value for all", self.number_of_frames, len);
+                        tracing::warn!(
+                            "Expected `{:?}` VOI LUT functions, found `{:?}`, using first value for all",
+                            self.number_of_frames,
+                            len
+                        );
                         Ok(Some(&inner[0..1]))
                     }
                 }
@@ -711,7 +740,11 @@ impl DecodedPixelData<'_> {
                             }
                             .fail()?
                         }
-                        tracing::warn!("Expected `{:?}` Window Levels, found `{:?}`, using first value for all", self.number_of_frames, len);
+                        tracing::warn!(
+                            "Expected `{:?}` Window Levels, found `{:?}`, using first value for all",
+                            self.number_of_frames,
+                            len
+                        );
                         Ok(Some(&inner[0..1]))
                     }
                 }
@@ -2100,6 +2133,35 @@ pub trait PixelDecoder {
 
         Ok(px)
     }
+
+    /// Decode all overlay planes in this object,
+    /// scanning the repeating groups `6000` to `601E`
+    /// (see [PS3.3 C.9.2][1] of the DICOM standard).
+    ///
+    /// Overlay data is recorded outside the pixel data
+    /// and is always in native form,
+    /// so no pixel data codec is involved.
+    /// Legacy overlay planes (retired in DICOM 2004)
+    /// which are embedded in unused bits of the pixel data samples
+    /// are also decoded,
+    /// as long as the pixel data is not in an encapsulated form.
+    ///
+    /// The default implementation yields no overlay planes.
+    ///
+    /// [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.9.2.html
+    fn decode_overlays(&self) -> Result<Vec<OverlayPlane>> {
+        Ok(Vec::new())
+    }
+
+    /// Decode the overlay plane with the given index
+    /// (0 to 15, for the repeating groups `6000` to `601E`),
+    /// returning `Ok(None)` if the plane is not present.
+    ///
+    /// The default implementation yields no overlay plane.
+    fn decode_overlay(&self, index: u8) -> Result<Option<OverlayPlane>> {
+        let _ = index;
+        Ok(None)
+    }
 }
 
 /// Aggregator of key properties for imaging data,
@@ -2503,6 +2565,14 @@ where
             voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
+    }
+
+    fn decode_overlays(&self) -> Result<Vec<OverlayPlane>> {
+        overlay::decode_overlays(self)
+    }
+
+    fn decode_overlay(&self, index: u8) -> Result<Option<OverlayPlane>> {
+        overlay::decode_overlay_group(self, 0x6000 + 2 * index as u16)
     }
 }
 

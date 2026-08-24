@@ -7,7 +7,7 @@
 //! The syntax is `«ae_title»@«network_address»:«port»`,
 //! which works not only with IPv4 and IPv6 addresses,
 //! but also with domain names.
-use snafu::{ensure, AsErrorSource, ResultExt, Snafu};
+use snafu::{AsErrorSource, ResultExt, Snafu, ensure};
 use std::{
     convert::TryFrom,
     net::{SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs},

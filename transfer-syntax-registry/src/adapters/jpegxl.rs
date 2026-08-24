@@ -1,12 +1,12 @@
 //! Support for JPEG XL image decoding and encoding.
 
-use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_core::Tag;
+use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_encoding::adapters::PixelDataObject;
 #[cfg(feature = "jxl-oxide")]
-use dicom_encoding::adapters::{decode_error, DecodeResult, PixelDataReader};
+use dicom_encoding::adapters::{DecodeResult, PixelDataReader, decode_error};
 #[cfg(feature = "zune-jpegxl")]
-use dicom_encoding::adapters::{encode_error, PixelDataWriter};
+use dicom_encoding::adapters::{PixelDataWriter, encode_error};
 
 use dicom_encoding::snafu::prelude::*;
 #[cfg(feature = "jxl-oxide")]

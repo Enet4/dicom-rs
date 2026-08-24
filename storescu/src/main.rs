@@ -1,26 +1,26 @@
 use clap::Parser;
-use dicom_core::{dicom_value, header::Tag, DataElement, VR};
+use dicom_app_common::{ConnectionOptions, TlsOptions};
+use dicom_core::{DataElement, VR, dicom_value, header::Tag};
 use dicom_dictionary_std::{tags, uids};
-use dicom_encoding::transfer_syntax;
 use dicom_encoding::TransferSyntax;
-use dicom_object::{mem::InMemDicomObject, DefaultDicomObject, StandardDataDictionary};
+use dicom_encoding::transfer_syntax;
+use dicom_object::{DefaultDicomObject, StandardDataDictionary, mem::InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use dicom_ul::ClientAssociationOptions;
 use indicatif::{ProgressBar, ProgressStyle};
 use snafu::prelude::*;
 use snafu::{Report, Whatever};
-use tracing::debug;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tracing::{error, info, warn, Level};
+use tracing::debug;
+use tracing::{Level, error, info, warn};
 use tracing_subscriber::filter::EnvFilter;
 use transfer_syntax::TransferSyntaxIndex;
 use walkdir::WalkDir;
-use dicom_app_common::{ConnectionOptions, TlsOptions};
 
 mod store_async;
 mod store_sync;
@@ -184,11 +184,11 @@ enum Error {
     #[snafu(display("TLS error: {}", source))]
     Tls {
         source: dicom_app_common::TlsError,
-    }
+    },
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn get_scu_options<'a>(
+pub(crate) fn get_scu_options<'a>(
     calling_ae_title: String,
     called_ae_title: Option<String>,
     max_pdu_length: u32,
@@ -198,8 +198,7 @@ pub fn get_scu_options<'a>(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: &'a HashSet<(String, String)>,
-    #[cfg(feature = "tls")]
-    tls_options: rustls::ClientConfig,
+    #[cfg(feature = "tls")] tls_options: rustls::ClientConfig,
 ) -> ClientAssociationOptions<'a> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
@@ -207,9 +206,7 @@ pub fn get_scu_options<'a>(
 
     #[cfg(feature = "tls")]
     {
-        scu_init = scu_init
-            .server_name("localhost").
-            tls_config(tls_options);
+        scu_init = scu_init.server_name("localhost").tls_config(tls_options);
     }
 
     for (storage_sop_class_uid, transfer_syntax) in presentation_contexts {
@@ -250,7 +247,24 @@ fn main() {
             .with_env_filter(
                 EnvFilter::from_default_env()
                     .add_directive("dicom_app_common=info".parse().unwrap())
-                    .add_directive(if app.verbose { "dicom_storescu=debug".parse().unwrap() } else { "dicom_storescu=info".parse().unwrap() })
+                    .add_directive(
+                        if app.verbose {
+                            "dicom_storescu=debug"
+                        } else {
+                            "dicom_storescu=info"
+                        }
+                        .parse()
+                        .unwrap(),
+                    )
+                    .add_directive(
+                        if app.verbose {
+                            "dicom_app_common=debug"
+                        } else {
+                            "dicom_app_common=info"
+                        }
+                        .parse()
+                        .unwrap(),
+                    ),
             )
             .finish(),
     )
@@ -374,12 +388,13 @@ fn run(app: App) -> Result<(), Error> {
 
     #[cfg(not(feature = "tls"))]
     if tls_enabled {
-        return Err(Error::Tls { source: dicom_app_common::TlsError::TlsSupportNotAvailable });
+        return Err(Error::Tls {
+            source: dicom_app_common::TlsError::TlsSupportNotAvailable,
+        });
     }
 
     #[cfg(feature = "tls")]
-    let config = tls.client_config()
-        .context(TlsSnafu)?;
+    let config = tls.client_config().context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -397,7 +412,7 @@ fn run(app: App) -> Result<(), Error> {
         jwt,
         &presentation_contexts,
         #[cfg(feature = "tls")]
-        config
+        config,
     );
     if let Some(secs) = connection.read_timeout {
         scu_options = scu_options.read_timeout(Duration::from_secs(secs));
@@ -425,16 +440,37 @@ fn run(app: App) -> Result<(), Error> {
 
     #[cfg(feature = "tls")]
     if tls_enabled {
-        let scu = scu_options.establish_with_tls(&addr).map_err(Box::from).context(ScuSnafu)?;
-        store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
+        let scu = scu_options
+            .establish_with_tls(&addr)
+            .map_err(Box::from)
+            .context(ScuSnafu)?;
+        store_sync::inner(
+            scu,
+            dicom_files,
+            &progress_bar,
+            fail_first,
+            verbose,
+            never_transcode,
+            ignore_sop_class,
+        )?;
         return Ok(());
     }
 
-    let scu = scu_options.establish_with(&addr).map_err(Box::from).context(ScuSnafu)?;
-    store_sync::inner(scu, dicom_files, &progress_bar, fail_first, verbose, never_transcode, ignore_sop_class)?;
+    let scu = scu_options
+        .establish_with(&addr)
+        .map_err(Box::from)
+        .context(ScuSnafu)?;
+    store_sync::inner(
+        scu,
+        dicom_files,
+        &progress_bar,
+        fail_first,
+        verbose,
+        never_transcode,
+        ignore_sop_class,
+    )?;
     Ok(())
 }
-
 
 async fn run_async() -> Result<(), Error> {
     let App {
@@ -466,12 +502,13 @@ async fn run_async() -> Result<(), Error> {
     let tls_enabled = tls.enabled;
     #[cfg(not(feature = "tls"))]
     if tls_enabled {
-        return Err(Error::Tls { source: dicom_app_common::TlsError::TlsSupportNotAvailable });
+        return Err(Error::Tls {
+            source: dicom_app_common::TlsError::TlsSupportNotAvailable,
+        });
     }
 
     #[cfg(feature = "tls")]
-    let config = tls.client_config()
-        .context(TlsSnafu)?;
+    let config = tls.client_config().context(TlsSnafu)?;
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -529,7 +566,7 @@ async fn run_async() -> Result<(), Error> {
                 jwt,
                 &pc,
                 #[cfg(feature = "tls")]
-                tls_config_clone
+                tls_config_clone,
             );
             if let Some(secs) = read_timeout_copy {
                 scu_options = scu_options.read_timeout(Duration::from_secs(secs));
@@ -556,7 +593,7 @@ async fn run_async() -> Result<(), Error> {
                     verbose,
                     ignore_sop_class,
                 )
-                .await
+                .await;
             }
             let scu = scu_options
                 .establish_with_async(&addr)
@@ -583,7 +620,7 @@ async fn run_async() -> Result<(), Error> {
                 if fail_first {
                     std::process::exit(-2)
                 }
-            },
+            }
             Err(e) => {
                 error!("{}", Report::from_error(e));
                 if fail_first {
@@ -671,7 +708,6 @@ fn check_presentation_contexts(
     ignore_sop_class: bool,
     never_transcode: bool,
 ) -> Result<(dicom_ul::pdu::PresentationContextNegotiated, String), Error> {
-
     debug!("Testing file {file:?}");
 
     let file_ts = TransferSyntaxRegistry
@@ -681,9 +717,10 @@ fn check_presentation_contexts(
         })?;
 
     // Try to find an exact match for the file's transfer syntax first
-    let exact_match_pc = pcs.iter()
-            .filter(|pc| ignore_sop_class || pc.abstract_syntax == file.sop_class_uid)
-            .find(|pc| pc.transfer_syntax == file_ts.uid());
+    let exact_match_pc = pcs
+        .iter()
+        .filter(|pc| ignore_sop_class || pc.abstract_syntax == file.sop_class_uid)
+        .find(|pc| pc.transfer_syntax == file_ts.uid());
 
     if let Some(pc) = exact_match_pc {
         return Ok((pc.clone(), pc.transfer_syntax.clone()));

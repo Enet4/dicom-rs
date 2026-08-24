@@ -1,8 +1,8 @@
 //! DICOM value serialization
 
 use dicom_core::PrimitiveValue;
-use serde::ser::SerializeSeq;
 use serde::Serialize;
+use serde::ser::{Error, SerializeSeq};
 
 use crate::{INFINITY, NAN, NEG_INFINITY};
 
@@ -10,7 +10,7 @@ use crate::{INFINITY, NAN, NEG_INFINITY};
 /// which should always be encoded as strings.
 ///
 /// Should be used for the value representations
-/// AE, AS, AT, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
+/// AE, AS, CS, DA, DT, LO, LT, SH, ST, TM, UC, UI, UR, and UT.
 /// Can also be used for the value representations
 /// DS, IS, SV, and UV.
 ///
@@ -66,8 +66,8 @@ impl Serialize for AsNumbers<'_> {
             PrimitiveValue::Time(_) => panic!("wrong impl: cannot encode Time as numbers"),
             PrimitiveValue::Tags(_) => panic!("wrong impl: cannot encode Tags as numbers"),
             // strings
-            PrimitiveValue::Strs(strings) => serializer.collect_seq(strings),
-            PrimitiveValue::Str(string) => serializer.collect_seq([string]),
+            PrimitiveValue::Strs(_) => serializer.collect_seq(&*self.0.to_multi_str()),
+            PrimitiveValue::Str(_) => serializer.collect_seq(&*self.0.to_multi_str()),
             // no risk of precision loss
             PrimitiveValue::U8(numbers) => serializer.collect_seq(numbers),
             PrimitiveValue::I16(numbers) => serializer.collect_seq(numbers),
@@ -167,7 +167,7 @@ impl Serialize for InlineBinary<'_> {
 /// Wrapper type for [primitive values][1]
 /// which should always be encoded as person names.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 ///
 /// [1]: dicom_core::PrimitiveValue
 #[derive(Debug, Clone)]
@@ -192,26 +192,68 @@ impl Serialize for AsPersonNames<'_> {
 /// Wrapper type for a string
 /// to be interpreted as a person's name.
 ///
-/// Should only used for the value representation PN.
+/// Should only be used for the value representation PN.
 #[derive(Debug, Clone, Serialize)]
 pub struct PersonNameDef<'a> {
-    #[serde(rename = "Alphabetic")]
+    #[serde(rename = "Alphabetic", skip_serializing_if = "str::is_empty")]
     alphabetic: &'a str,
+    #[serde(rename = "Ideographic", skip_serializing_if = "str::is_empty")]
+    ideographic: &'a str,
+    #[serde(rename = "Phonetic", skip_serializing_if = "str::is_empty")]
+    phonetic: &'a str,
 }
 
 impl<'a> From<&'a str> for PersonNameDef<'a> {
     fn from(value: &'a str) -> Self {
-        PersonNameDef { alphabetic: value }
+        let mut parts = value.split('=');
+
+        PersonNameDef {
+            alphabetic: parts.next().unwrap_or(""),
+            ideographic: parts.next().unwrap_or(""),
+            phonetic: parts.next().unwrap_or(""),
+        }
+    }
+}
+
+/// Wrapper type for [primitive values][1]
+/// which should be encoded as attribute tags (group,element).
+///
+/// Should only be used for the value representation AT.
+///
+/// [1]: dicom_core::PrimitiveValue
+#[derive(Debug, Clone)]
+pub struct AsAttributeTags<'a>(&'a PrimitiveValue);
+
+impl<'a> From<&'a PrimitiveValue> for AsAttributeTags<'a> {
+    fn from(value: &'a PrimitiveValue) -> Self {
+        AsAttributeTags(value)
+    }
+}
+
+impl Serialize for AsAttributeTags<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let PrimitiveValue::Tags(tags) = self.0 else {
+            return Err(S::Error::custom(
+                "AsAttributeTags created with a non-Tags value",
+            ));
+        };
+        serializer.collect_seq(
+            tags.iter()
+                .map(|tag| format!("{:04X}{:04X}", tag.group(), tag.element())),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use dicom_core::dicom_value;
     use dicom_core::value::DicomDate;
+    use dicom_core::{Tag, dicom_value};
     use pretty_assertions::assert_eq;
-    use serde_json::json;
     use serde_json::Value;
+    use serde_json::json;
 
     use super::*;
 
@@ -242,6 +284,13 @@ mod tests {
         let v = dicom_value!(Date, [DicomDate::from_ymd(2023, 6, 13).unwrap()]);
         let json = serde_json::to_value(AsStrings(&v)).unwrap();
         assert_eq!(json, Value::Array(vec![Value::from("20230613")]));
+
+        let v = dicom_value!(Tags, [Tag(0x0008, 0x009C), Tag(0x7FE0, 0x0010)]);
+        let json = serde_json::to_value(AsAttributeTags(&v)).unwrap();
+        assert_eq!(
+            json,
+            Value::Array(vec![Value::from("0008009C"), Value::from("7FE00010")]),
+        );
     }
 
     #[test]
@@ -262,9 +311,14 @@ mod tests {
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!([]));
 
-        let v = PrimitiveValue::from("5");
+        // Check values that are space-padded to make the lengths even
+        let v = dicom_value!(Str, "5 ");
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
-        assert_eq!(json, json!(["5"]),);
+        assert_eq!(json, json!(["5"]));
+
+        let v = dicom_value!(Strs, ["5 ", "6 ", "-7"]);
+        let json = serde_json::to_value(AsNumbers(&v)).unwrap();
+        assert_eq!(json, json!(["5", "6", "-7"]));
 
         let v = dicom_value!(U16, [20, 40, 60]);
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
@@ -274,5 +328,45 @@ mod tests {
         let v = dicom_value!(U64, [876543245678]);
         let json = serde_json::to_value(AsNumbers(&v)).unwrap();
         assert_eq!(json, json!(["876543245678"]),);
+    }
+
+    #[test]
+    fn serialize_names_with_ideographic_and_phonetic() {
+        let v = dicom_value!(
+            Strs,
+            [
+                "House^Gregory^^M.D.",
+                "Wang^XiaoDong=王^小东=",
+                "Orléans de Gallia^Charlotte^Hélène==オルレアン・デ・ガーリヤ^シャルロット^エレーヌ",
+                "=喜多川^海夢=キタガワ^マリン",
+                "Mashiro^Moritaka^^^San=真城^最高^^^さん=マシロ^モリタカ^^^さん"
+            ]
+        );
+        let json = serde_json::to_value(AsPersonNames(&v)).unwrap();
+        assert_eq!(
+            json,
+            json!([
+                {
+                    "Alphabetic": "House^Gregory^^M.D.",
+                },
+                {
+                    "Alphabetic": "Wang^XiaoDong",
+                    "Ideographic": "王^小东",
+                },
+                {
+                    "Alphabetic": "Orléans de Gallia^Charlotte^Hélène",
+                    "Phonetic": "オルレアン・デ・ガーリヤ^シャルロット^エレーヌ",
+                },
+                {
+                    "Ideographic": "喜多川^海夢",
+                    "Phonetic": "キタガワ^マリン",
+                },
+                {
+                    "Alphabetic": "Mashiro^Moritaka^^^San",
+                    "Ideographic": "真城^最高^^^さん",
+                    "Phonetic": "マシロ^モリタカ^^^さん",
+                },
+            ])
+        );
     }
 }

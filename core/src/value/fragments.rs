@@ -1,5 +1,5 @@
 //! Helper module for handling pixel encapsulation into fragments
-use crate::value::{InMemFragment, PixelFragmentSequence, C};
+use crate::value::{C, InMemFragment, PixelFragmentSequence};
 
 /// Represents the fragments of a single frame.
 ///

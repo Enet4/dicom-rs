@@ -12,10 +12,10 @@ use dicom_encoding::{adapters::DecodeError, transfer_syntax::TransferSyntaxIndex
 use dicom_object::{FileDicomObject, InMemDicomObject};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use gdcm_rs::{
-    decode_multi_frame_compressed, decode_single_frame_compressed, Error as GDCMError,
-    GDCMPhotometricInterpretation, GDCMTransferSyntax,
+    Error as GDCMError, GDCMPhotometricInterpretation, GDCMTransferSyntax,
+    decode_multi_frame_compressed, decode_single_frame_compressed,
 };
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, ensure};
 use std::{borrow::Cow, convert::TryFrom, iter::zip, str::FromStr};
 
 impl<D> PixelDecoder for FileDicomObject<InMemDicomObject<D>>
@@ -359,6 +359,14 @@ where
             voi_lut_sequence,
             enforce_frame_fg_vm_match: false,
         })
+    }
+
+    fn decode_overlays(&self) -> Result<Vec<crate::OverlayPlane>> {
+        crate::overlay::decode_overlays(self)
+    }
+
+    fn decode_overlay(&self, index: u8) -> Result<Option<crate::OverlayPlane>> {
+        crate::overlay::decode_overlay_group(self, 0x6000 + 2 * index as u16)
     }
 }
 

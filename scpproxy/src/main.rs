@@ -1,5 +1,5 @@
 use bytes::BytesMut;
-use clap::{crate_version, value_parser, Arg, ArgAction, Command};
+use clap::{Arg, ArgAction, Command, crate_version, value_parser};
 use dicom_ul::association::read_pdu_from_wire;
 use dicom_ul::pdu::writer::write_pdu;
 use dicom_ul::pdu::{Pdu, UserVariableItem};
@@ -50,7 +50,7 @@ enum Error {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ProviderType {
+enum ProviderType {
     /// Service class provider
     Scp,
     /// Service class user
@@ -58,7 +58,7 @@ pub enum ProviderType {
 }
 
 #[derive(Debug)]
-pub enum ThreadMessage {
+enum ThreadMessage {
     SendPdu {
         to: ProviderType,
         pdu: Pdu,
@@ -67,6 +67,7 @@ pub enum ThreadMessage {
         from: ProviderType,
         err: dicom_ul::association::Error,
     },
+    #[allow(dead_code)]
     WriteErr {
         from: ProviderType,
         err: dicom_ul::pdu::WriteError,
@@ -128,7 +129,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scu,
@@ -184,7 +185,7 @@ fn run(
                                     })
                                     .context(SendMessageSnafu)?;
                             }
-                            Err(dicom_ul::association::Error::ConnectionClosed) => {
+                            Err(dicom_ul::association::Error::ConnectionClosed { .. }) => {
                                 message_tx
                                     .send(ThreadMessage::Shutdown {
                                         initiator: ProviderType::Scp,

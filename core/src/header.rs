@@ -3,15 +3,15 @@
 //! element header, and element composite types.
 
 use crate::value::{
-    CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
-    InMemFragment, PrimitiveValue, Value, C,
+    C, CastValueError, ConvertValueError, DataSetSequence, DicomDate, DicomDateTime, DicomTime,
+    InMemFragment, PrimitiveValue, Value,
 };
 use num_traits::NumCast;
-use snafu::{ensure, Backtrace, Snafu};
+use snafu::{Backtrace, Snafu, ensure};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt;
-use std::str::{from_utf8, FromStr};
+use std::str::{FromStr, from_utf8};
 
 /// Error type for issues constructing a sequence item header.
 #[derive(Debug, Snafu)]
@@ -255,7 +255,7 @@ impl<I, P> DataElement<I, P> {
     /// - if the value is a pixel data fragment sequence,
     ///   the VR is set to `OB` and the length is reset to undefined;
     /// - if the value is primitive,
-    ///   the length is recalculated, leaving the VR as is.
+    ///   the length is recalculated, leaving the [`VR`] as is.
     ///
     /// If these rules do not result in a valid element,
     /// consider reconstructing the data element instead.
@@ -288,10 +288,12 @@ where
     /// If the value is textual,
     /// the byte length of that value encoded in UTF-8 is assumed.
     /// If you already have a length in this context,
-    /// prefer calling `new_with_len` instead.
+    /// prefer calling [`new_with_len`] instead.
     ///
     /// This method will not check whether the value representation is
     /// compatible with the given value.
+    ///
+    /// [`new_with_len`]: Self::new_with_len
     pub fn new<T>(tag: Tag, vr: VR, value: T) -> Self
     where
         T: Into<Value<I, P>>,
@@ -345,8 +347,8 @@ where
 
     /// Convert the full primitive value into raw bytes.
     ///
-    /// String values already encoded with the `Str` and `Strs` variants
-    /// are provided in UTF-8.
+    /// String values already encoded with the [`PrimitiveValue::Str`] and
+    /// [`PrimitiveValue::Strs`] variants are provided in UTF-8.
     ///
     /// Returns an error if the value is not primitive.
     pub fn to_bytes(&self) -> Result<Cow<'_, [u8]>, ConvertValueError> {
@@ -359,8 +361,6 @@ where
     /// a vector of strings as described in [`PrimitiveValue::to_multi_str`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_multi_str`]: ../enum.PrimitiveValue.html#to_multi_str
     pub fn to_multi_str(&self) -> Result<Cow<'_, [String]>, CastValueError> {
         self.value().to_multi_str()
     }
@@ -372,8 +372,6 @@ where
     /// as described in [`PrimitiveValue::to_int`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_int`]: ../enum.PrimitiveValue.html#to_int
     pub fn to_int<T>(&self) -> Result<T, ConvertValueError>
     where
         T: Clone,
@@ -387,9 +385,7 @@ where
     /// into a sequence of integers.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of integers as described in [PrimitiveValue::to_multi_int].
-    ///
-    /// [PrimitiveValue::to_multi_int]: ../enum.PrimitiveValue.html#to_multi_int
+    /// a vector of integers as described in [`PrimitiveValue::to_multi_int`].
     pub fn to_multi_int<T>(&self) -> Result<Vec<T>, ConvertValueError>
     where
         T: Clone,
@@ -406,8 +402,6 @@ where
     /// a number as described in [`PrimitiveValue::to_float32`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_float32`]: ../enum.PrimitiveValue.html#to_float32
     pub fn to_float32(&self) -> Result<f32, ConvertValueError> {
         self.value().to_float32()
     }
@@ -416,11 +410,10 @@ where
     /// into a sequence of single-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float32`].
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_float32`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_multi_float32`]: ../enum.PrimitiveValue.html#to_multi_float32
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         self.value().to_multi_float32()
     }
@@ -432,8 +425,6 @@ where
     /// a number as described in [`PrimitiveValue::to_float64`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_float64`]: ../enum.PrimitiveValue.html#to_float64
     pub fn to_float64(&self) -> Result<f64, ConvertValueError> {
         self.value().to_float64()
     }
@@ -442,11 +433,10 @@ where
     /// into a sequence of double-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of numbers as described in [`PrimitiveValue::to_multi_float64`].
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_float64`].
     ///
     /// Returns an error if the value is not primitive.
-    ///
-    /// [`PrimitiveValue::to_multi_float64`]: ../enum.PrimitiveValue.html#to_multi_float64
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         self.value().to_multi_float64()
     }
@@ -454,7 +444,7 @@ where
     /// Retrieve and convert the primitive value into a date.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDate` as described in [`PrimitiveValue::to_date`].
+    /// a [`DicomDate`] as described in [`PrimitiveValue::to_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -465,7 +455,8 @@ where
     /// Retrieve and convert the primitive value into a sequence of dates.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDate` as described in [`PrimitiveValue::to_multi_date`].
+    /// a vector of [`DicomDate`] as described in
+    /// [`PrimitiveValue::to_multi_date`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -476,7 +467,7 @@ where
     /// Retrieve and convert the primitive value into a time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomTime` as described in [`PrimitiveValue::to_time`].
+    /// a [`DicomTime`] as described in [`PrimitiveValue::to_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -487,7 +478,8 @@ where
     /// Retrieve and convert the primitive value into a sequence of times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomTime` as described in [`PrimitiveValue::to_multi_time`].
+    /// a vector of [`DicomTime`] as described in
+    /// [`PrimitiveValue::to_multi_time`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -498,7 +490,7 @@ where
     /// Retrieve and convert the primitive value into a date-time.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a `DicomDateTime` as described in [`PrimitiveValue::to_datetime`].
+    /// a [`DicomDateTime`] as described in [`PrimitiveValue::to_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -509,7 +501,8 @@ where
     /// Retrieve and convert the primitive value into a sequence of date-times.
     ///
     /// If the value is a primitive, it will be converted into
-    /// a vector of `DicomDateTime` as described in [`PrimitiveValue::to_multi_datetime`].
+    /// a vector of [`DicomDateTime`] as described in
+    /// [`PrimitiveValue::to_multi_datetime`].
     ///
     /// Returns an error if the value is not primitive.
     ///
@@ -529,7 +522,7 @@ where
     /// The header's recorded length is automatically reset to undefined,
     /// in order to prevent inconsistencies.
     ///
-    /// Returns `None` if the underlying value is not a data set sequence.
+    /// Returns [`None`] if the underlying value is not a data set sequence.
     pub fn items_mut(&mut self) -> Option<&mut C<I>> {
         self.header.len = Length::UNDEFINED;
         self.value.items_mut()
@@ -537,7 +530,7 @@ where
 
     /// Retrieve the fragments stored in a pixel data sequence value.
     ///
-    /// Returns `None` if the value is not a pixel data sequence.
+    /// Returns [`None`] if the value is not a pixel data sequence.
     pub fn fragments(&self) -> Option<&[P]> {
         self.value().fragments()
     }
@@ -548,7 +541,7 @@ where
     /// The header's recorded length is automatically reset to undefined,
     /// in order to prevent inconsistencies.
     ///
-    /// Returns `None` if the value is not a pixel data sequence.
+    /// Returns [`None`] if the value is not a pixel data sequence.
     pub fn fragments_mut(&mut self) -> Option<&mut C<P>> {
         self.header.len = Length::UNDEFINED;
         self.value.fragments_mut()
@@ -556,7 +549,7 @@ where
 
     /// Obtain a reference to the encapsulated pixel data's basic offset table.
     ///
-    /// Returns `None` if the underlying value is not a pixel data sequence.
+    /// Returns [`None`] if the underlying value is not a pixel data sequence.
     pub fn offset_table(&self) -> Option<&[u32]> {
         self.value().offset_table()
     }
@@ -592,9 +585,9 @@ where
 }
 
 /// Macro for implementing getters to single and multi-values,
-/// by delegating to `Value`.
+/// by delegating to [`Value`].
 ///
-/// Should be placed inside `DataElement`'s impl block.
+/// Should be placed inside [`DataElement`]'s impl block.
 macro_rules! impl_primitive_getters {
     ($name_single: ident, $name_multi: ident, $variant: ident, $ret: ty) => {
         /// Get a single value of the requested type.
@@ -624,22 +617,23 @@ impl<I, P> DataElement<I, P> {
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
-    /// see [`to_str()`] instead.
+    /// see [`to_str`] instead.
     ///
-    /// [`to_str()`]: #method.to_str
+    /// [`to_str`]: Self::to_str
     pub fn string(&self) -> Result<&str, CastValueError> {
         self.value().string()
     }
 
     /// Get the inner sequence of string values
-    /// if the variant is either `Str` or `Strs`.
+    /// if the variant is either [`PrimitiveValue::Str`] or
+    /// [`PrimitiveValue::Strs`].
     ///
     /// An error is returned if the variant is not compatible.
     ///
     /// To enable conversions of other variants to a textual representation,
-    /// see [`to_str()`] instead.
+    /// see [`to_str`] instead.
     ///
-    /// [`to_str()`]: #method.to_str
+    /// [`to_str`]: Self::to_str
     pub fn strings(&self) -> Result<&[String], CastValueError> {
         self.value().strings()
     }
@@ -868,7 +862,7 @@ impl VR {
             .and_then(|s| VR::from_str(s).ok())
     }
 
-    /// Retrieve a string representation of this VR.
+    /// Retrieve a string representation of this `VR`.
     pub fn to_string(self) -> &'static str {
         use VR::*;
         match self {
@@ -909,7 +903,7 @@ impl VR {
         }
     }
 
-    /// Retrieve a copy of this VR's byte representation.
+    /// Retrieve a copy of this [`VR`]'s byte representation.
     /// The function returns two alphabetic characters in upper case.
     pub fn to_bytes(self) -> [u8; 2] {
         let bytes = self.to_string().as_bytes();
@@ -917,9 +911,9 @@ impl VR {
     }
 }
 
-/// Obtain the value representation corresponding to the given string.
-/// The string should hold exactly two UTF-8 encoded alphabetic characters
-/// in upper case, otherwise no match is made.
+// Obtain the value representation corresponding to the given string.
+// The string should hold exactly two UTF-8 encoded alphabetic characters
+// in upper case, otherwise no match is made.
 impl FromStr for VR {
     type Err = &'static str;
 
@@ -983,7 +977,7 @@ pub type ElementNumber = u16;
 /// a `Tag` may also be built by converting a `(u16, u16)` or a `[u16; 2]`.
 ///
 /// In its text form,
-/// DICOM tags are printed by [`Display`][display] in the form `(GGGG,EEEE)`,
+/// DICOM tags are printed by [`std::fmt::Display`] in the form `(GGGG,EEEE)`,
 /// where the group and element parts are in uppercase hexadecimal.
 /// Moreover, its [`FromStr`] implementation
 /// support converting strings in the following text formats into DICOM tags:
@@ -991,8 +985,6 @@ pub type ElementNumber = u16;
 /// - `(GGGG,EEEE)`
 /// - `GGGG,EEEE`
 /// - `GGGGEEEE`
-///
-/// [display]: std::fmt::Display
 ///
 /// # Example
 ///
@@ -1173,7 +1165,7 @@ impl Length {
     pub const UNDEFINED: Self = Length(UNDEFINED_LEN);
 
     /// Create a new length value from its internal representation.
-    /// This is equivalent to `Length(len)`.
+    /// This is equivalent to `[`[`Length`]`](len)`.
     #[inline]
     pub fn new(len: u32) -> Self {
         Length(len)
@@ -1327,7 +1319,7 @@ impl Length {
     }
 
     /// Check whether the length is equally specified as another length.
-    /// Unlike the implemented `PartialEq`, two undefined lengths are
+    /// Unlike the implemented [`PartialEq`], two undefined lengths are
     /// considered equivalent by this method.
     #[inline]
     pub fn inner_eq(self, other: Length) -> bool {
@@ -1348,7 +1340,7 @@ impl fmt::Display for Length {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
             UNDEFINED_LEN => f.write_str("U/L"),
-            l => write!(f, "{}", &l),
+            l => write!(f, "{}", l),
         }
     }
 }
@@ -1356,7 +1348,7 @@ impl fmt::Display for Length {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dicom_value, value::PixelFragmentSequence, DicomValue};
+    use crate::{DicomValue, dicom_value, value::PixelFragmentSequence};
 
     #[test]
     fn to_clean_string() {
@@ -1380,7 +1372,7 @@ mod tests {
         assert_eq!(0x0020u16, t.element());
     }
 
-    /// Ensure good order between tags
+    // Ensure good order between tags
     #[test]
     fn tag_ord() {
         assert_eq!(

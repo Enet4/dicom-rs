@@ -3,9 +3,9 @@
 //! See the [`dicom_core::ops`] module
 //! for more information.
 
+use dicom_core::Tag;
 use dicom_core::ops::{ApplyOp, AttributeOp, AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{ModifyValueError, ValueType};
-use dicom_core::Tag;
 use snafu::Snafu;
 
 use crate::FileDicomObject;

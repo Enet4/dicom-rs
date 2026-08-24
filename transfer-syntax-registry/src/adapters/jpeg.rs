@@ -3,8 +3,8 @@
 use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_core::{PrimitiveValue, Tag};
 use dicom_encoding::adapters::{
-    decode_error, encode_error, DecodeResult, EncodeOptions, EncodeResult, PixelDataObject,
-    PixelDataReader, PixelDataWriter,
+    DecodeResult, EncodeOptions, EncodeResult, PixelDataObject, PixelDataReader, PixelDataWriter,
+    decode_error, encode_error,
 };
 use dicom_encoding::snafu::prelude::*;
 use jpeg_decoder::Decoder;

@@ -5,7 +5,7 @@
 //! [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_A.html#table_A-1
 
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufWriter, Write},
     path::Path,
     str::FromStr,
@@ -26,7 +26,7 @@ const DEFAULT_LOCATION: &str =
 /// Fetch and build a dictionary of DICOM unique identifiers
 #[derive(Debug, Parser)]
 #[clap(name = "uids", alias = "uid")]
-pub struct UidApp {
+pub(crate) struct UidApp {
     /// Path or URL to the XML file containing the UID values tables
     #[clap(default_value(DEFAULT_LOCATION))]
     from: String,
@@ -48,7 +48,7 @@ pub struct UidApp {
     feature_gate: bool,
 }
 
-pub fn run(app: UidApp) -> Result<()> {
+pub(crate) fn run(app: UidApp) -> Result<()> {
     let UidApp {
         from,
         output,
@@ -340,7 +340,7 @@ where
             f,
             "#[rustfmt::skip]\npub const {}: &str = {:?};",
             e.keyword.to_shouty_snake_case(),
-            &e.uid,
+            e.uid,
         )?;
     }
 

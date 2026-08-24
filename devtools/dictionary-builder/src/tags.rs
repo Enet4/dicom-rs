@@ -1,6 +1,6 @@
 //! DICOM data element (tag) dictionary builder
 use std::{
-    fs::{create_dir_all, File},
+    fs::{File, create_dir_all},
     io::{BufRead, BufReader, BufWriter, Write},
     path::Path,
 };
@@ -21,7 +21,7 @@ const DEFAULT_LOCATION: &str =
 /// (tags)
 #[derive(Debug, Parser)]
 #[clap(name = "data-element", alias = "tags")]
-pub struct DataElementApp {
+pub(crate) struct DataElementApp {
     /// Path or URL to the data element dictionary
     #[clap(default_value(DEFAULT_LOCATION))]
     from: String,
@@ -36,7 +36,7 @@ pub struct DataElementApp {
     deprecate_retired: bool,
 }
 
-pub fn run(args: DataElementApp) -> Result<()> {
+pub(crate) fn run(args: DataElementApp) -> Result<()> {
     let DataElementApp {
         from,
         ignore_retired,

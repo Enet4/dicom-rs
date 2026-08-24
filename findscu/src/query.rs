@@ -2,11 +2,11 @@
 
 use std::str::FromStr;
 
-use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelector};
 use dicom_core::DataDictionary;
 use dicom_core::PrimitiveValue;
 use dicom_core::Tag;
 use dicom_core::VR;
+use dicom_core::ops::{ApplyOp, AttributeAction, AttributeOp, AttributeSelector};
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_object::InMemDicomObject;
 use snafu::whatever;
@@ -42,7 +42,10 @@ impl FromStr for TermQuery {
     }
 }
 
-pub fn parse_queries<T>(base: InMemDicomObject, qs: &[T]) -> Result<InMemDicomObject, Whatever>
+pub(crate) fn parse_queries<T>(
+    base: InMemDicomObject,
+    qs: &[T],
+) -> Result<InMemDicomObject, Whatever>
 where
     T: AsRef<str>,
 {
@@ -56,7 +59,7 @@ where
             AttributeAction::Set(v),
         ))
         .with_whatever_context(|_| {
-            format!("could not set query attribute {}", &term_query.selector)
+            format!("could not set query attribute {}", term_query.selector)
         })?;
     }
     Ok(obj)

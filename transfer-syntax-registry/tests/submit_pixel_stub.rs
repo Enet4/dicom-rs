@@ -5,7 +5,7 @@
 #![cfg(feature = "inventory-registry")]
 
 use dicom_encoding::{
-    submit_ele_transfer_syntax, Codec, NeverAdapter, NeverPixelAdapter, TransferSyntaxIndex,
+    Codec, NeverAdapter, NeverPixelAdapter, TransferSyntaxIndex, submit_ele_transfer_syntax,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 

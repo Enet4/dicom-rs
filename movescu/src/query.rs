@@ -42,7 +42,10 @@ impl FromStr for TermQuery {
     }
 }
 
-pub fn parse_queries<T>(base: InMemDicomObject, qs: &[T]) -> Result<InMemDicomObject, Whatever>
+pub(crate) fn parse_queries<T>(
+    base: InMemDicomObject,
+    qs: &[T],
+) -> Result<InMemDicomObject, Whatever>
 where
     T: AsRef<str>,
 {
@@ -56,7 +59,7 @@ where
             AttributeAction::Set(v),
         ))
         .with_whatever_context(|_| {
-            format!("could not set query attribute {}", &term_query.selector)
+            format!("could not set query attribute {}", term_query.selector)
         })?;
     }
     Ok(obj)

@@ -9,5 +9,5 @@
 //! ```
 
 pub use crate::value::{AsRange as _, DicomDate, DicomDateTime, DicomTime};
-pub use crate::{dicom_value, DataElement, DicomValue, Tag, VR};
-pub use crate::{header::HasLength as _, DataDictionary as _};
+pub use crate::{DataDictionary as _, header::HasLength as _};
+pub use crate::{DataElement, DicomValue, Tag, VR, dicom_value};

@@ -30,6 +30,8 @@ use dicom_encoding::transfer_syntax::{NeverAdapter, TransferSyntax};
 #[cfg(any(feature = "rle", feature = "openjp2", feature = "openjpeg-sys"))]
 use dicom_encoding::NeverPixelAdapter;
 
+#[cfg(feature = "deflate")]
+use crate::adapters::deflated::DeflatedImageFrameAdapter;
 #[cfg(feature = "jpeg")]
 use crate::adapters::jpeg::JpegAdapter;
 #[cfg(any(feature = "openjp2", feature = "openjpeg-sys"))]
@@ -40,8 +42,6 @@ use crate::adapters::jpegls::{JpegLsAdapter, JpegLsLosslessWriter};
 use crate::adapters::jpegxl::{JpegXlAdapter, JpegXlLosslessEncoder};
 #[cfg(feature = "rle")]
 use crate::adapters::rle_lossless::RleLosslessAdapter;
-#[cfg(feature = "deflate")]
-use crate::adapters::deflated::DeflatedImageFrameAdapter;
 #[cfg(feature = "deflate")]
 use crate::deflate::FlateAdapter;
 
@@ -450,17 +450,22 @@ pub const JPEG_LS_LOSSY_IMAGE_COMPRESSION: Ts = create_ts_stub(
 
 /// **Stub descriptor:** Deflated Image Frame Compression
 #[cfg(not(feature = "deflate"))]
-pub const DEFLATED_IMAGE_FRAME_COMPRESSION: Ts = create_ts_stub(
-    "1.2.840.10008.1.2.8.1",
-    "Deflated Image Frame Compression",
-);
+pub const DEFLATED_IMAGE_FRAME_COMPRESSION: Ts =
+    create_ts_stub("1.2.840.10008.1.2.8.1", "Deflated Image Frame Compression");
 
 /// **Implemented:** Deflated Image Frame Compression
 #[cfg(feature = "deflate")]
-pub const DEFLATED_IMAGE_FRAME_COMPRESSION: TransferSyntax<NeverAdapter, DeflatedImageFrameAdapter, DeflatedImageFrameAdapter> = TransferSyntax::new_ele(
+pub const DEFLATED_IMAGE_FRAME_COMPRESSION: TransferSyntax<
+    NeverAdapter,
+    DeflatedImageFrameAdapter,
+    DeflatedImageFrameAdapter,
+> = TransferSyntax::new_ele(
     "1.2.840.10008.1.2.8.1",
     "Deflated Image Frame Compression",
-    Codec::EncapsulatedPixelData(Some(DeflatedImageFrameAdapter), Some(DeflatedImageFrameAdapter)),
+    Codec::EncapsulatedPixelData(
+        Some(DeflatedImageFrameAdapter),
+        Some(DeflatedImageFrameAdapter),
+    ),
 );
 
 /// **Stub descriptor:** JPIP Referenced

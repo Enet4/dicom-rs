@@ -6,8 +6,8 @@
 #![cfg(all(feature = "inventory-registry", not(feature = "deflate")))]
 
 use dicom_encoding::{
-    submit_transfer_syntax, Codec, DataRWAdapter, Endianness, NeverPixelAdapter, TransferSyntax,
-    TransferSyntaxIndex,
+    Codec, DataRWAdapter, Endianness, NeverPixelAdapter, TransferSyntax, TransferSyntaxIndex,
+    submit_transfer_syntax,
 };
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use std::io::{Read, Write};

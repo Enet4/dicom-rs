@@ -98,9 +98,14 @@ where
     let mut conn = rustls::ClientConnection::new(tls_config.clone(), server_name)
         .context(super::TlsConnectionSnafu)?;
     // Ensure that the handshake completes before returning the stream.
-    let (read, wrote) = conn.complete_io(&mut socket)
+    let (read, wrote) = conn
+        .complete_io(&mut socket)
         .context(super::TlsHandshakeSnafu)?;
-    debug!(read_bytes=read, write_bytes=wrote, "Client handshake completed");
+    debug!(
+        read_bytes = read,
+        write_bytes = wrote,
+        "Client handshake completed"
+    );
     Ok(rustls::StreamOwned::new(conn, socket))
 }
 
@@ -933,6 +938,12 @@ impl<'a> ClientAssociationOptions<'a> {
         // detect that and return a more specific error message.
         #[cfg(feature = "sync-tls")]
         let resp = resp.map_err(|e| {
+            // TLS config means that the client already expects TLS
+            if self.tls_config.is_some() {
+                return e;
+            }
+            // try to identify whether the server expects TLS
+            // (even though the client was not fully prepared for this)
             let mut acceptor = rustls::server::Acceptor::default();
             let mut read = std::io::Cursor::new(buf.to_vec());
             let res = acceptor.read_tls(&mut read);
@@ -945,13 +956,13 @@ impl<'a> ClientAssociationOptions<'a> {
                     // state, but since we didn't originally send a TLS
                     // ClientHello, that shouldn't be possible
                     error!("Received TLS response to non-TLS request!");
-                    return super::TlsNotSupportedSnafu.build()
+                    return super::TlsNotSupportedSnafu.build();
                 }
                 Err((err, _alert)) => {
-                    // Recieved a valid TLS message, means the server expects TLS
-                    if let rustls::Error::InappropriateMessage{..} = err {
+                    // Received a valid TLS message reporting that the server expects TLS
+                    if let rustls::Error::InappropriateMessage { .. } = err {
                         error!("Received TLS response to non-TLS request!");
-                        return super::TlsNotSupportedSnafu.build()
+                        return super::TlsNotSupportedSnafu.build();
                     }
                 }
             }
@@ -1348,22 +1359,19 @@ where
         .context(crate::association::InvalidServerNameSnafu)?;
     // NOTE: When tokio-rustls is updated to return a rustls::Error instead of std::io::Error,
     // switch to `crate::association::TlsConnectionSnafu` for context.
-    let tls_stream = connector
-        .connect(domain, tcp_stream)
-        .await
-        .map_err(|e| {
-            // This is how tokio_rustls represents a handshake error
-            if let std::io::ErrorKind::UnexpectedEof = e.kind() {
-                return super::Error::TlsHandshake{
-                    source: e,
-                    backtrace: std::backtrace::Backtrace::capture()
-                }
-            }
-            super::Error::Connect{
+    let tls_stream = connector.connect(domain, tcp_stream).await.map_err(|e| {
+        // This is how tokio_rustls represents a handshake error
+        if let std::io::ErrorKind::UnexpectedEof = e.kind() {
+            return super::Error::TlsHandshake {
                 source: e,
-                backtrace: std::backtrace::Backtrace::capture()
-            }
-        })?;
+                backtrace: std::backtrace::Backtrace::capture(),
+            };
+        }
+        super::Error::Connect {
+            source: e,
+            backtrace: std::backtrace::Backtrace::capture(),
+        }
+    })?;
     Ok(tls_stream)
 }
 
@@ -1450,39 +1458,40 @@ impl<'a> ClientAssociationOptions<'a> {
             .await
         })
         .await;
-        let pdu = match resp  {
+        let pdu = match resp {
             Ok(pdu) => pdu,
             Err(e) => {
                 // Attempt to check if the failure was because the client sent a TLS stream
                 #[cfg(feature = "async-tls")]
                 {
-                    use tokio_rustls::LazyConfigAcceptor;
                     use rustls::server::Acceptor;
+                    use tokio_rustls::LazyConfigAcceptor;
                     let cursor = std::io::Cursor::new(read_buffer.to_vec());
-                    match LazyConfigAcceptor::new(Acceptor::default(),cursor).await{
+                    match LazyConfigAcceptor::new(Acceptor::default(), cursor).await {
                         Ok(_res) => {
                             // This means the server responded with a valid TLS
                             // state, but since we didn't originally send a TLS
                             // ClientHello, that shouldn't be possible
-                            return Err(e)
-                        },
+                            return Err(e);
+                        }
                         Err(err) => {
-                            if let Ok(rustls::Error::InappropriateMessage{..}) = err.downcast::<rustls::Error>() {
-                                    error!("Received TLS response to non-TLS request!");
-                                    return super::TlsNotSupportedSnafu.fail()
+                            if let Ok(rustls::Error::InappropriateMessage { .. }) =
+                                err.downcast::<rustls::Error>()
+                            {
+                                error!("Received TLS response to non-TLS request!");
+                                return super::TlsNotSupportedSnafu.fail();
                             }
                             // if let rustls::Error::InappropriateMessage{..} = err {
                             //     error!("Recieved TLS response to non-TLS request!");
                             //     return super::TlsNotSupportedSnafu.fail()
                             // }
                             // Recieved a valid TLS message, means the server expects TLS
-                            return super::TlsNotSupportedSnafu.fail()
+                            return super::TlsNotSupportedSnafu.fail();
                         }
-
                     }
                 }
                 #[cfg(not(feature = "async-tls"))]
-                return Err(e)
+                return Err(e);
             }
         };
         let negotiated_options = self.process_a_association_resp(pdu, &pc_proposed);

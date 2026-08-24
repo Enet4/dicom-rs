@@ -1,11 +1,11 @@
 //! Implicit VR Big Endian syntax transfer implementation
 
+use crate::Decode;
 use crate::decode::basic::LittleEndianBasicDecoder;
 use crate::decode::{
     BadSequenceHeaderSnafu, BasicDecode, DecodeFrom, ReadHeaderTagSnafu, ReadLengthSnafu,
     ReadTagSnafu, Result,
 };
-use crate::Decode;
 use byteordered::byteorder::{ByteOrder, LittleEndian};
 use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::header::{DataElementHeader, Length, SequenceItemHeader};
@@ -155,9 +155,9 @@ where
 mod tests {
     use super::ImplicitVRLittleEndianDecoder;
     use crate::decode::Decode;
+    use dicom_core::Tag;
     use dicom_core::dictionary::stub::StubDataDictionary;
     use dicom_core::header::{HasLength, Header, Length, VR};
-    use dicom_core::Tag;
     use std::io::{Cursor, Read, Seek, SeekFrom};
 
     // manually crafting some DICOM data elements

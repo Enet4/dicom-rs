@@ -74,6 +74,17 @@ pub enum WriteError {
         #[snafu(backtrace)]
         source: dicom_encoding::text::EncodeTextError,
     },
+
+    #[snafu(display(
+        "Invalid fixed-size text field `{field}`: {reason} (encoded length {actual_length}, field length {length})"
+    ))]
+    InvalidFixedSizeTextField {
+        field: &'static str,
+        length: usize,
+        actual_length: usize,
+        reason: &'static str,
+        backtrace: Backtrace,
+    },
 }
 
 #[derive(Debug, Snafu)]

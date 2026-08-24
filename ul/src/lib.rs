@@ -43,19 +43,19 @@ pub mod prelude;
 ///
 /// This UID may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.269557681719719925684832053554655571250";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.175220362680028036156011002668768058626";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
 /// This name may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.9.1";
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.10.0";
 
 // re-exports
 
 pub use address::{AeAddr, FullAeAddr};
 pub use association::client::{ClientAssociation, ClientAssociationOptions};
 pub use association::server::{ServerAssociation, ServerAssociationOptions};
+pub use pdu::Pdu;
 pub use pdu::read_pdu;
 pub use pdu::write_pdu;
-pub use pdu::Pdu;

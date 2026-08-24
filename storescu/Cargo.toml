@@ -1,6 +1,6 @@
 [package]
 name = "dicom-storescu"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Eduardo Pinho <enet4mikeenet@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -19,15 +19,15 @@ tls = ["dicom-app-common/tls", "dicom-ul/async-tls", "dep:rustls", "dep:tokio-ru
 
 [dependencies]
 clap = { version  = "4.0.18", features = ["derive"] }
-dicom-app-common = { version = "0.9", path = "../app-common", default-features = false }
-dicom-core = { path = '../core', version = "0.9.1" }
-dicom-dictionary-std = { path = "../dictionary-std/", version = "0.9" }
-dicom-dump = { path = "../dump", version = "0.9.1", default-features = false }
-dicom-encoding = { path = "../encoding/", version = "0.9.1" }
-dicom-object = { path = '../object', version = "0.9.1" }
-dicom-pixeldata = { path = "../pixeldata", version = "0.9.1", optional = true }
-dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry/", version = "0.9.1" }
-dicom-ul = { path = '../ul', version = "0.9.1", features = ["async"] }
+dicom-app-common = { version = "0.10", path = "../app-common", default-features = false }
+dicom-core = { path = '../core', version = "0.10" }
+dicom-dictionary-std = { path = "../dictionary-std", version = "0.10" }
+dicom-dump = { path = "../dump", version = "0.10", default-features = false }
+dicom-encoding = { path = "../encoding", version = "0.10" }
+dicom-object = { path = "../object", version = "0.10" }
+dicom-pixeldata = { path = "../pixeldata", version = "0.10", optional = true }
+dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.10" }
+dicom-ul = { path = "../ul", version = "0.10", features = ["async"] }
 walkdir = "2.3.2"
 indicatif = "0.18"
 tracing = "0.1.34"

@@ -10,10 +10,10 @@ use crate::dataset::{DataToken, SeqTokenType};
 use crate::stateful::encode::StatefulEncoder;
 use dicom_core::header::Header;
 use dicom_core::{DataElementHeader, Length, Tag, VR};
+use dicom_encoding::TransferSyntax;
 use dicom_encoding::encode::EncodeTo;
 use dicom_encoding::text::SpecificCharacterSet;
 use dicom_encoding::transfer_syntax::DynEncoder;
-use dicom_encoding::TransferSyntax;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::Write;
 
@@ -442,11 +442,11 @@ mod tests {
     use super::super::DataToken;
     use super::{DataSetWriter, DataSetWriterOptions, ExplicitLengthSqItemStrategy};
     use dicom_core::{
+        Tag, VR,
         header::{DataElementHeader, Length},
         value::PrimitiveValue,
-        Tag, VR,
     };
-    use dicom_encoding::encode::{explicit_le::ExplicitVRLittleEndianEncoder, EncoderFor};
+    use dicom_encoding::encode::{EncoderFor, explicit_le::ExplicitVRLittleEndianEncoder};
 
     fn validate_dataset_writer<I>(
         tokens: I,

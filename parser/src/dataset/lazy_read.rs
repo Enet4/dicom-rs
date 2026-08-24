@@ -268,17 +268,16 @@ where
                 match end_of_sequence.cmp(&bytes_read) {
                     Ordering::Equal => {
                         // end of delimiter, as indicated by the element's length
-                        let token;
-                        match sd.typ {
+                        let token = match sd.typ {
                             SeqTokenType::Sequence => {
                                 self.in_sequence = false;
-                                token = LazyDataToken::SequenceEnd;
+                                LazyDataToken::SequenceEnd
                             }
                             SeqTokenType::Item => {
                                 self.in_sequence = true;
-                                token = LazyDataToken::ItemEnd;
+                                LazyDataToken::ItemEnd
                             }
-                        }
+                        };
                         self.seq_delimiters.pop();
                         return Ok(Some(token));
                     }
@@ -660,17 +659,17 @@ where
 mod tests {
     use super::{LazyDataSetReader, StatefulDecode};
     use crate::{
-        dataset::{
-            lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy, DataToken, LazyDataToken,
-        },
         StatefulDecoder,
+        dataset::{
+            DataToken, LazyDataToken, lazy_read::LazyDataSetReaderOptions, read::OddLengthStrategy,
+        },
     };
     use dicom_core::value::PrimitiveValue;
+    use dicom_core::{Tag, VR};
     use dicom_core::{
         dicom_value,
         header::{DataElementHeader, Length},
     };
-    use dicom_core::{Tag, VR};
     use dicom_encoding::decode::{
         explicit_le::ExplicitVRLittleEndianDecoder, implicit_le::ImplicitVRLittleEndianDecoder,
     };

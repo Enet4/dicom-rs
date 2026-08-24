@@ -1,8 +1,8 @@
 //! DICOM Pixel encapsulation
 //!
 //! This module implements encapsulation for pixel data.
-use dicom_core::value::fragments::Fragments;
 use dicom_core::value::Value;
+use dicom_core::value::fragments::Fragments;
 use std::vec;
 
 /// Encapsulate the pixel data of a list of frames.

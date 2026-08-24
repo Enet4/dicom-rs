@@ -193,29 +193,29 @@ pub mod ops;
 pub mod tokens;
 
 pub use crate::collector::{DicomCollector, DicomCollectorOptions};
-pub use crate::file::{from_reader, open_file, OpenFileOptions};
+pub use crate::file::{OpenFileOptions, from_reader, open_file};
 pub use crate::mem::InMemDicomObject;
 pub use crate::meta::{FileMetaTable, FileMetaTableBuilder};
+pub use dicom_core::Tag;
 use dicom_core::ops::{AttributeSelector, AttributeSelectorStep};
 use dicom_core::value::{DicomValueType, ValueType};
-pub use dicom_core::Tag;
 use dicom_core::{DataDictionary, DicomValue, PrimitiveValue};
-use dicom_dictionary_std::uids;
 pub use dicom_dictionary_std::StandardDataDictionary;
+use dicom_dictionary_std::uids;
 
 /// The default implementation of a root DICOM object.
 pub type DefaultDicomObject<D = StandardDataDictionary> = FileDicomObject<mem::InMemDicomObject<D>>;
 
 use dicom_core::header::{GroupNumber, HasLength};
+use dicom_encoding::Codec;
 use dicom_encoding::adapters::{PixelDataObject, RawPixelData};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
-use dicom_encoding::Codec;
 use dicom_parser::dataset::{DataSetWriter, IntoTokens};
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
 use itertools::Either;
 use meta::FileMetaAttribute;
 use smallvec::SmallVec;
-use snafu::{prelude::*, Backtrace};
+use snafu::{Backtrace, prelude::*};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -227,13 +227,13 @@ use std::path::Path;
 ///
 /// This UID may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.269557681719719925684832053554655571250";
+pub const IMPLEMENTATION_CLASS_UID: &str = "2.25.175220362680028036156011002668768058626";
 
 /// The current implementation version name generically referring to DICOM-rs.
 ///
 /// This name may change in future versions,
 /// even between patch versions.
-pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.9.1";
+pub const IMPLEMENTATION_VERSION_NAME: &str = "DICOM-rs 0.10.0";
 
 /// An error which occurs when fetching a value
 #[derive(Debug, Snafu)]
@@ -1396,7 +1396,10 @@ where
     fn fragment(&self, fragment: usize) -> Option<Cow<'_, [u8]>> {
         let pixel_data = (**self).get(dicom_dictionary_std::tags::PIXEL_DATA)?;
         match pixel_data.value() {
-            DicomValue::PixelSequence(v) => v.fragments().get(fragment).map(|f| Cow::Borrowed(f.as_ref())),
+            DicomValue::PixelSequence(v) => v
+                .fragments()
+                .get(fragment)
+                .map(|f| Cow::Borrowed(f.as_ref())),
             DicomValue::Primitive(p) if fragment == 0 => Some(p.to_bytes()),
             _ => None,
         }
@@ -1706,9 +1709,21 @@ mod tests {
         // some attributes
         assert_eq!(PixelDataObject::rows(&obj), Some(512), "incorrect rows");
         assert_eq!(PixelDataObject::cols(&obj), Some(512), "incorrect cols");
-        assert_eq!(PixelDataObject::number_of_frames(&obj), None, "incorrect number_of_frames");
-        assert_eq!(PixelDataObject::number_of_fragments(&obj), Some(1), "incorrect number_of_fragments");
-        assert_eq!(PixelDataObject::photometric_interpretation(&obj), Some("MONOCHROME2"), "incorrect photometric_interpretation");
+        assert_eq!(
+            PixelDataObject::number_of_frames(&obj),
+            None,
+            "incorrect number_of_frames"
+        );
+        assert_eq!(
+            PixelDataObject::number_of_fragments(&obj),
+            Some(1),
+            "incorrect number_of_fragments"
+        );
+        assert_eq!(
+            PixelDataObject::photometric_interpretation(&obj),
+            Some("MONOCHROME2"),
+            "incorrect photometric_interpretation"
+        );
 
         // can fetch an encoded pixel data frame
         let Some(frame0) = PixelDataObject::frame_pixel_data(&obj, 0) else {

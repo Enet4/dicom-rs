@@ -5,12 +5,12 @@ use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::association::Error::NoAcceptedPresentationContexts;
 use dicom_ul::pdu::PresentationContextResultReason::Acceptance;
 use dicom_ul::pdu::{
-    PresentationContextNegotiated, PresentationContextResultReason, UserVariableItem,
-    DEFAULT_MAX_PDU,
+    DEFAULT_MAX_PDU, PresentationContextNegotiated, PresentationContextResultReason,
+    UserVariableItem,
 };
 use dicom_ul::{
-    ClientAssociationOptions, Pdu, ServerAssociation, ServerAssociationOptions,
-    IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
+    ClientAssociationOptions, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, Pdu,
+    ServerAssociation, ServerAssociationOptions,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;

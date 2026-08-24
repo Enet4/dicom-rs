@@ -4,17 +4,17 @@
 use crate::util::n_times;
 use dicom_core::dictionary::VirtualVr;
 use dicom_core::header::{DataElementHeader, HasLength, Length, SequenceItemHeader, Tag, VR};
+use dicom_core::value::PrimitiveValue;
 use dicom_core::value::deserialize::{
     parse_date_partial, parse_datetime_partial, parse_time_partial,
 };
-use dicom_core::value::PrimitiveValue;
 use dicom_dictionary_std::StandardDataDictionary;
 use dicom_encoding::decode::basic::{BasicDecoder, LittleEndianBasicDecoder};
 use dicom_encoding::decode::explicit_le::ExplicitVRLittleEndianDecoder;
 use dicom_encoding::decode::{BasicDecode, DecodeFrom};
 use dicom_encoding::text::{
-    validate_da, validate_dt, validate_tm, DefaultCharacterSetCodec, SpecificCharacterSet,
-    TextCodec, TextValidationOutcome,
+    DefaultCharacterSetCodec, SpecificCharacterSet, TextCodec, TextValidationOutcome, validate_da,
+    validate_dt, validate_tm,
 };
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
 use smallvec::smallvec;

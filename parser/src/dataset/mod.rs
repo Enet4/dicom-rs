@@ -2,7 +2,7 @@
 use crate::stateful::decode;
 use dicom_core::header::{DataElementHeader, HasLength, Length, VR};
 use dicom_core::value::{DicomValueType, PrimitiveValue};
-use dicom_core::{value::Value, DataElement, Tag};
+use dicom_core::{DataElement, Tag, value::Value};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::default::Default;
 use std::fmt;
@@ -588,7 +588,10 @@ where
                                 } else {
                                     // without a defined length,
                                     // it is too risky to provide any tokens
-                                    tracing::warn!("Unexpected primitive value after header {} with VR SQ, ignoring", tag);
+                                    tracing::warn!(
+                                        "Unexpected primitive value after header {} with VR SQ, ignoring",
+                                        tag
+                                    );
                                     (None, DataElementTokens::End)
                                 }
                             }
@@ -597,7 +600,10 @@ where
                                 // this is a data element sequence start,
                                 // not a pixel data fragment sequence start.
                                 // stop here and return nothing
-                                tracing::warn!("Unexpected pixel data fragments after header {} with VR SQ, ignored", tag);
+                                tracing::warn!(
+                                    "Unexpected pixel data fragments after header {} with VR SQ, ignored",
+                                    tag
+                                );
                                 (None, DataElementTokens::End)
                             }
                             Value::Sequence(seq) => {
@@ -732,12 +738,8 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         // ensure a token sequence
         if self.tokens.is_none() {
-            match self.seq.next() {
-                Some(entries) => {
-                    self.tokens = Some(entries.into_tokens_with_options(self.into_token_options));
-                }
-                None => return None,
-            }
+            let entries = self.seq.next()?;
+            self.tokens = Some(entries.into_tokens_with_options(self.into_token_options));
         }
 
         // retrieve the next token
@@ -1045,8 +1047,8 @@ where
 #[cfg(test)]
 mod tests {
     use dicom_core::{
-        dicom_value, header::HasLength, value::PixelFragmentSequence, DataElement,
-        DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR,
+        DataElement, DataElementHeader, DicomValue, Length, PrimitiveValue, Tag, VR, dicom_value,
+        header::HasLength, value::PixelFragmentSequence,
     };
 
     use super::{DataToken, IntoTokens, IntoTokensOptions, LazyDataToken};

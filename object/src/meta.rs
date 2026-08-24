@@ -29,7 +29,7 @@ use crate::{
     IMPLEMENTATION_VERSION_NAME,
 };
 
-const DICM_MAGIC_CODE: [u8; 4] = [b'D', b'I', b'C', b'M'];
+const DICM_MAGIC_CODE: [u8; 4] = *b"DICM";
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]

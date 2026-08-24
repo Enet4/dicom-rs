@@ -97,7 +97,7 @@ pub use smallvec;
 /// ```
 ///
 /// The output is a [`PrimitiveValue`],
-/// which can be converted to a `DicomValue` as long as its type parameters
+/// which can be converted to a [`DicomValue`] as long as its type parameters
 /// are specified or inferable.
 ///
 /// ```
@@ -113,8 +113,6 @@ pub use smallvec;
 ///         PrimitiveValue::U16([5, 6, 7][..].into())),
 /// );
 /// ```
-///
-/// [`PrimitiveValue`]: ./enum.PrimitiveValue.html
 #[macro_export]
 macro_rules! dicom_value {
     // Empty value

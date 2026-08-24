@@ -3,8 +3,8 @@
 use self::explicit_le::ExplicitVRLittleEndianDecoder;
 use self::implicit_le::{ImplicitVRLittleEndianDecoder, StandardImplicitVRLittleEndianDecoder};
 use byteordered::Endianness;
-use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use dicom_core::Tag;
+use dicom_core::header::{DataElementHeader, SequenceItemHeader};
 use snafu::{Backtrace, Snafu};
 use std::io::{self, Read};
 

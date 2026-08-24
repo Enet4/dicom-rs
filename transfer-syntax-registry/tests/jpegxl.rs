@@ -91,7 +91,9 @@ fn read_jpeg_xl_1() {
 
     // instantiate JpegAdapter and call decode_frame
 
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = dicom_transfer_syntax_registry::entries::JPEG_XL.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) =
+        dicom_transfer_syntax_registry::entries::JPEG_XL.codec()
+    else {
         panic!("JPEG XL pixel data reader not found")
     };
 
@@ -147,7 +149,9 @@ fn read_jpeg_xl_lossless_1() {
 
     // instantiate JpegAdapter and call decode_frame
 
-    let Codec::EncapsulatedPixelData(Some(adapter), _) = dicom_transfer_syntax_registry::entries::JPEG_XL.codec() else {
+    let Codec::EncapsulatedPixelData(Some(adapter), _) =
+        dicom_transfer_syntax_registry::entries::JPEG_XL.codec()
+    else {
         panic!("JPEG XL pixel data reader not found")
     };
 
@@ -226,7 +230,9 @@ fn write_and_read_jpeg_xl() {
 
     // fetch adapters for JPEG XL lossless
 
-    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) = dicom_transfer_syntax_registry::entries::JPEG_XL_LOSSLESS.codec() else {
+    let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) =
+        dicom_transfer_syntax_registry::entries::JPEG_XL_LOSSLESS.codec()
+    else {
         panic!("JPEG XL pixel data adapters not found")
     };
 
@@ -317,7 +323,9 @@ fn write_append_jpeg_xl() {
 
     // fetch adapters for JPEG XL lossless
 
-    let Codec::EncapsulatedPixelData(_, Some(writer)) = dicom_transfer_syntax_registry::entries::JPEG_XL_LOSSLESS.codec() else {
+    let Codec::EncapsulatedPixelData(_, Some(writer)) =
+        dicom_transfer_syntax_registry::entries::JPEG_XL_LOSSLESS.codec()
+    else {
         panic!("JPEG XL pixel data adapters not found")
     };
 
