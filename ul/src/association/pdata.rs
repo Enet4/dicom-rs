@@ -758,6 +758,8 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[cfg(feature = "async")]
+    use crate::association::AsyncAssociation;
+    #[cfg(feature = "async")]
     use crate::association::pdata::non_blocking::AsyncPDataWriter;
 
     static IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";

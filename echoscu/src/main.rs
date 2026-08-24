@@ -3,7 +3,7 @@ use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::{StandardDataDictionary, mem::InMemDicomObject};
 use dicom_ul::{
-    association::client::ClientAssociationOptions,
+    association::{ClientAssociationOptions, SyncAssociation},
     pdu::{self, PDataValueType, Pdu},
 };
 use pdu::PDataValue;

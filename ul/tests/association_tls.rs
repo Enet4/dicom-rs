@@ -1,5 +1,7 @@
+#[cfg(feature = "async-tls")]
+use dicom_ul::association::AsyncAssociation;
 #[cfg(feature = "sync-tls")]
-use dicom_ul::association::Association;
+use dicom_ul::association::{Association, SyncAssociation};
 #[cfg(feature = "sync-tls")]
 use std::sync::Arc;
 

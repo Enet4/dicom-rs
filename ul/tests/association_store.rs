@@ -1,5 +1,6 @@
+use dicom_ul::association::{Association, SyncAssociation};
 #[cfg(feature = "async")]
-use dicom_ul::association::AsyncServerAssociation;
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 use dicom_ul::{
     ServerAssociation,
     association::client::ClientAssociationOptions,

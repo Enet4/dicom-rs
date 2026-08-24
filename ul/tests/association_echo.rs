@@ -1,9 +1,7 @@
-#[cfg(feature = "async")]
-use dicom_ul::association::AsyncServerAssociation;
 use dicom_ul::{
     ServerAssociation,
     association::{
-        Association, Error,
+        Association, Error, SyncAssociation,
         client::ClientAssociationOptions,
         server::{Negotiation, ServerAssociationOptions},
     },
@@ -13,11 +11,13 @@ use dicom_ul::{
     },
 };
 use std::io::Write;
+use std::net::SocketAddr;
+
+#[cfg(feature = "async")]
+use dicom_ul::association::{AsyncAssociation, AsyncServerAssociation};
 
 #[cfg(feature = "async")]
 use tokio::io::AsyncWriteExt;
-
-use std::net::SocketAddr;
 
 // Check rather arbitrary maximum PDU lengths, also different for server and client
 const HI_PDU_LEN: usize = 7890;
