@@ -9,6 +9,7 @@ use snafu::prelude::*;
 use std::path::PathBuf;
 #[cfg(feature = "tls")]
 use std::sync::Arc;
+use std::time::Duration;
 #[cfg(feature = "tls")]
 use tracing::debug;
 
@@ -203,12 +204,25 @@ pub fn show_cipher_suites() {
 #[derive(Args, Debug, Default)]
 pub struct ConnectionOptions {
     /// Read timeout for the underlying TCP socket in seconds
-    #[arg(long = "read-timeout", value_name = "SECS")]
-    pub read_timeout: Option<u64>,
+    #[arg(
+        long = "read-timeout",
+        value_name = "SECS",
+        value_parser(parse_duration_sec)
+    )]
+    pub read_timeout: Option<Duration>,
 
     /// Write timeout for the underlying TCP socket in seconds
-    #[arg(long = "write-timeout", value_name = "SECS")]
-    pub write_timeout: Option<u64>,
+    #[arg(
+        long = "write-timeout",
+        value_name = "SECS",
+        value_parser(parse_duration_sec)
+    )]
+    pub write_timeout: Option<Duration>,
+}
+
+pub fn parse_duration_sec(arg: &str) -> Result<Duration, std::num::ParseIntError> {
+    let seconds = arg.parse()?;
+    Ok(Duration::from_secs(seconds))
 }
 
 #[cfg(feature = "tls")]

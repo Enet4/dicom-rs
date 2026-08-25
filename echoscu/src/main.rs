@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_app_common::ConnectionOptions;
+use dicom_app_common::{ConnectionOptions, parse_duration_sec};
 use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::{StandardDataDictionary, mem::InMemDicomObject};
@@ -34,8 +34,8 @@ struct App {
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
     /// timeout for TCP connection establishment in seconds
-    #[arg(long = "connect-timeout", value_name = "SECS")]
-    connect_timeout: Option<u64>,
+    #[arg(long = "connect-timeout", value_name = "SECS", value_parser(parse_duration_sec))]
+    connect_timeout: Option<Duration>,
     #[command(flatten, next_help_heading = "Connection Options")]
     connection: ConnectionOptions,
 }
@@ -74,14 +74,14 @@ fn run() -> Result<(), Whatever> {
     if let Some(called_ae_title) = called_ae_title {
         association_opt = association_opt.called_ae_title(called_ae_title);
     }
-    if let Some(secs) = connection.read_timeout {
-        association_opt = association_opt.read_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.read_timeout {
+        association_opt = association_opt.read_timeout(timeout);
     }
-    if let Some(secs) = connection.write_timeout {
-        association_opt = association_opt.write_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.write_timeout {
+        association_opt = association_opt.write_timeout(timeout);
     }
-    if let Some(secs) = connect_timeout {
-        association_opt = association_opt.connection_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connect_timeout {
+        association_opt = association_opt.connection_timeout(timeout);
     }
     let mut association = association_opt
         .establish_with(&addr)

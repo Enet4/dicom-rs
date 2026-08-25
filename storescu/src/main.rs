@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_app_common::{ConnectionOptions, TlsOptions};
+use dicom_app_common::{ConnectionOptions, TlsOptions, parse_duration_sec};
 use dicom_core::{DataElement, VR, dicom_value, header::Tag};
 use dicom_dictionary_std::{tags, uids};
 use dicom_encoding::TransferSyntax;
@@ -104,8 +104,8 @@ struct App {
     concurrency: Option<usize>,
 
     /// timeout for TCP connection establishment in seconds
-    #[arg(long = "connect-timeout", value_name = "SECS")]
-    connect_timeout: Option<u64>,
+    #[arg(long = "connect-timeout", value_name = "SECS", value_parser(parse_duration_sec))]
+    connect_timeout: Option<Duration>,
     #[command(flatten, next_help_heading = "Connection Options")]
     connection: ConnectionOptions,
     #[command(flatten, next_help_heading = "TLS Options")]
@@ -414,14 +414,14 @@ fn run(app: App) -> Result<(), Error> {
         #[cfg(feature = "tls")]
         config,
     );
-    if let Some(secs) = connection.read_timeout {
-        scu_options = scu_options.read_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.read_timeout {
+        scu_options = scu_options.read_timeout(timeout);
     }
-    if let Some(secs) = connection.write_timeout {
-        scu_options = scu_options.write_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.write_timeout {
+        scu_options = scu_options.write_timeout(timeout);
     }
-    if let Some(secs) = connect_timeout {
-        scu_options = scu_options.connection_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connect_timeout {
+        scu_options = scu_options.connection_timeout(timeout);
     }
     let progress_bar;
     if !verbose {
@@ -568,14 +568,14 @@ async fn run_async() -> Result<(), Error> {
                 #[cfg(feature = "tls")]
                 tls_config_clone,
             );
-            if let Some(secs) = read_timeout_copy {
-                scu_options = scu_options.read_timeout(Duration::from_secs(secs));
+            if let Some(timeout) = read_timeout_copy {
+                scu_options = scu_options.read_timeout(timeout);
             }
-            if let Some(secs) = write_timeout_copy {
-                scu_options = scu_options.write_timeout(Duration::from_secs(secs));
+            if let Some(timeout) = write_timeout_copy {
+                scu_options = scu_options.write_timeout(timeout);
             }
-            if let Some(secs) = connect_timeout_copy {
-                scu_options = scu_options.connection_timeout(Duration::from_secs(secs));
+            if let Some(timeout) = connect_timeout_copy {
+                scu_options = scu_options.connection_timeout(timeout);
             }
             #[cfg(feature = "tls")]
             if tls_enabled {

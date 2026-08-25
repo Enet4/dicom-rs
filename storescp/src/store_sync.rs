@@ -1,6 +1,5 @@
 use std::net::TcpStream;
 use std::path::Path;
-use std::time::Duration;
 
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -39,11 +38,11 @@ pub(crate) fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Wh
         .strict(*strict)
         .max_pdu_length(*max_pdu_length)
         .promiscuous(*promiscuous);
-    if let Some(secs) = connection.read_timeout {
-        options = options.read_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.read_timeout {
+        options = options.read_timeout(timeout);
     }
-    if let Some(secs) = connection.write_timeout {
-        options = options.write_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.write_timeout {
+        options = options.write_timeout(timeout);
     }
 
     if *uncompressed_only {

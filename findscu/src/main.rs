@@ -1,5 +1,5 @@
 use clap::Parser;
-use dicom_app_common::ConnectionOptions;
+use dicom_app_common::{ConnectionOptions, parse_duration_sec};
 use dicom_core::dicom_value;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::{tags, uids};
@@ -69,8 +69,8 @@ struct App {
     )]
     mwl: bool,
     /// timeout for TCP connection establishment in seconds
-    #[arg(long = "connect-timeout", value_name = "SECS")]
-    connect_timeout: Option<u64>,
+    #[arg(long = "connect-timeout", value_name = "SECS", value_parser(parse_duration_sec))]
+    connect_timeout: Option<Duration>,
     #[command(flatten, next_help_heading = "Connection Options")]
     connection: ConnectionOptions,
 }
@@ -233,14 +233,14 @@ fn run() -> Result<(), Error> {
     if let Some(called_ae_title) = called_ae_title {
         scu_opt = scu_opt.called_ae_title(called_ae_title);
     }
-    if let Some(secs) = connection.read_timeout {
-        scu_opt = scu_opt.read_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.read_timeout {
+        scu_opt = scu_opt.read_timeout(timeout);
     }
-    if let Some(secs) = connection.write_timeout {
-        scu_opt = scu_opt.write_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connection.write_timeout {
+        scu_opt = scu_opt.write_timeout(timeout);
     }
-    if let Some(secs) = connect_timeout {
-        scu_opt = scu_opt.connection_timeout(Duration::from_secs(secs));
+    if let Some(timeout) = connect_timeout {
+        scu_opt = scu_opt.connection_timeout(timeout);
     }
 
     let mut scu = scu_opt.establish_with(&addr).context(InitScuSnafu)?;
