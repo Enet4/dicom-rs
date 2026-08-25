@@ -8,8 +8,9 @@ use tracing::warn;
 
 use crate::{
     Pdu,
-    pdu::{LARGE_PDU_SIZE, PDU_HEADER_SIZE, PDV_HEADER_SIZE},
-    read_pdu,
+    pdu::{
+        LARGE_PDU_SIZE, PDU_HEADER_SIZE, PDV_HEADER_SIZE, ReadPduOptions, read_pdu_with_options,
+    },
 };
 
 /// Combined size of PDU header and one PDV header, as usize, for convenience
@@ -247,6 +248,7 @@ pub struct PDataReader<'a, R> {
     stream: R,
     presentation_context_id: Option<u8>,
     max_pdu_length: u32,
+    allow_trailing_fixed_pdu_bytes: bool,
     last_pdu: bool,
     read_buffer: &'a mut BytesMut,
 }
@@ -260,9 +262,18 @@ impl<'a, R> PDataReader<'a, R> {
             stream,
             presentation_context_id: None,
             max_pdu_length,
+            allow_trailing_fixed_pdu_bytes: true,
             last_pdu: false,
             read_buffer: remaining,
         }
+    }
+
+    /// Set whether trailing bytes in fixed-size PDU bodies are accepted.
+    ///
+    /// The default is `true` for compatibility with previous releases.
+    pub fn allow_trailing_fixed_pdu_bytes(mut self, allow: bool) -> Self {
+        self.allow_trailing_fixed_pdu_bytes = allow;
+        self
     }
 
     /// Declare no intention to read more PDUs from the remote node.
@@ -288,11 +299,11 @@ where
             }
 
             let mut reader = BufReader::new(&mut self.stream);
+            let options = ReadPduOptions::new(self.max_pdu_length, false)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes);
             let msg = loop {
                 let mut buf = Cursor::new(&self.read_buffer[..]);
-                match read_pdu(&mut buf, self.max_pdu_length, false)
-                    .map_err(std::io::Error::other)?
-                {
+                match read_pdu_with_options(&mut buf, options).map_err(std::io::Error::other)? {
                     Some(pdu) => {
                         self.read_buffer.advance(buf.position() as usize);
                         break pdu;
@@ -356,8 +367,7 @@ pub mod non_blocking {
 
     use crate::{
         Pdu,
-        pdu::{PDU_HEADER_SIZE, PDV_HEADER_SIZE},
-        read_pdu,
+        pdu::{PDU_HEADER_SIZE, PDV_HEADER_SIZE, ReadPduOptions, read_pdu_with_options},
     };
 
     pub use super::PDataReader;
@@ -673,14 +683,15 @@ pub mod non_blocking {
                     ref mut stream,
                     ref mut read_buffer,
                     max_pdu_length,
+                    allow_trailing_fixed_pdu_bytes,
                     ..
                 } = &mut *self;
                 let mut reader = BufReader::new(stream);
+                let options = ReadPduOptions::new(max_pdu_length, false)
+                    .allow_trailing_fixed_pdu_bytes(allow_trailing_fixed_pdu_bytes);
                 let msg = loop {
                     let mut buf = Cursor::new(&read_buffer[..]);
-                    match read_pdu(&mut buf, max_pdu_length, false)
-                        .map_err(std::io::Error::other)?
-                    {
+                    match read_pdu_with_options(&mut buf, options).map_err(std::io::Error::other)? {
                         Some(pdu) => {
                             read_buffer.advance(buf.position() as usize);
                             break pdu;

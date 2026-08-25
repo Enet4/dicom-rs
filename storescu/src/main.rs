@@ -53,6 +53,9 @@ struct App {
         value_parser(clap::value_parser!(u32).range(1018..))
     )]
     max_pdu_length: u32,
+    /// Reject trailing bytes in fixed-length PDUs
+    #[arg(long)]
+    reject_trailing_fixed_pdu_bytes: bool,
     /// fail if not all DICOM files can be transferred
     #[arg(long = "fail-first")]
     fail_first: bool,
@@ -187,6 +190,7 @@ pub(crate) fn get_scu_options<'a>(
     calling_ae_title: String,
     called_ae_title: Option<String>,
     max_pdu_length: u32,
+    reject_trailing_fixed_pdu_bytes: bool,
     username: Option<String>,
     password: Option<String>,
     kerberos_service_ticket: Option<String>,
@@ -197,7 +201,8 @@ pub(crate) fn get_scu_options<'a>(
 ) -> ClientAssociationOptions<'a> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
-        .max_pdu_length(max_pdu_length);
+        .max_pdu_length(max_pdu_length)
+        .allow_trailing_fixed_pdu_bytes(!reject_trailing_fixed_pdu_bytes);
 
     #[cfg(feature = "tls")]
     {
@@ -361,6 +366,7 @@ fn run(app: App) -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        reject_trailing_fixed_pdu_bytes,
         fail_first,
         mut never_transcode,
         ignore_sop_class,
@@ -398,6 +404,7 @@ fn run(app: App) -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        reject_trailing_fixed_pdu_bytes,
         username,
         password,
         kerberos_service_ticket,
@@ -464,6 +471,7 @@ async fn run_async() -> Result<(), Error> {
         calling_ae_title,
         called_ae_title,
         max_pdu_length,
+        reject_trailing_fixed_pdu_bytes,
         fail_first,
         mut never_transcode,
         ignore_sop_class,
@@ -538,6 +546,7 @@ async fn run_async() -> Result<(), Error> {
                 calling_ae_title,
                 called_ae_title,
                 max_pdu_length,
+                reject_trailing_fixed_pdu_bytes,
                 username,
                 password,
                 kerberos_service_ticket,
