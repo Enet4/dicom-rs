@@ -186,7 +186,7 @@ where
                     inline_binary = Some(val);
                 }
                 "BulkDataURI" => {
-                    if values.is_some() {
+                    if value.is_some() {
                         return Err(A::Error::custom("\"BulkDataURI\" conflicts with \"Value\""));
                     }
 
@@ -638,6 +638,18 @@ mod tests {
                 "vr": "OW",
                 "InlineBinary": "AAE=",
                 "BulkDataURI": "http://localhost:8042/dicom-web/instances/1.2.3.4.5/pixeldata"
+            }
+        });
+
+        let res: Result<InMemDicomObject, _> = super::from_value(serialized);
+        let e = res.unwrap_err();
+        assert_eq!(e.classify(), serde_json::error::Category::Data);
+
+        let serialized = serde_json::json!({
+            "00081010": {
+                "vr": "SH",
+                "Value": [ "RUSTATION" ],
+                "BulkDataURI": "http://localhost:8042/dicom-web/instances/1.2.3.4.5/station_name"
             }
         });
 
