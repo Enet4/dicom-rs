@@ -525,6 +525,16 @@ mod tests {
         // check transfer syntax
         assert_eq!(obj.meta().transfer_syntax(), JPEG_BASELINE.uid());
 
+        // check that the photometric interpretation
+        // describes the encoded data, which is YCbCr
+        assert_eq!(
+            obj.get(tags::PHOTOMETRIC_INTERPRETATION)
+                .expect("Photometric Interpretation should be present")
+                .to_str()
+                .unwrap(),
+            "YBR_FULL_422",
+        );
+
         // check that the pixel data is encapsulated
         // and has the expected number of fragments
         let pixel_data = obj.get(tags::PIXEL_DATA).unwrap();
