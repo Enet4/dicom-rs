@@ -17,7 +17,7 @@ use dicom_encoding::text::{
     validate_dt, validate_tm,
 };
 use dicom_encoding::transfer_syntax::{DynDecoder, TransferSyntax};
-use smallvec::smallvec;
+use smallvec::SmallVec;
 use snafu::{Backtrace, OptionExt, ResultExt, Snafu};
 use std::io::Read;
 use std::{fmt::Debug, io::Seek, io::SeekFrom};
@@ -70,6 +70,12 @@ pub enum Error {
         position: u64,
         #[snafu(backtrace)]
         source: dicom_encoding::text::DecodeTextError,
+    },
+
+    #[snafu(display("Could not reserve memory for data value ({len} bytes)"))]
+    AllocateValueData {
+        /// the byte length of the attempted allocation
+        len: u32,
     },
 
     #[snafu(display("Could not read value from source at position {}", position))]
@@ -457,7 +463,12 @@ where
         let len = self.require_known_length(header)?;
 
         // sequence of 8-bit integers (or arbitrary byte data)
-        let mut buf = smallvec![0u8; len];
+        let mut buf = SmallVec::new();
+        buf.try_reserve_exact(len)
+            // discard allocation error, does not impl std::error::Error
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        buf.resize(len, 0);
         self.from.read_exact(&mut buf).context(ReadValueDataSnafu {
             position: self.position,
         })?;
@@ -532,7 +543,11 @@ where
         let len = self.require_known_length(header)?;
 
         let n = len >> 1;
-        let mut vec = smallvec![0; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_ss_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -547,7 +562,11 @@ where
         let len = self.require_known_length(header)?;
         // sequence of 32-bit floats
         let n = len >> 2;
-        let mut vec = smallvec![0.; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0.);
         self.basic
             .decode_fl_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -740,7 +759,11 @@ where
         let len = self.require_known_length(header)?;
         // sequence of 64-bit floats
         let n = len >> 3;
-        let mut vec = smallvec![0.; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0.);
         self.basic
             .decode_fd_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -755,7 +778,11 @@ where
         // sequence of 32-bit unsigned integers
 
         let n = len >> 2;
-        let mut vec = smallvec![0u32; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_ul_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -767,6 +794,11 @@ where
 
     fn read_u32(&mut self, n: usize, vec: &mut Vec<u32>) -> Result<()> {
         let base = vec.len();
+
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: n as u32 * 4 })?;
+
         vec.resize(base + n, 0);
 
         self.basic
@@ -783,7 +815,11 @@ where
         // sequence of 16-bit unsigned integers
 
         let n = len >> 1;
-        let mut vec = smallvec![0; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_us_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -805,7 +841,11 @@ where
         // sequence of 64-bit unsigned integers
 
         let n = len >> 3;
-        let mut vec = smallvec![0; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_uv_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -820,7 +860,11 @@ where
         // sequence of 32-bit signed integers
 
         let n = len >> 2;
-        let mut vec = smallvec![0; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_sl_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {
@@ -835,7 +879,11 @@ where
         // sequence of 64-bit signed integers
 
         let n = len >> 3;
-        let mut vec = smallvec![0; n];
+        let mut vec = SmallVec::new();
+        vec.try_reserve_exact(n)
+            .ok()
+            .context(AllocateValueDataSnafu { len: len as u32 })?;
+        vec.resize(n, 0);
         self.basic
             .decode_sv_into(&mut self.from, &mut vec[..])
             .context(ReadValueDataSnafu {

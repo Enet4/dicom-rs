@@ -52,9 +52,12 @@ impl PixelDataReader for RleLosslessAdapter {
         // `stride` is the total number of bytes for each sample plane
         let stride = bytes_per_sample * cols as usize * rows as usize;
         let frame_size = stride * samples_per_pixel;
+
         // extend `dst` to make room for decoded pixel data
         let base_offset = dst.len();
-        dst.resize(base_offset + frame_size * nr_frames, 0);
+        // estimate the sizes of the encapsulated fragments
+        let encapsulated_size = src.fragment(0).unwrap_or_default().len() * nr_frames;
+        guarded_resize(dst, frame_size * nr_frames, encapsulated_size)?;
 
         // RLE encoded data is ordered like this (for 16-bit, 3 sample):
         //  Segment: 0     | 1     | 2     | 3     | 4     | 5
@@ -80,11 +83,16 @@ impl PixelDataReader for RleLosslessAdapter {
                     // ii is 1, 0, 3, 2, 5, 4 for the example above
                     // This is where the segment order correction occurs
                     let ii = sample_number * bytes_per_sample + byte_offset;
-                    let segment = &fragment[offsets[ii] as usize..offsets[ii + 1] as usize];
+                    ensure_whatever!(ii + 1 < offsets.len(), "Invalid RLE segment offsets");
+                    let segment_range = offsets[ii] as usize..offsets[ii + 1] as usize;
+                    let segment = fragment
+                        .get(segment_range)
+                        .whatever_context("Invalid RLE segment range")?;
                     let buff = io::Cursor::new(segment);
                     let (_, decoder) = PackBitsReader::new(buff, segment.len())
                         .whatever_context("Failed to read RLE segments")?;
-                    let mut decoded_segment = Vec::with_capacity(rows as usize * cols as usize);
+                    let mut decoded_segment =
+                        guarded_alloc(rows as usize * cols as usize, fragment.len())?;
                     decoder
                         .take(rows as u64 * cols as u64)
                         .read_to_end(&mut decoded_segment)
@@ -163,9 +171,7 @@ impl PixelDataReader for RleLosslessAdapter {
         // `stride` is the total number of bytes for each sample plane
         let stride = bytes_per_sample * cols as usize * rows as usize;
         let frame_size = stride * samples_per_pixel;
-        // extend `dst` to make room for decoded pixel data
         let base_offset = dst.len();
-        dst.resize(base_offset + frame_size, 0);
 
         // RLE encoded data is ordered like this (for 16-bit, 3 sample):
         //  Segment: 0     | 1     | 2     | 3     | 4     | 5
@@ -185,17 +191,25 @@ impl PixelDataReader for RleLosslessAdapter {
         let mut offsets = read_rle_header(fragment);
         offsets.push(fragment.len() as u32);
 
+        // extend `dst` to make room for decoded pixel data
+        guarded_resize(dst, frame_size, fragment.len())?;
+
         for sample_number in 0..samples_per_pixel {
             for byte_offset in (0..bytes_per_sample).rev() {
                 // ii is 1, 0, 3, 2, 5, 4 for the example above
                 // This is where the segment order correction occurs
                 let ii = sample_number * bytes_per_sample + byte_offset;
-                let segment = &fragment[offsets[ii] as usize..offsets[ii + 1] as usize];
+                ensure_whatever!(ii + 1 < offsets.len(), "Invalid RLE segment offsets");
+                let segment_range = offsets[ii] as usize..offsets[ii + 1] as usize;
+                let segment = fragment
+                    .get(segment_range)
+                    .whatever_context("Invalid RLE segment range")?;
                 let buff = io::Cursor::new(segment);
                 let (_, decoder) = PackBitsReader::new(buff, segment.len())
                     .map_err(|e| Box::new(e) as Box<_>)
                     .whatever_context("Failed to read RLE segments")?;
-                let mut decoded_segment = Vec::with_capacity(rows as usize * cols as usize);
+                let mut decoded_segment =
+                    guarded_alloc(rows as usize * cols as usize, fragment.len())?;
                 decoder
                     .take(rows as u64 * cols as u64)
                     .read_to_end(&mut decoded_segment)
@@ -284,6 +298,37 @@ impl Read for PackBitsReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.buffer.read(buf)
     }
+}
+
+const COMPRESSION_RATIO_THRESHOLD: u32 = 32;
+
+/// Perform an allocation, safeguarded from extreme cases.
+fn guarded_alloc(capacity: usize, fragment_size: usize) -> DecodeResult<Vec<u8>> {
+    crate::alloc::guarded_alloc(capacity, fragment_size, COMPRESSION_RATIO_THRESHOLD)
+        .ok()
+        .context(decode_error::AllocateSnafu {
+            name: "RLE segment",
+            size: capacity,
+        })
+}
+
+/// Perform a resize of a vector (with zeros), safeguarded from extreme cases.
+fn guarded_resize(
+    out: &mut Vec<u8>,
+    additional_capacity: usize,
+    fragment_size: usize,
+) -> DecodeResult<()> {
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        fragment_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "frame",
+        size: additional_capacity,
+    })
 }
 
 #[cfg(test)]

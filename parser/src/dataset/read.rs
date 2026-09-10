@@ -82,6 +82,18 @@ pub enum Error {
     InvalidElementLength { tag: Tag, len: u32, bytes_read: u64 },
     /// Invalid sequence item length {len:04X} at {bytes_read:#x}
     InvalidItemLength { len: u32, bytes_read: u64 },
+    /// Could not reserve memory for the offset table ({len} bytes)
+    AllocateOffsetTable {
+        /// the length of the attempted allocation
+        len: u32,
+        source: std::collections::TryReserveError,
+    },
+    /// Could not reserve memory for the offset table ({len} bytes)
+    AllocateItem {
+        /// the length of the attempted allocation
+        len: u32,
+        source: std::collections::TryReserveError,
+    },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -446,7 +458,12 @@ where
 
                 if self.offset_table_next {
                     // offset table
-                    let mut offset_table = Vec::with_capacity(len);
+                    let mut offset_table = Vec::new();
+                    let res = offset_table.try_reserve_exact(len)
+                        .context(AllocateOffsetTableSnafu { len: len as u32 });
+                    if let Err(e) = res {
+                        return Some(Err(e));
+                    }
 
                     self.offset_table_next = false;
 
@@ -461,7 +478,13 @@ where
                     )
                 } else {
                     // item value
-                    let mut value = Vec::with_capacity(len);
+                    let mut value = Vec::new();
+                    let res = value.try_reserve_exact(len)
+                        .context(AllocateItemSnafu { len: len as u32 });
+                    if let Err(e) = res {
+                        return Some(Err(e));
+                    }
+
 
                     // need to pop item delimiter on the next iteration
                     self.delimiter_check_pending = true;

@@ -46,10 +46,14 @@ impl PixelDataReader for JpegAdapter {
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
         let base_offset = dst.len();
-        dst.resize(
-            base_offset + (samples_per_pixel as usize * stride) * nr_frames,
-            0,
-        );
+        // !!! using an approximation of encapsulated size
+        // so we do not need to go through every frame
+        let encapsulated_size = src.fragment(0).unwrap_or_default().len() * nr_frames;
+        guarded_resize(
+            dst,
+            samples_per_pixel as usize * stride * nr_frames,
+            encapsulated_size * nr_frames,
+        )?;
 
         let raw = src
             .raw_pixel_data()
@@ -164,8 +168,6 @@ impl PixelDataReader for JpegAdapter {
 
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
-        let base_offset = dst.len();
-        dst.resize(base_offset + (samples_per_pixel as usize * stride), 0);
 
         let raw = src
             .raw_pixel_data()
@@ -214,6 +216,9 @@ impl PixelDataReader for JpegAdapter {
 
             Cow::Owned(fragments)
         };
+
+        let base_offset = dst.len();
+        guarded_resize(dst, samples_per_pixel as usize * stride, frame_data.len())?;
 
         let mut cursor = Cursor::new(&*frame_data);
         let dst_offset = base_offset;
@@ -359,7 +364,23 @@ fn next_even(l: u64) -> u64 {
     (l + 1) & !1
 }
 
-/// reduce data precision to 8 bits if necessary
+const COMPRESSION_RATIO_THRESHOLD: u32 = 64;
+
+/// Perform a resize of a vector (with zeros), safeguarded from extreme cases.
+fn guarded_resize(
+    out: &mut Vec<u8>,
+    additional_capacity: usize,
+    encapsulated_size: usize,
+) -> DecodeResult<()> {
+    crate::alloc::guarded_resize(out, additional_capacity, encapsulated_size, COMPRESSION_RATIO_THRESHOLD)
+        .ok()
+        .context(decode_error::AllocateSnafu {
+            name: "frame",
+            size: additional_capacity,
+        })
+}
+
+/// reduce data precision to 8 bits if necessary.
 /// data loss is possible
 fn narrow_8bit(frame_data: &[u8], bits_stored: u16) -> EncodeResult<Cow<'_, [u8]>> {
     debug_assert!(bits_stored >= 8);

@@ -63,6 +63,22 @@ pub enum DecodeError {
     /// from the DICOM object representing the image.
     #[snafu(display("Missing required attribute `{}`", name))]
     MissingAttribute { name: &'static str },
+
+    /// A piece of data could not be allocated.
+    ///
+    /// This may be either a sign of memory saturation
+    /// while trying to decode very large images,
+    /// or a sign of the input data being invalid or otherwise problematic.
+    #[snafu(display("Could not allocate {name}"))]
+    Allocate {
+        /// A name for the memory object being allocated,
+        /// such as a frame of pixel data.
+        ///
+        /// Names at this level are not standardized.
+        name: &'static str,
+        /// The size of the attempted allocation in bytes
+        size: Option<usize>,
+    },
 }
 
 /// The possible error conditions when encoding (writing) pixel data.

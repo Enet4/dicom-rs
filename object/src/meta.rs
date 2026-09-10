@@ -31,6 +31,13 @@ use crate::{
 
 const DICM_MAGIC_CODE: [u8; 4] = *b"DICM";
 
+/// A hard limit for the size
+/// of binary data elements in the file meta information group.
+///
+/// Although this can reject DICOM-compliant files,
+/// the file meta information group is not expected to be exaggeratedly large.
+const META_FILE_INFO_ELEM_SIZE_LIMIT: u32 = 1 << 26;
+
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
 pub enum Error {
@@ -644,9 +651,16 @@ impl FileMetaTable {
                 Tag(0x0002, 0x0012) => {
                     builder.implementation_class_uid(read_str_body(&mut file, &text, elem_len)?)
                 }
-                Tag(0x0002, 0x0013) => {
+                tag @ Tag(0x0002, 0x0013) => {
                     // Implementation Version Name
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= 16,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
@@ -657,9 +671,16 @@ impl FileMetaTable {
                             .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
-                Tag(0x0002, 0x0016) => {
+                tag @ Tag(0x0002, 0x0016) => {
                     // Source Application Entity Title
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= 16,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
@@ -670,9 +691,16 @@ impl FileMetaTable {
                             .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
-                Tag(0x0002, 0x0017) => {
+                tag @ Tag(0x0002, 0x0017) => {
                     // Sending Application Entity Title
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= 16,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
@@ -683,9 +711,16 @@ impl FileMetaTable {
                             .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
-                Tag(0x0002, 0x0018) => {
+                tag @ Tag(0x0002, 0x0018) => {
                     // Receiving Application Entity Title
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= 16,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
@@ -696,9 +731,16 @@ impl FileMetaTable {
                             .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
-                Tag(0x0002, 0x0100) => {
+                tag @ Tag(0x0002, 0x0100) => {
                     // Private Information Creator UID
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= 64,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
@@ -709,9 +751,16 @@ impl FileMetaTable {
                             .context(DecodeTextSnafu { name: text.name() })?,
                     )
                 }
-                Tag(0x0002, 0x0102) => {
+                tag @ Tag(0x0002, 0x0102) => {
                     // Private Information
                     let mut v = Vec::new();
+                    ensure!(
+                        elem_len <= META_FILE_INFO_ELEM_SIZE_LIMIT,
+                        UnexpectedDataValueLengthSnafu {
+                            length: elem_len,
+                            tag,
+                        }
+                    );
                     v.try_reserve_exact(elem_len as usize)
                         .context(AllocationSizeSnafu)?;
                     v.resize(elem_len as usize, 0);
