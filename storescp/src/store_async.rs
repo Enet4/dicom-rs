@@ -28,6 +28,7 @@ pub(crate) async fn run_store_async(
         out_dir,
         port: _,
         non_blocking: _,
+        connection,
         #[cfg_attr(not(feature = "tls"), allow(unused_variables))]
         tls,
         #[cfg_attr(not(feature = "tls"), allow(unused_variables))]
@@ -40,6 +41,12 @@ pub(crate) async fn run_store_async(
         .strict(*strict)
         .max_pdu_length(*max_pdu_length)
         .promiscuous(*promiscuous);
+    if let Some(timeout) = connection.read_timeout {
+        options = options.read_timeout(timeout);
+    }
+    if let Some(timeout) = connection.write_timeout {
+        options = options.write_timeout(timeout);
+    }
 
     if *uncompressed_only {
         options = options

@@ -1,4 +1,5 @@
 use clap::Parser;
+use dicom_app_common::{ConnectionOptions, parse_duration_sec};
 use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::{StandardDataDictionary, mem::InMemDicomObject};
@@ -8,6 +9,7 @@ use dicom_ul::{
 };
 use pdu::PDataValue;
 use snafu::{Whatever, prelude::*};
+use std::time::Duration;
 use tracing::{Level, debug, error, info, warn};
 
 /// DICOM C-ECHO SCU
@@ -31,6 +33,11 @@ struct App {
     /// overrides AE title in address if present [default: ANY-SCP]
     #[arg(long = "called-ae-title")]
     called_ae_title: Option<String>,
+    /// timeout for TCP connection establishment in seconds
+    #[arg(long = "connect-timeout", value_name = "SECS", value_parser(parse_duration_sec))]
+    connect_timeout: Option<Duration>,
+    #[command(flatten, next_help_heading = "Connection Options")]
+    connection: ConnectionOptions,
 }
 
 fn main() {
@@ -47,6 +54,8 @@ fn run() -> Result<(), Whatever> {
         message_id,
         called_ae_title,
         calling_ae_title,
+        connect_timeout,
+        connection,
     } = App::parse();
 
     tracing::subscriber::set_global_default(
@@ -64,6 +73,15 @@ fn run() -> Result<(), Whatever> {
         .calling_ae_title(calling_ae_title);
     if let Some(called_ae_title) = called_ae_title {
         association_opt = association_opt.called_ae_title(called_ae_title);
+    }
+    if let Some(timeout) = connection.read_timeout {
+        association_opt = association_opt.read_timeout(timeout);
+    }
+    if let Some(timeout) = connection.write_timeout {
+        association_opt = association_opt.write_timeout(timeout);
+    }
+    if let Some(timeout) = connect_timeout {
+        association_opt = association_opt.connection_timeout(timeout);
     }
     let mut association = association_opt
         .establish_with(&addr)
