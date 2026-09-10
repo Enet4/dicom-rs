@@ -83,20 +83,38 @@ pub struct WindowLevelTransform {
 impl WindowLevelTransform {
     /// Create a new window level transformation.
     ///
-    /// The width of the given `window_level` is automatically clamped
+    /// The width of the given `window_level` is automatically adjusted
     /// if it is incompatible with the given LUT function:
-    /// it muse be `>= 0` if the function is [`LinearExact`](VoiLutFunction::LinearExact),
+    /// it must be `>= 0` if the function is [`LinearExact`](VoiLutFunction::LinearExact),
     /// and `>= 1` in other functions.
+    ///
+    /// The `LINEAR` function is defined in terms of `width - 1`
+    /// (see [PS3.3 C.11.2.1.2.1][1]),
+    /// so it degenerates into a hard black/white threshold
+    /// once the width is clamped up to 1.
+    /// Objects which describe a window narrower than one unit
+    /// (typically because the modality rescale maps the samples
+    /// onto a small floating point range)
+    /// are therefore rendered with the `LINEAR_EXACT` function instead,
+    /// which is well defined for any non-negative width.
+    ///
+    /// [1]: https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_C.11.2.html#sect_C.11.2.1.2.1
     #[inline]
     pub fn new(voi_lut_function: VoiLutFunction, window_level: WindowLevel) -> Self {
+        let (voi_lut_function, width) = match voi_lut_function {
+            VoiLutFunction::LinearExact => (voi_lut_function, window_level.width.max(0.)),
+            VoiLutFunction::Linear if window_level.width < 1. => {
+                (VoiLutFunction::LinearExact, window_level.width.max(0.))
+            }
+            VoiLutFunction::Linear => (voi_lut_function, window_level.width),
+            VoiLutFunction::Sigmoid => (voi_lut_function, window_level.width.max(1.)),
+        };
+
         WindowLevelTransform {
             voi_lut_function,
             window_level: WindowLevel {
                 center: window_level.center,
-                width: match voi_lut_function {
-                    VoiLutFunction::LinearExact => window_level.width.max(0.),
-                    VoiLutFunction::Linear | VoiLutFunction::Sigmoid => window_level.width.max(1.),
-                },
+                width,
             },
         }
     }
@@ -104,8 +122,8 @@ impl WindowLevelTransform {
     /// Create a new window level transformation
     /// with the `LINEAR` function.
     ///
-    /// The width of the given `window_level` is automatically clamped
-    /// to 1 if it is lower than 1.
+    /// A width lower than 1 is served by the `LINEAR_EXACT` function,
+    /// as described in [`new`](Self::new).
     #[inline]
     pub fn linear(window_level: WindowLevel) -> Self {
         Self::new(VoiLutFunction::Linear, window_level)
@@ -319,6 +337,53 @@ mod tests {
         // x inbetween
         let y = window_level_transform.apply(50., y_max);
         assert!(y > 127. && y < 129.);
+    }
+
+    /// A window narrower than one unit still spreads the values over
+    /// the whole output range instead of collapsing into a threshold.
+    #[test]
+    fn window_level_linear_sub_unit_width() {
+        let window_level_transform = WindowLevelTransform::linear(WindowLevel {
+            width: 0.9130647131,
+            center: 0.4565323565,
+        });
+        let y_max = 255.;
+
+        // x <= 0
+        assert_eq!(window_level_transform.apply(-0.01, y_max), 0.);
+        assert!(window_level_transform.apply(0., y_max) < 1e-6);
+
+        // x > 0.913
+        assert_eq!(window_level_transform.apply(0.92, y_max), y_max);
+        assert_eq!(window_level_transform.apply(1., y_max), y_max);
+
+        // in between: monotonically increasing, centered around y_max / 2
+        let y = window_level_transform.apply(0.4565323565, y_max);
+        assert!(
+            (y - 127.5).abs() < 1e-3,
+            "outcome was {y}, expected the window center to land mid-scale",
+        );
+
+        let y_low = window_level_transform.apply(0.25, y_max);
+        let y_high = window_level_transform.apply(0.75, y_max);
+        assert!(
+            0. < y_low && y_low < y && y < y_high && y_high < y_max,
+            "expected 0 < {y_low} < {y} < {y_high} < {y_max}",
+        );
+    }
+
+    /// A width of exactly 1 keeps the `LINEAR` threshold behavior
+    /// described in the standard.
+    #[test]
+    fn window_level_linear_unit_width() {
+        let window_level_transform = WindowLevelTransform::linear(WindowLevel {
+            width: 1.,
+            center: 2048.,
+        });
+        let y_max = 255.;
+
+        assert_eq!(window_level_transform.apply(2047., y_max), 0.);
+        assert_eq!(window_level_transform.apply(2048., y_max), y_max);
     }
 
     #[test]
