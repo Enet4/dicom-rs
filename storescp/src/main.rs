@@ -3,8 +3,8 @@ use std::{
     path::PathBuf,
 };
 
+use dicom_app_common::{ConnectionOptions, TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
-use dicom_app_common::{TlsAcceptorOptions, TlsOptions};
 use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, StandardDataDictionary};
@@ -54,6 +54,8 @@ struct App {
     /// Run in non-blocking mode (spins up an async task to handle each incoming stream)
     #[arg(short, long)]
     non_blocking: bool,
+    #[command(flatten, next_help_heading = "Connection Options")]
+    connection: ConnectionOptions,
     /// TLS options
     #[command(flatten, next_help_heading = "TLS Options")]
     tls: TlsOptions,

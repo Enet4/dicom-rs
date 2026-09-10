@@ -116,6 +116,8 @@ use std::fmt;
 pub use dicom_encoding::{TransferSyntax, TransferSyntaxIndex};
 pub mod entries;
 
+pub(crate) mod alloc;
+
 mod adapters;
 #[cfg(feature = "deflate")]
 mod deflate;

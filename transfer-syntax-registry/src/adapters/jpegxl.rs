@@ -65,7 +65,6 @@ impl PixelDataReader for JpegXlAdapter {
 
         // `stride` it the total number of bytes for each sample plane
         let stride: usize = bytes_per_sample as usize * cols as usize * rows as usize;
-        dst.reserve_exact(samples_per_pixel as usize * stride);
 
         let raw = src
             .raw_pixel_data()
@@ -82,6 +81,9 @@ impl PixelDataReader for JpegXlAdapter {
                 .with_whatever_context(|| {
                     format!("Missing fragment #{frame} for the frame requested")
                 })?;
+
+        // extend output vector
+        guarded_reserve(dst, samples_per_pixel as usize * stride, frame_data.len())?;
 
         let image = JxlImage::builder()
             .read(&**frame_data)
@@ -103,11 +105,8 @@ impl PixelDataReader for JpegXlAdapter {
                 let samples_per_frame =
                     stream.channels() as usize * stream.width() as usize * stream.height() as usize;
 
-                dst.try_reserve(samples_per_frame)
-                    .whatever_context("Failed to reserve heap space for JPEG XL frame")?;
-
                 let offset = dst.len();
-                dst.resize(offset + samples_per_frame, 0);
+                guarded_resize(dst, samples_per_frame, frame_data.len())?;
 
                 let count = stream.write_to_buffer(&mut dst[offset..]);
                 dst.truncate(offset + count);
@@ -308,4 +307,42 @@ impl PixelDataWriter for JpegXlLosslessEncoder {
         options.quality = Some(100);
         JpegXlAdapter.encode(src, options, dst, offset_table)
     }
+}
+
+const COMPRESSION_RATIO_THRESHOLD: u32 = 64;
+
+fn guarded_reserve(
+    out: &mut Vec<u8>,
+    additional_capacity: usize,
+    encapsulated_size: usize,
+) -> DecodeResult<()> {
+    crate::alloc::guarded_reserve(
+        out,
+        additional_capacity,
+        encapsulated_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "JPEG XL frame",
+        size: additional_capacity,
+    })
+}
+
+fn guarded_resize(
+    out: &mut Vec<u8>,
+    additional_capacity: usize,
+    encapsulated_size: usize,
+) -> DecodeResult<()> {
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        encapsulated_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "JPEG XL frame",
+        size: additional_capacity,
+    })
 }
