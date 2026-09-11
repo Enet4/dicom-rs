@@ -177,8 +177,8 @@ impl PrimitiveValue {
     ///
     /// If the value is already represented as numbers,
     /// they are returned after a conversion to [`f32`].
-    /// An error is returned if any of the numbers cannot be represented
-    /// by an [`f32`].
+    /// An error is returned if
+    /// any of the numbers cannot be represented by an [`f32`].
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
@@ -371,6 +371,106 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
+    }
+
+    /// Retrieve one finite single-precision floating point from this value.
+    ///
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to [`f32`].
+    /// An error is returned if
+    /// the number cannot be represented by the given number type
+    /// or the number is not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// assert_eq!(
+    ///     PrimitiveValue::F32(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_finite_float32().ok(),
+    ///     Some(1.5_f32),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::from("NaN").to_finite_float32().is_err()
+    /// );
+    /// ```
+    pub fn to_finite_float32(&self) -> Result<f32, ConvertValueError> {
+        let v = self.to_float32().map_err(|mut e| {
+            e.requested = "finite float32";
+            e
+        })?;
+        if !v.is_finite() {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float32",
+                cause: None,
+            });
+        }
+        Ok(v)
+    }
+
+    /// Retrieve a sequence of single-precision floating point numbers
+    /// from this value.
+    ///
+    /// If the value is already represented as numbers,
+    /// they are returned after a conversion to [`f32`].
+    /// An error is returned if
+    /// any of the items cannot be represented by an [`f32`]
+    /// or any of the numbers are not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the strings are parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::F32(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_multi_finite_float32().ok(),
+    ///     Some(vec![1.5_f32, 2., 5.]),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::Strs(smallvec!["-6.75".to_string(), "NaN".to_string()]).to_multi_finite_float32().is_err(),
+    /// );
+    /// ```
+    pub fn to_multi_finite_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        let values = self.to_multi_float32().map_err(|mut e| {
+            e.requested = "finite float32";
+            e
+        })?;
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float32",
+                cause: None,
+            });
+        }
+        Ok(values)
     }
 
     /// Retrieve one double-precision floating point from this value.
@@ -741,218 +841,106 @@ impl PrimitiveValue {
         }
     }
 
-    /// Extend a value of numbers by appending
-    /// 32-bit floating point numbers to an existing value.
+    /// Retrieve one finite double-precision floating point from this value.
     ///
-    /// The value may be empty
-    /// or already contain numeric or textual values.
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to [`f64`].
+    /// An error is returned if
+    /// the number cannot be represented by the given number type
+    /// or the resulting floating point value is not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
     ///
-    /// If the current value is textual,
-    /// the numbers provided are converted to text.
-    /// For the case of numeric values,
-    /// the given numbers are _converted to the current number type
-    /// through casting_,
-    /// meaning that loss of precision may occur.
-    /// If this is undesirable,
-    /// read the current value and replace it manually.
-    ///
-    /// An error is returned
-    /// if the current value is not compatible with the insertion of numbers,
-    /// such as [`Tag`] or [`Date`].
-    ///
-    /// [`Date`]: Self::Date
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
     /// ```
-    /// use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// assert_eq!(
+    ///     PrimitiveValue::F64(smallvec![
+    ///         1.2222e8
+    ///     ])
+    ///     .to_finite_float64().ok(),
+    ///     Some(1.2222e8_f64),
+    /// );
     ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut value = dicom_value!(F32, [1., 2.]);
-    /// value.extend_f32([5.])?;
-    /// assert_eq!(value.to_multi_float32()?, vec![1., 2., 5.]);
-    ///
-    /// let mut value = dicom_value!(Strs, ["1.25"]);
-    /// value.extend_f32([0.5])?;
-    /// assert_eq!(value.to_string(), "1.25\\0.5");
-    /// # Ok(())
-    /// # }
+    /// assert!(
+    ///     PrimitiveValue::from("NaN").to_finite_float64().is_err(),
+    /// );
     /// ```
-    pub fn extend_f32(
-        &mut self,
-        numbers: impl IntoIterator<Item = f32>,
-    ) -> Result<(), ModifyValueError> {
-        match self {
-            PrimitiveValue::Empty => {
-                *self = PrimitiveValue::F32(numbers.into_iter().collect());
-                Ok(())
-            }
-            PrimitiveValue::Strs(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n.to_string()));
-                Ok(())
-            }
-            PrimitiveValue::Str(s) => {
-                // for lack of better ways to move the string out from the mutable borrow,
-                // we create a copy for now
-                let s = s.clone();
-                *self = PrimitiveValue::Strs(
-                    std::iter::once(s)
-                        .chain(numbers.into_iter().map(|n| n.to_string()))
-                        .collect(),
-                );
-                Ok(())
-            }
-            PrimitiveValue::F32(elements) => {
-                elements.extend(numbers);
-                Ok(())
-            }
-            PrimitiveValue::U8(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u8));
-                Ok(())
-            }
-            PrimitiveValue::I16(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i16));
-                Ok(())
-            }
-            PrimitiveValue::U16(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u16));
-                Ok(())
-            }
-            PrimitiveValue::I32(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i32));
-                Ok(())
-            }
-            PrimitiveValue::I64(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i64));
-                Ok(())
-            }
-            PrimitiveValue::U32(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u32));
-                Ok(())
-            }
-            PrimitiveValue::U64(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u64));
-                Ok(())
-            }
-            PrimitiveValue::F64(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as f64));
-                Ok(())
-            }
-            PrimitiveValue::Tags(_)
-            | PrimitiveValue::Date(_)
-            | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => IncompatibleNumberTypeSnafu {
+    pub fn to_finite_float64(&self) -> Result<f64, ConvertValueError> {
+        let v = self.to_float64().map_err(|mut e| {
+            e.requested = "finite float64";
+            e
+        })?;
+        if !v.is_finite() {
+            return Err(ConvertValueError {
                 original: self.value_type(),
-            }
-            .fail(),
+                requested: "finite float64",
+                cause: None,
+            });
         }
+        Ok(v)
     }
 
-    /// Extend a value of numbers by appending
-    /// 64-bit floating point numbers to an existing value.
+    /// Retrieve a sequence of finite double-precision floating point numbers
+    /// from this value.
     ///
-    /// The value may be empty
-    /// or already contain numeric or textual values.
+    /// If the value is already represented as numbers,
+    /// they are returned after a conversion to [`f64`].
+    /// An error is returned if
+    /// any of the numbers cannot be represented by an [`f64`]
+    /// or any of the numbers are not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the strings are parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
     ///
-    /// If the current value is textual,
-    /// the numbers provided are converted to text.
-    /// For the case of numeric values,
-    /// the given numbers are _converted to the current number type
-    /// through casting_,
-    /// meaning that loss of precision may occur.
-    /// If this is undesirable,
-    /// read the current value and replace it manually.
-    ///
-    /// An error is returned
-    /// if the current value is not compatible with the insertion of numbers,
-    /// such as [`Tag`] or [`Date`].
-    ///
-    /// [`Date`]: Self::Date
+    /// [`U8`]: Self::U8
     ///
     /// # Example
     ///
     /// ```
-    /// use dicom_core::dicom_value;
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
     ///
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut value = dicom_value!(F64, [1., 2.]);
-    /// value.extend_f64([5.])?;
-    /// assert_eq!(value.to_multi_float64()?, vec![1., 2., 5.]);
+    /// assert_eq!(
+    ///     PrimitiveValue::F64(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_multi_finite_float64().ok(),
+    ///     Some(vec![1.5_f64, 2., 5.]),
+    /// );
     ///
-    /// let mut value = dicom_value!(Strs, ["1.25"]);
-    /// value.extend_f64([0.5])?;
-    /// assert_eq!(value.to_string(), "1.25\\0.5");
-    /// # Ok(())
-    /// # }
+    /// assert!(
+    ///     PrimitiveValue::Strs(smallvec!["-6.75".to_string(), "NaN".to_string()])
+    ///         .to_multi_finite_float64()
+    ///         .is_err()
+    /// );
     /// ```
-    pub fn extend_f64(
-        &mut self,
-        numbers: impl IntoIterator<Item = f64>,
-    ) -> Result<(), ModifyValueError> {
-        match self {
-            PrimitiveValue::Empty => {
-                *self = PrimitiveValue::F64(numbers.into_iter().collect());
-                Ok(())
-            }
-            PrimitiveValue::Strs(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n.to_string()));
-                Ok(())
-            }
-            PrimitiveValue::Str(s) => {
-                // for lack of better ways to move the string out from the mutable borrow,
-                // we create a copy for now
-                let s = s.clone();
-                *self = PrimitiveValue::Strs(
-                    std::iter::once(s)
-                        .chain(numbers.into_iter().map(|n| n.to_string()))
-                        .collect(),
-                );
-                Ok(())
-            }
-            PrimitiveValue::F64(elements) => {
-                elements.extend(numbers);
-                Ok(())
-            }
-            PrimitiveValue::U8(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u8));
-                Ok(())
-            }
-            PrimitiveValue::I16(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i16));
-                Ok(())
-            }
-            PrimitiveValue::U16(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u16));
-                Ok(())
-            }
-            PrimitiveValue::I32(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i32));
-                Ok(())
-            }
-            PrimitiveValue::I64(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as i64));
-                Ok(())
-            }
-            PrimitiveValue::U32(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u32));
-                Ok(())
-            }
-            PrimitiveValue::U64(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as u64));
-                Ok(())
-            }
-            PrimitiveValue::F32(elements) => {
-                elements.extend(numbers.into_iter().map(|n| n as f32));
-                Ok(())
-            }
-            PrimitiveValue::Tags(_)
-            | PrimitiveValue::Date(_)
-            | PrimitiveValue::DateTime(_)
-            | PrimitiveValue::Time(_) => Err(IncompatibleNumberTypeSnafu {
+    pub fn to_multi_finite_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        let values = self.to_multi_float64().map_err(|mut e| {
+            e.requested = "finite float64";
+            e
+        })?;
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(ConvertValueError {
                 original: self.value_type(),
-            }
-            .build()),
+                requested: "finite float64",
+                cause: None,
+            });
         }
+        Ok(values)
     }
 }
 
@@ -974,6 +962,12 @@ mod tests {
 
         // DS conversion with exponential
         assert_eq!(dicom_value!(Str, "1e1").to_float32().ok(), Some(10.0));
+
+        // this method accepts non-finite numbers
+        assert!(dicom_value!(Str, "NaN").to_float32().unwrap().is_nan());
+        assert!(dicom_value!(Str, "NaN").to_float64().unwrap().is_nan());
+        assert_eq!(dicom_value!(Str, "Infinity").to_float32().ok(), Some(std::f32::INFINITY));
+        assert_eq!(dicom_value!(Str, "Infinity").to_float64().ok(), Some(std::f64::INFINITY));
     }
 
     #[test]
@@ -1009,5 +1003,30 @@ mod tests {
                 cause: Some(cause),
             }) if matches!(&*cause, InvalidValueReadError::ParseFloat { .. })
         ));
+    }
+
+    #[test]
+    fn primitive_value_to_finite_float() {
+        // DS conversion to f32 and f64
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with exponential
+        assert_eq!(dicom_value!(Str, "1e1").to_finite_float32().ok(), Some(10.0));
+        assert_eq!(dicom_value!(Str, "12e12").to_finite_float64().ok(), Some(12e12));
+
+        // DS does not accept NaNs or Infinity
+        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float32(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float64(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float32(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float64(), Err(_)));
     }
 }
