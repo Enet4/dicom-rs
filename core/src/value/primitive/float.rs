@@ -177,8 +177,8 @@ impl PrimitiveValue {
     ///
     /// If the value is already represented as numbers,
     /// they are returned after a conversion to [`f32`].
-    /// An error is returned if any of the numbers cannot be represented
-    /// by an [`f32`].
+    /// An error is returned if
+    /// any of the numbers cannot be represented by an [`f32`].
     /// If the value is a string or sequence of strings,
     /// the strings are parsed to obtain a number,
     /// potentially failing if the string does not represent a valid number.
@@ -371,6 +371,106 @@ impl PrimitiveValue {
                 cause: None,
             }),
         }
+    }
+
+    /// Retrieve one finite single-precision floating point from this value.
+    ///
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to [`f32`].
+    /// An error is returned if
+    /// the number cannot be represented by the given number type
+    /// or the number is not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// assert_eq!(
+    ///     PrimitiveValue::F32(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_finite_float32().ok(),
+    ///     Some(1.5_f32),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::from("NaN").to_finite_float32().is_err()
+    /// );
+    /// ```
+    pub fn to_finite_float32(&self) -> Result<f32, ConvertValueError> {
+        let v = self.to_float32().map_err(|mut e| {
+            e.requested = "finite float32";
+            e
+        })?;
+        if !v.is_finite() {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float32",
+                cause: None,
+            });
+        }
+        Ok(v)
+    }
+
+    /// Retrieve a sequence of single-precision floating point numbers
+    /// from this value.
+    ///
+    /// If the value is already represented as numbers,
+    /// they are returned after a conversion to [`f32`].
+    /// An error is returned if
+    /// any of the items cannot be represented by an [`f32`]
+    /// or any of the numbers are not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the strings are parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::F32(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_multi_finite_float32().ok(),
+    ///     Some(vec![1.5_f32, 2., 5.]),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::Strs(smallvec!["-6.75".to_string(), "NaN".to_string()]).to_multi_finite_float32().is_err(),
+    /// );
+    /// ```
+    pub fn to_multi_finite_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        let values = self.to_multi_float32().map_err(|mut e| {
+            e.requested = "finite float32";
+            e
+        })?;
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float32",
+                cause: None,
+            });
+        }
+        Ok(values)
     }
 
     /// Retrieve one double-precision floating point from this value.
@@ -741,6 +841,108 @@ impl PrimitiveValue {
         }
     }
 
+    /// Retrieve one finite double-precision floating point from this value.
+    ///
+    /// If the value is already represented as a number,
+    /// it is returned after a conversion to [`f64`].
+    /// An error is returned if
+    /// the number cannot be represented by the given number type
+    /// or the resulting floating point value is not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the first string is parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    /// assert_eq!(
+    ///     PrimitiveValue::F64(smallvec![
+    ///         1.2222e8
+    ///     ])
+    ///     .to_finite_float64().ok(),
+    ///     Some(1.2222e8_f64),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::from("NaN").to_finite_float64().is_err(),
+    /// );
+    /// ```
+    pub fn to_finite_float64(&self) -> Result<f64, ConvertValueError> {
+        let v = self.to_float64().map_err(|mut e| {
+            e.requested = "finite float64";
+            e
+        })?;
+        if !v.is_finite() {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float64",
+                cause: None,
+            });
+        }
+        Ok(v)
+    }
+
+    /// Retrieve a sequence of finite double-precision floating point numbers
+    /// from this value.
+    ///
+    /// If the value is already represented as numbers,
+    /// they are returned after a conversion to [`f64`].
+    /// An error is returned if
+    /// any of the numbers cannot be represented by an [`f64`]
+    /// or any of the numbers are not finite (e.g. NaN).
+    /// If the value is a string or sequence of strings,
+    /// the strings are parsed to obtain a number,
+    /// potentially failing if the string does not represent a valid number.
+    /// The string is stripped of leading/trailing whitespace before parsing.
+    /// If the value is a sequence of [`U8`] bytes,
+    /// the bytes are individually interpreted as independent numbers.
+    /// Otherwise, the operation fails.
+    ///
+    /// [`U8`]: Self::U8
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use dicom_core::value::{C, PrimitiveValue};
+    /// # use smallvec::smallvec;
+    ///
+    /// assert_eq!(
+    ///     PrimitiveValue::F64(smallvec![
+    ///         1.5, 2., 5.,
+    ///     ])
+    ///     .to_multi_finite_float64().ok(),
+    ///     Some(vec![1.5_f64, 2., 5.]),
+    /// );
+    ///
+    /// assert!(
+    ///     PrimitiveValue::Strs(smallvec!["-6.75".to_string(), "NaN".to_string()])
+    ///         .to_multi_finite_float64()
+    ///         .is_err()
+    /// );
+    /// ```
+    pub fn to_multi_finite_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        let values = self.to_multi_float64().map_err(|mut e| {
+            e.requested = "finite float64";
+            e
+        })?;
+        if values.iter().any(|v| !v.is_finite()) {
+            return Err(ConvertValueError {
+                original: self.value_type(),
+                requested: "finite float64",
+                cause: None,
+            });
+        }
+        Ok(values)
+    }
+
     /// Extend a value of numbers by appending
     /// 32-bit floating point numbers to an existing value.
     ///
@@ -959,7 +1161,7 @@ impl PrimitiveValue {
 #[cfg(test)]
 mod tests {
     use crate::dicom_value;
-    use crate::value::{ConvertValueError, InvalidValueReadError, PrimitiveValue, ValueType};
+    use crate::value::{ConvertValueError, DicomValueType, InvalidValueReadError, PrimitiveValue, ValueType};
 
     #[test]
     fn primitive_value_to_float() {
@@ -974,6 +1176,12 @@ mod tests {
 
         // DS conversion with exponential
         assert_eq!(dicom_value!(Str, "1e1").to_float32().ok(), Some(10.0));
+
+        // this method accepts non-finite numbers
+        assert!(dicom_value!(Str, "NaN").to_float32().unwrap().is_nan());
+        assert!(dicom_value!(Str, "NaN").to_float64().unwrap().is_nan());
+        assert_eq!(dicom_value!(Str, "Infinity").to_float32().ok(), Some(std::f32::INFINITY));
+        assert_eq!(dicom_value!(Str, "Infinity").to_float64().ok(), Some(std::f64::INFINITY));
     }
 
     #[test]
@@ -1009,5 +1217,61 @@ mod tests {
                 cause: Some(cause),
             }) if matches!(&*cause, InvalidValueReadError::ParseFloat { .. })
         ));
+    }
+
+    #[test]
+    fn primitive_value_to_finite_float() {
+        // DS conversion to f32 and f64
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with leading whitespaces
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
+        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+
+        // DS conversion with exponential
+        assert_eq!(dicom_value!(Str, "1e1").to_finite_float32().ok(), Some(10.0));
+        assert_eq!(dicom_value!(Str, "12e12").to_finite_float64().ok(), Some(12e12));
+
+        // DS does not accept NaNs or Infinity
+        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float32(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float64(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float32(), Err(_)));
+        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float64(), Err(_)));
+    }
+
+    #[test]
+    fn primitive_value_extend_float() {
+        let mut value = dicom_value!(F32, [1., 2.]);
+
+        // can add another f32
+        value.extend_f32([5.]).unwrap();
+
+        assert_eq!(value, dicom_value!(F32, [1., 2., 5.]));
+
+        // can add some f64s (but precision loss will occur)
+        value.extend_f64([64., 128., 256.]).unwrap();
+
+        assert_eq!(value, dicom_value!(F32, [1., 2., 5., 64., 128., 256.]));
+        // extensions do not affect type
+        assert_eq!(value.value_type(), ValueType::F32);
+
+        let mut value = dicom_value!(F64, [1., 2.]);
+
+        // can add an f32, precision is extended automatically
+        value.extend_f32([5.]).unwrap();
+
+        assert_eq!(value, dicom_value!(F64, [1., 2., 5.]));
+
+        // can add some f64s
+        value.extend_f64([64., 128., 256.]).unwrap();
+
+        assert_eq!(value, dicom_value!(F64, [1., 2., 5., 64., 128., 256.]));
+        // extensions do not affect type
+        assert_eq!(value.value_type(), ValueType::F64);
     }
 }
