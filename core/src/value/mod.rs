@@ -538,6 +538,22 @@ where
     }
 
     /// Retrieve and convert the primitive value
+    /// into a finite single-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_finite_float32`].
+    pub fn to_finite_float32(&self) -> Result<f32, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_finite_float32(),
+            _ => Err(ConvertValueError {
+                requested: "finite float32",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
     /// into a sequence of single-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
@@ -548,6 +564,23 @@ where
             Value::Primitive(v) => v.to_multi_float32(),
             _ => Err(ConvertValueError {
                 requested: "float32",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a sequence of finite single-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_finite_float32`].
+    pub fn to_multi_finite_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_finite_float32(),
+            _ => Err(ConvertValueError {
+                requested: "finite float32",
                 original: self.value_type(),
                 cause: None,
             }),
@@ -571,6 +604,22 @@ where
     }
 
     /// Retrieve and convert the primitive value
+    /// into a finite double-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_finite_float64`].
+    pub fn to_finite_float64(&self) -> Result<f64, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_finite_float64(),
+            _ => Err(ConvertValueError {
+                requested: "finite float64",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
     /// into a sequence of double-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
@@ -581,6 +630,23 @@ where
             Value::Primitive(v) => v.to_multi_float64(),
             _ => Err(ConvertValueError {
                 requested: "float64",
+                original: self.value_type(),
+                cause: None,
+            }),
+        }
+    }
+
+    /// Retrieve and convert the primitive value
+    /// into a sequence of finite double-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_finite_float64`].
+    pub fn to_multi_finite_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        match self {
+            Value::Primitive(v) => v.to_multi_finite_float64(),
+            _ => Err(ConvertValueError {
+                requested: "finite float64",
                 original: self.value_type(),
                 cause: None,
             }),
