@@ -223,7 +223,7 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
     obj.element(tags::RESCALE_INTERCEPT)
         .ok()
         .and_then(|e| {
-            vec![e.to_float64().ok()]
+            vec![e.to_finite_float64().ok()]
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
@@ -235,7 +235,7 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
                     tags::RESCALE_INTERCEPT,
                 ],
             )
-            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+            .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .or_else(|| {
             get_from_shared(
@@ -245,7 +245,7 @@ pub fn rescale_intercept<D: DataDictionary + Clone>(
                     tags::RESCALE_INTERCEPT,
                 ],
             )
-            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+            .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .unwrap_or(vec![0.])
 }
@@ -257,7 +257,7 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
     obj.element(tags::RESCALE_SLOPE)
         .ok()
         .and_then(|e| {
-            vec![e.to_float64().ok()]
+            vec![e.to_finite_float64().ok()]
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
@@ -269,7 +269,7 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
                     tags::RESCALE_SLOPE,
                 ],
             )
-            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+            .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .or_else(|| {
             get_from_shared(
@@ -279,7 +279,7 @@ pub fn rescale_slope<D: DataDictionary + Clone>(
                     tags::RESCALE_SLOPE,
                 ],
             )
-            .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+            .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .unwrap_or(vec![1.0])
 }
@@ -322,17 +322,17 @@ pub fn window_center<D: DataDictionary + Clone>(
 ) -> Option<Vec<f64>> {
     obj.get(tags::WINDOW_CENTER)
         .and_then(|e| {
-            vec![e.to_float64().ok()]
+            vec![e.to_finite_float64().ok()]
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
         .or_else(|| {
             get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+                .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .or_else(|| {
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_CENTER])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+                .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
 }
 
@@ -342,17 +342,17 @@ pub fn window_width<D: DataDictionary + Clone>(
 ) -> Option<Vec<f64>> {
     obj.get(tags::WINDOW_WIDTH)
         .and_then(|e| {
-            vec![e.to_float64().ok()]
+            vec![e.to_finite_float64().ok()]
                 .into_iter()
                 .collect::<Option<Vec<f64>>>()
         })
         .or_else(|| {
             get_from_per_frame(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+                .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
         .or_else(|| {
             get_from_shared(obj, [tags::FRAME_VOILUT_SEQUENCE, tags::WINDOW_WIDTH])
-                .and_then(|v| v.into_iter().map(|el| el.to_float64().ok()).collect())
+                .and_then(|v| v.into_iter().map(|el| el.to_finite_float64().ok()).collect())
         })
 }
 
