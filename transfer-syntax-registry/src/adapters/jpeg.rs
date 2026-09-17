@@ -346,12 +346,14 @@ impl PixelDataWriter for JpegAdapter {
                 ));
             }
         } else if samples_per_pixel == 3 {
-            // set Photometric Interpretation to RGB
-            // if it was not already set to RGB
-            if pmi != Some("RGB") {
+            // set Photometric Interpretation to YBR_FULL_422:
+            // `jpeg-encoder` converts the RGB samples to YCbCr,
+            // and the tag must be consistent with the compressed stream
+            // (PS3.5 Section 8.2.1)
+            if pmi != Some("YBR_FULL_422") {
                 changes.push(AttributeOp::new(
                     Tag(0x0028, 0x0004),
-                    AttributeAction::SetStr("RGB".into()),
+                    AttributeAction::SetStr("YBR_FULL_422".into()),
                 ));
             }
         }

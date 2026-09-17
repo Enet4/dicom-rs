@@ -10,6 +10,8 @@ use std::{
 };
 
 use adapters::TestDataObject;
+use dicom_core::Tag;
+use dicom_core::ops::{AttributeAction, AttributeOp};
 use dicom_core::value::PixelFragmentSequence;
 use dicom_encoding::{
     Codec,
@@ -310,4 +312,61 @@ fn test_decode_jpeg_trailing_bytes() {
         .expect("JPEG frame decoding failed");
 
     assert_eq!(dest.len(), 30_000);
+}
+
+/// the encoder converts the RGB samples to YCbCr,
+/// so the Photometric Interpretation it requests
+/// must describe the color space of the encoded data,
+/// not that of the samples it was given
+#[test]
+fn write_jpeg_baseline_sets_ybr_full_422() {
+    let rows: u16 = 16;
+    let columns: u16 = 16;
+
+    // solid red image
+    let samples: Vec<u8> = [255, 0, 0]
+        .iter()
+        .copied()
+        .cycle()
+        .take(rows as usize * columns as usize * 3)
+        .collect();
+
+    let obj = TestDataObject {
+        // Explicit VR Little Endian
+        ts_uid: "1.2.840.10008.1.2.1".to_string(),
+        rows,
+        columns,
+        bits_allocated: 8,
+        bits_stored: 8,
+        samples_per_pixel: 3,
+        photometric_interpretation: "RGB",
+        number_of_frames: 1,
+        flat_pixel_data: Some(samples),
+        pixel_data_sequence: None,
+    };
+
+    let Codec::EncapsulatedPixelData(_, Some(writer)) = JPEG_BASELINE.codec() else {
+        panic!("JPEG pixel data writer not found")
+    };
+
+    let mut encoded = vec![];
+    let ops = writer
+        .encode_frame(&obj, 0, EncodeOptions::default(), &mut encoded)
+        .expect("JPEG frame encoding failed");
+
+    // Photometric Interpretation should be set to YBR_FULL_422
+    assert!(
+        ops.contains(&AttributeOp::new(
+            Tag(0x0028, 0x0004),
+            AttributeAction::SetStr("YBR_FULL_422".into()),
+        )),
+        "expected Photometric Interpretation to be set to YBR_FULL_422, got {ops:?}"
+    );
+
+    // and the codestream should agree:
+    // `jpeg-encoder` writes a JFIF stream, which is YCbCr
+    assert!(encoded.len() > 11, "encoded frame is too short");
+    assert_eq!(&encoded[0..2], &[0xFF, 0xD8], "expected SOI marker");
+    assert_eq!(&encoded[2..4], &[0xFF, 0xE0], "expected APP0 marker");
+    assert_eq!(&encoded[6..11], b"JFIF\0", "expected JFIF identifier");
 }
