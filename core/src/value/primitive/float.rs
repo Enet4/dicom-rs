@@ -1180,8 +1180,8 @@ mod tests {
         // this method accepts non-finite numbers
         assert!(dicom_value!(Str, "NaN").to_float32().unwrap().is_nan());
         assert!(dicom_value!(Str, "NaN").to_float64().unwrap().is_nan());
-        assert_eq!(dicom_value!(Str, "Infinity").to_float32().ok(), Some(std::f32::INFINITY));
-        assert_eq!(dicom_value!(Str, "Infinity").to_float64().ok(), Some(std::f64::INFINITY));
+        assert_eq!(dicom_value!(Str, "Infinity").to_float32().ok(), Some(f32::INFINITY));
+        assert_eq!(dicom_value!(Str, "Infinity").to_float64().ok(), Some(f64::INFINITY));
     }
 
     #[test]
