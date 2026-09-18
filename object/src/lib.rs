@@ -362,11 +362,27 @@ pub trait DicomAttribute: DicomValueType {
             .context(ConvertValueSnafu)
     }
 
+    /// Obtain the attribute's value as a finite 32-bit floating-point number,
+    /// converting it if necessary.
+    fn to_finite_f32(&self) -> Result<f32, AttributeError> {
+        self.to_primitive_value()?
+            .to_finite_float32()
+            .context(ConvertValueSnafu)
+    }
+
     /// Obtain the attribute's value as a 64-bit floating-point number,
     /// converting it if necessary.
     fn to_f64(&self) -> Result<f64, AttributeError> {
         self.to_primitive_value()?
             .to_float64()
+            .context(ConvertValueSnafu)
+    }
+
+    /// Obtain the attribute's value as a finite 64-bit floating-point number,
+    /// converting it if necessary.
+    fn to_finite_f64(&self) -> Result<f64, AttributeError> {
+        self.to_primitive_value()?
+            .to_finite_float64()
             .context(ConvertValueSnafu)
     }
 

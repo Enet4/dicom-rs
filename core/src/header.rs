@@ -407,6 +407,17 @@ where
     }
 
     /// Retrieve and convert the value of the data element
+    /// into a finite single-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_finite_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_finite_float32(&self) -> Result<f32, ConvertValueError> {
+        self.value().to_finite_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
     /// into a sequence of single-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
@@ -416,6 +427,18 @@ where
     /// Returns an error if the value is not primitive.
     pub fn to_multi_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
         self.value().to_multi_float32()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of finite single-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_finite_float32`].
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_multi_finite_float32(&self) -> Result<Vec<f32>, ConvertValueError> {
+        self.value().to_multi_finite_float32()
     }
 
     /// Retrieve and convert the value of the data element
@@ -430,6 +453,17 @@ where
     }
 
     /// Retrieve and convert the value of the data element
+    /// into a finite double-precision floating point number.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a number as described in [`PrimitiveValue::to_finite_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_finite_float64(&self) -> Result<f64, ConvertValueError> {
+        self.value().to_finite_float64()
+    }
+
+    /// Retrieve and convert the value of the data element
     /// into a sequence of double-precision floating point numbers.
     ///
     /// If the value is a primitive, it will be converted into
@@ -439,6 +473,18 @@ where
     /// Returns an error if the value is not primitive.
     pub fn to_multi_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
         self.value().to_multi_float64()
+    }
+
+    /// Retrieve and convert the value of the data element
+    /// into a sequence of finite double-precision floating point numbers.
+    ///
+    /// If the value is a primitive, it will be converted into
+    /// a vector of numbers as described in
+    /// [`PrimitiveValue::to_multi_finite_float64`].
+    ///
+    /// Returns an error if the value is not primitive.
+    pub fn to_multi_finite_float64(&self) -> Result<Vec<f64>, ConvertValueError> {
+        self.value().to_multi_finite_float64()
     }
 
     /// Retrieve and convert the primitive value into a date.
