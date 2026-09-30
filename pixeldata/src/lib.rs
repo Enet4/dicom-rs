@@ -555,6 +555,11 @@ impl DecodedPixelData<'_> {
         &self.data
     }
 
+    /// Consume this value and retrieve the owned raw pixel data bytes.
+    pub fn into_data(self) -> Vec<u8> {
+        self.data.into_owned()
+    }
+
     /// Retrieve a copy of all raw pixel data samples
     /// as unsigned 16-bit integers.
     ///

@@ -250,7 +250,7 @@ where
     match bits_allocated {
         8 => {
             // 8-bit samples
-            let pixels = decoded_pixeldata.data().to_vec();
+            let pixels = decoded_pixeldata.into_data();
             obj.put(DataElement::new_with_len(
                 tags::PIXEL_DATA,
                 VR::OW,
