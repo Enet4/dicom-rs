@@ -1,5 +1,4 @@
-//! Test suite for Deflated Image Frame Compression pixel data reading and writing
-#![cfg(feature = "deflate")]
+//! Test suite for Encapsulated Uncompressed Explicit VR Little Endian data reading and writing
 
 mod adapters;
 
@@ -9,7 +8,7 @@ use dicom_encoding::{
     Codec,
     adapters::{EncodeOptions, PixelDataReader, PixelDataWriter},
 };
-use dicom_transfer_syntax_registry::entries::DEFLATED_IMAGE_FRAME_COMPRESSION;
+use dicom_transfer_syntax_registry::entries::ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN;
 
 fn gen_rgb_samples(rows: u16, columns: u16) -> Vec<u8> {
     // build some random RGB image
@@ -44,14 +43,13 @@ fn gen_rgb_samples(rows: u16, columns: u16) -> Vec<u8> {
     samples
 }
 
-/// writing to Deflated Image Frame Compression and back
-/// should yield exactly the same pixel data
+/// writing from Explicit VR Little Endian
+/// to Encapsulated Uncompressed Explicit VR Little Endian
+/// should not affect the pixel data value samples themselves
 #[test]
-fn write_and_read_deflated_frames() {
+fn write_and_read_frames() {
     let rows: u16 = 128;
     let columns: u16 = 256;
-
-    // build some random RGB image
     let samples = gen_rgb_samples(rows, columns);
 
     // create test object of native encoding
@@ -69,25 +67,27 @@ fn write_and_read_deflated_frames() {
         pixel_data_sequence: None,
     };
 
-    // fetch adapters for Deflated Image Frame Compression
-
+    // fetch adapter
     let Codec::EncapsulatedPixelData(Some(reader), Some(writer)) =
-        DEFLATED_IMAGE_FRAME_COMPRESSION.codec()
+        ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.codec()
     else {
-        panic!("Deflated Image Frame Compression pixel data adapters not found")
+        panic!("Encapsulated Uncompressed Explicit VR Little Endian pixel data adapters not found")
     };
 
     let mut encoded = vec![];
 
     let _ops = writer
         .encode_frame(&obj, 0, EncodeOptions::default(), &mut encoded)
-        .expect("Deflated Image Frame encoding failed");
+        .expect("Image Frame encoding failed");
+
+    // encoded samples should be the same
+    assert_eq!(&samples, &encoded, "pixel data mismatch");
 
     // instantiate new object representing the compressed version
 
     let obj = TestDataObject {
-        // Deflated Image Frame Compression
-        ts_uid: "1.2.840.10008.1.2.8.1".to_string(),
+        // Encapsulated Uncompressed Explicit VR Little Endian
+        ts_uid: "1.2.840.10008.1.2.1.98".to_string(),
         rows,
         columns,
         bits_allocated: 8,
@@ -106,11 +106,11 @@ fn write_and_read_deflated_frames() {
         .decode_frame(&obj, 0, &mut decoded)
         .expect("Deflated Image Frame decoding failed");
 
-    // compare pixels, lossless encoding should yield exactly the same data
+    // should yield exactly the same data again
     assert_eq!(samples, decoded, "pixel data mismatch");
 }
 
-/// An object encoded to Deflated Image Frame Compression
+/// An object encoded to Encapsulated Uncompressed Explicit VR Little Endian
 /// produces a suitable basic offset table.
 #[test]
 fn encode_whole_object_offset_table() {
@@ -118,11 +118,13 @@ fn encode_whole_object_offset_table() {
     let columns = 256;
 
     let mut samples = Vec::new();
-    // generate 4 frames
-    for _ in 0..4 {
+    // generate 5 frames
+    for _ in 0..5 {
         samples.extend(gen_rgb_samples(rows, columns));
     }
     let samples = samples;
+
+    let frame_size = rows as u32 * columns as u32 * 3;
 
     // create test object of native encoding
     let obj = TestDataObject {
@@ -134,15 +136,16 @@ fn encode_whole_object_offset_table() {
         bits_stored: 8,
         samples_per_pixel: 3,
         photometric_interpretation: "RGB",
-        number_of_frames: 4,
+        number_of_frames: 5,
         flat_pixel_data: Some(samples.clone()),
         pixel_data_sequence: None,
     };
 
     // fetch adapter
-    let Codec::EncapsulatedPixelData(_, Some(writer)) = DEFLATED_IMAGE_FRAME_COMPRESSION.codec()
+    let Codec::EncapsulatedPixelData(_, Some(writer)) =
+        ENCAPSULATED_UNCOMPRESSED_EXPLICIT_VR_LITTLE_ENDIAN.codec()
     else {
-        panic!("Deflated Image Compression pixel data adapters not found")
+        panic!("Encapsulated Uncompressed Explicit VR Little Endian pixel data adapters not found")
     };
 
     let mut encoded = Vec::new();
@@ -158,20 +161,23 @@ fn encode_whole_object_offset_table() {
         .expect("image encoding failed");
 
     // expect 4 fragments, 1 per frame
-    assert_eq!(encoded.len(), 4);
+    assert_eq!(encoded.len(), 5);
 
     // expect these items in offset table
+    // (easy to calculate, since pixel data samples are unaffected)
     assert_eq!(
         &offset_table,
         &[
             // fragment 0
             0,
             // fragment 1
-            encoded[0].len() as u32 + 8,
+            frame_size + 8,
             // fragment 2
-            encoded[0].len() as u32 + encoded[1].len() as u32 + 8 * 2,
+            (frame_size + 8) * 2,
             // fragment 3
-            encoded[0].len() as u32 + encoded[1].len() as u32 + encoded[2].len() as u32 + 8 * 3,
+            (frame_size + 8) * 3,
+            // fragment 4
+            (frame_size + 8) * 4,
         ]
     );
 }

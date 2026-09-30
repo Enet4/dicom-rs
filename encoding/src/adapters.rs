@@ -436,10 +436,34 @@ pub trait PixelDataWriter {
     ) -> EncodeResult<Vec<AttributeOp>> {
         let frames = src.number_of_frames().unwrap_or(1);
         let mut out = Vec::new();
+        let mut frame_offset = 0;
+        let mut basic_offset = true;
+        let prev_offset_table_len = offset_table.len();
         for frame in 0..frames {
             let mut frame_data = Vec::new();
             out = self.encode_frame(src, frame, options.clone(), &mut frame_data)?;
-            offset_table.push(frame_data.len() as u32 + 8 * (frame + 1));
+            if basic_offset {
+                // push frame offset to basic offset table
+                offset_table.push(frame_offset);
+
+                if frame < frames - 1 {
+                    // and calculate the next one
+                    // (ensuring that offset fits in a u32)
+                    let new_frame_offset = u32::try_from(frame_data.len())
+                        .ok()
+                        .and_then(|delta| delta.checked_add(8))
+                        .and_then(|delta| frame_offset.checked_add(delta));
+                    if let Some(v) = new_frame_offset {
+                        // update the offset for the next frame and continue normally
+                        frame_offset = v;
+                    } else {
+                        // cannot build a basic offset table,
+                        // clear everything done so far and leave it empty
+                        offset_table.truncate(prev_offset_table_len);
+                        basic_offset = false;
+                    }
+                }
+            }
             dst.push(frame_data);
         }
         Ok(out)
