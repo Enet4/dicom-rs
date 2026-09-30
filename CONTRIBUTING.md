@@ -104,6 +104,20 @@ to prevent discrepancies in code style.
 cargo fmt
 ```
 
+Fuzz tests are available for several crates in the workspace.
+For convenience, they can be run using [just].
+The toolchain can be configured via the `FUZZ_TOOLCHAIN` environment variable (`nightly` is used by default).
+
+```sh
+just fuzz-list
+just fuzz-all
+```
+
+Corpus directories can be seeded with your own `.dcm` files using `just apply_dcm_corpus <dir>`.
+
+A few targets that need a C/C++ toolchain (GDCM, CharLS), needs to be run seperately with `just fuzz-external`.
+
+[just]: https://github.com/casey/just
 [Rustup]: https://rustup.rs
 [msrv]: README.md#Minimum-Supported-Rust-version
 

@@ -23,7 +23,7 @@ mod tests;
 
 mod uid;
 
-pub(crate) mod pdata;
+pub mod pdata;
 
 use std::{
     backtrace::Backtrace,

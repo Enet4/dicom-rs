@@ -10,3 +10,5 @@ target/
 *.srl
 *.pem
 certs/
+**/fuzz/corpus/
+**/fuzz/artifacts/

@@ -98,7 +98,7 @@ where
     /// Construct a new P-Data value writer.
     ///
     /// `max_pdu_length` is the maximum value of the PDU-length property.
-    pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
+    pub fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
         let mut buffer =
             Vec::with_capacity((max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize);
         // initial buffer set up
@@ -442,7 +442,7 @@ pub mod non_blocking {
         /// Construct a new P-Data value writer.
         ///
         /// `max_pdu_length` is the maximum value of the PDU-length property.
-        pub(crate) fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
+        pub fn new(stream: W, presentation_context_id: u8, max_pdu_length: u32) -> Self {
             use crate::pdu::LARGE_PDU_SIZE;
 
             let mut buffer =
