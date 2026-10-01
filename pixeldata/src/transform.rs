@@ -200,13 +200,38 @@ pub struct VoiLutTransform<'a> {
     shift: u32,
 }
 
+/// Number of bits that the entries of `lut` actually span,
+/// which is not always the depth that its _LUT Descriptor_ declares.
+///
+/// The third value of _LUT Descriptor_ is meant to convey the range of the LUT
+/// entry values, but devices have been observed declaring 16 bits per entry for
+/// data which only spans 12 (Agfa CR, for one).
+/// Taking the declared depth at face value maps such a LUT
+/// onto a sixteenth of the output range,
+/// which renders the image almost uniformly flat.
+///
+/// The declared depth still wins when the data exceeds it,
+/// so that entries are never shifted out of the output range,
+/// and when the data is all zeroes, since that says nothing about the depth.
+fn effective_bits_stored(lut: &VoiLut) -> u16 {
+    let declared = lut.bits_stored as u16;
+    let max = lut.data.iter().copied().max().unwrap_or(0);
+    let used = (u16::BITS - max.leading_zeros()) as u16;
+
+    if used == 0 || used > declared {
+        declared
+    } else {
+        used
+    }
+}
+
 impl<'a> VoiLutTransform<'a> {
     /// Create a new LUT transformation.
     ///
     /// # Panics
     ///
     /// Panics if `lut.data` is empty, or if `bits_stored` is smaller than
-    /// `lut.bits_stored`.
+    /// the number of bits that the LUT entries span.
     pub fn new(lut: &'a VoiLut, bits_stored: u16) -> Self {
         if lut.data.is_empty() {
             // we'll do unchecked accesses to the first and last items in apply()
@@ -214,15 +239,16 @@ impl<'a> VoiLutTransform<'a> {
         }
 
         let next_pow_bits = bits_stored.next_power_of_two();
+        let lut_bits = effective_bits_stored(lut);
 
-        if next_pow_bits < (lut.bits_stored as u16) {
+        if next_pow_bits < lut_bits {
             panic!(
                 "LUT with BitsStored {} cannot be used for an image with BitsStored {}",
-                lut.bits_stored, bits_stored
+                lut_bits, bits_stored
             );
         }
 
-        let shift = (next_pow_bits - (lut.bits_stored as u16)) as u32;
+        let shift = (next_pow_bits - lut_bits) as u32;
 
         VoiLutTransform { lut, shift }
     }
@@ -319,6 +345,91 @@ mod tests {
         // x inbetween
         let y = window_level_transform.apply(50., y_max);
         assert!(y > 127. && y < 129.);
+    }
+
+    /// A VOI LUT shaped like the ones Agfa CR devices emit: a ramp spanning
+    /// `data_bits` bits, in a descriptor declaring `declared_bits`.
+    fn ramp_voi_lut(declared_bits: u8, data_bits: u32) -> VoiLut {
+        let entries = 1820u32;
+        let max = (1u32 << data_bits) - 1;
+
+        VoiLut {
+            min_pixel_value: 1358,
+            bits_stored: declared_bits,
+            data: (0..entries)
+                .map(|i| (i * max / (entries - 1)) as u16)
+                .collect(),
+            explanation: Some("E25".to_string()),
+        }
+    }
+
+    /// A LUT whose entries span fewer bits than its descriptor declares
+    /// is still scaled across the whole output range.
+    #[test]
+    fn voi_lut_transform_narrower_than_declared() {
+        let voi = ramp_voi_lut(16, 12);
+        let lut: Lut<u16> = Lut::new_rescale_and_lut(
+            12,
+            false,
+            Rescale::new(1., 0.),
+            VoiLutTransform::new(&voi, 12),
+        )
+        .unwrap();
+
+        assert_eq!(lut.get(1358_u16), 0);
+        assert_eq!(lut.get(3177_u16), 65520);
+
+        let mid: u16 = lut.get(2268_u16);
+        assert!(
+            (32_000..=33_500).contains(&mid),
+            "outcome was {}, expected to be around half scale",
+            mid,
+        );
+    }
+
+    /// A LUT that genuinely uses its declared depth is unaffected.
+    #[test]
+    fn voi_lut_transform_matching_declared() {
+        let voi = ramp_voi_lut(16, 16);
+        let lut: Lut<u16> = Lut::new_rescale_and_lut(
+            12,
+            false,
+            Rescale::new(1., 0.),
+            VoiLutTransform::new(&voi, 12),
+        )
+        .unwrap();
+
+        assert_eq!(lut.get(1358_u16), 0);
+        assert_eq!(lut.get(3177_u16), 65535);
+    }
+
+    /// Entries wider than the declared depth must not be shifted out of range.
+    #[test]
+    fn voi_lut_transform_wider_than_declared() {
+        let voi = ramp_voi_lut(8, 12);
+        assert_eq!(effective_bits_stored(&voi), 8);
+
+        let lut: Lut<u16> = Lut::new_rescale_and_lut(
+            12,
+            false,
+            Rescale::new(1., 0.),
+            VoiLutTransform::new(&voi, 12),
+        )
+        .unwrap();
+
+        assert_eq!(lut.get(3177_u16), 4095 << 8);
+    }
+
+    /// An all-zero LUT says nothing about its depth, so the declaration stands.
+    #[test]
+    fn voi_lut_transform_all_zero_data() {
+        let voi = VoiLut {
+            min_pixel_value: 0,
+            bits_stored: 12,
+            data: vec![0; 16],
+            explanation: None,
+        };
+        assert_eq!(effective_bits_stored(&voi), 12);
     }
 
     #[test]
