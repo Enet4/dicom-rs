@@ -106,7 +106,8 @@ impl WindowLevelTransform {
             VoiLutFunction::Linear if window_level.width < 1. => {
                 (VoiLutFunction::LinearExact, window_level.width.max(0.))
             }
-            VoiLutFunction::Linear => (voi_lut_function, window_level.width),
+            // clamp width anyway to sanitize width from NaNs
+            VoiLutFunction::Linear => (voi_lut_function, window_level.width.max(1.)),
             VoiLutFunction::Sigmoid => (voi_lut_function, window_level.width.max(1.)),
         };
 
