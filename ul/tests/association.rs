@@ -1,4 +1,5 @@
 use dicom_dictionary_std::uids::{self, VERIFICATION};
+use dicom_ul::association::SyncAssociation;
 use dicom_ul::{ClientAssociationOptions, Pdu, ServerAssociationOptions};
 use rstest::rstest;
 use std::time::Instant;
