@@ -15,7 +15,7 @@ use crate::association::private::SyncAssociationSealed;
 use crate::association::{
     AbortedSnafu, Association, CloseSocket, MissingAbstractSyntaxSnafu, RejectedSnafu,
     SendPduSnafu, SocketOptions, SyncAssociation, UnexpectedPduSnafu, UnknownPduSnafu,
-    WireSendSnafu, encode_pdu, read_pdu_from_wire,
+    WireSendSnafu, encode_pdu, read_pdu_from_wire_with_options,
 };
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
@@ -29,7 +29,7 @@ use crate::{
         AbortRQServiceProviderReason, AbortRQSource, AssociationAC, AssociationRJ,
         AssociationRJResult, AssociationRJServiceUserReason, AssociationRJSource, AssociationRQ,
         DEFAULT_MAX_PDU, PDU_HEADER_SIZE, Pdu, PresentationContextResult,
-        PresentationContextResultReason, UserIdentity, UserVariableItem, write_pdu,
+        PresentationContextResultReason, ReadPduOptions, UserIdentity, UserVariableItem, write_pdu,
     },
 };
 #[cfg(feature = "sync-tls")]
@@ -556,6 +556,8 @@ pub struct ServerAssociationOptions<'a, A, N> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// whether to accept unknown abstract syntaxes
     promiscuous: bool,
     /// extended negotiation handler
@@ -578,6 +580,7 @@ impl Default for ServerAssociationOptions<'_, AcceptAny, DefaultNegotiation> {
             protocol_version: 1,
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
+            allow_trailing_fixed_pdu_bytes: true,
             promiscuous: false,
             negotiation: DefaultNegotiation,
             socket_options: SocketOptions::default(),
@@ -632,6 +635,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            allow_trailing_fixed_pdu_bytes,
             promiscuous,
             ae_access_control: _,
             negotiation,
@@ -649,6 +653,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            allow_trailing_fixed_pdu_bytes,
             promiscuous,
             negotiation,
             socket_options,
@@ -705,6 +710,14 @@ where
         self
     }
 
+    /// Set whether trailing bytes in fixed-size PDU bodies are accepted.
+    ///
+    /// The default is `true` for compatibility with previous releases.
+    pub fn allow_trailing_fixed_pdu_bytes(mut self, allow: bool) -> Self {
+        self.allow_trailing_fixed_pdu_bytes = allow;
+        self
+    }
+
     /// Override promiscuous mode:
     /// whether to accept unknown abstract syntaxes.
     pub fn promiscuous(mut self, promiscuous: bool) -> Self {
@@ -752,6 +765,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            allow_trailing_fixed_pdu_bytes,
             promiscuous,
             negotiation: _,
             socket_options,
@@ -768,6 +782,7 @@ where
             protocol_version,
             max_pdu_length,
             strict,
+            allow_trailing_fixed_pdu_bytes,
             promiscuous,
             negotiation,
             socket_options,
@@ -1022,11 +1037,11 @@ where
         let mut read_buffer = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let msg = read_pdu_from_wire(
+        let msg = read_pdu_from_wire_with_options(
             &mut socket,
             &mut read_buffer,
-            self.max_pdu_length,
-            self.strict,
+            ReadPduOptions::new(self.max_pdu_length, self.strict)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
         );
         // If we're compiling with the sync-tls feature, check to see if the error
         // may have been caused by the client associating with TLS but the server
@@ -1066,6 +1081,7 @@ where
                     client_ae_title: peer_ae_title,
                     write_buffer,
                     strict: self.strict,
+                    allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                     read_buffer,
                     user_variables,
                     called_ae_title,
@@ -1105,11 +1121,11 @@ where
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
 
-        let msg = read_pdu_from_wire(
+        let msg = read_pdu_from_wire_with_options(
             &mut tls_stream,
             &mut read_buffer,
-            self.max_pdu_length,
-            self.strict,
+            ReadPduOptions::new(self.max_pdu_length, self.strict)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
         )?;
         let mut write_buffer: Vec<u8> =
             Vec::with_capacity((DEFAULT_MAX_PDU + PDU_HEADER_SIZE) as usize);
@@ -1134,6 +1150,7 @@ where
                     client_ae_title: peer_ae_title,
                     write_buffer,
                     strict: self.strict,
+                    allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                     read_buffer,
                     user_variables,
                     called_ae_title,
@@ -1206,6 +1223,8 @@ pub struct ServerAssociation<S> {
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// Read buffer from the socket
     read_buffer: bytes::BytesMut,
     /// User variables received from the peer
@@ -1335,6 +1354,10 @@ where
         self.requestor_max_pdu_length
     }
 
+    fn allow_trailing_fixed_pdu_bytes(&self) -> bool {
+        self.allow_trailing_fixed_pdu_bytes
+    }
+
     /// Obtain the remote DICOM node's application entity title.
     fn peer_ae_title(&self) -> &str {
         &self.client_ae_title
@@ -1366,11 +1389,11 @@ where
     }
 
     fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(
+        read_pdu_from_wire_with_options(
             &mut self.socket,
             &mut self.read_buffer,
-            self.acceptor_max_pdu_length,
-            self.strict,
+            ReadPduOptions::new(self.acceptor_max_pdu_length, self.strict)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
         )
     }
 
@@ -1498,11 +1521,11 @@ where
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let pdu = match super::read_pdu_from_wire_async(
+            let pdu = match super::read_pdu_from_wire_async_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await
             {
@@ -1553,6 +1576,7 @@ where
                         client_ae_title: peer_ae_title,
                         write_buffer,
                         strict: self.strict,
+                        allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                         read_buffer,
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
@@ -1596,11 +1620,11 @@ where
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let pdu = super::read_pdu_from_wire_async(
+            let pdu = super::read_pdu_from_wire_async_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await?;
 
@@ -1630,6 +1654,7 @@ where
                         client_ae_title: peer_ae_title,
                         write_buffer,
                         strict: self.strict,
+                        allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                         read_buffer,
                         read_timeout: self.socket_options.read_timeout,
                         write_timeout: self.socket_options.write_timeout,
@@ -1682,6 +1707,8 @@ pub struct AsyncServerAssociation<S> {
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// Read buffer from the socket
     read_buffer: bytes::BytesMut,
     /// Timeout for individual receive operations
@@ -1719,6 +1746,10 @@ where
     /// (the association requestor) is expecting to receive.
     fn peer_max_pdu_length(&self) -> u32 {
         self.requestor_max_pdu_length
+    }
+
+    fn allow_trailing_fixed_pdu_bytes(&self) -> bool {
+        self.allow_trailing_fixed_pdu_bytes
     }
 
     /// Obtain a view of the negotiated presentation contexts.
@@ -1762,11 +1793,11 @@ where
     /// Read a PDU message from the other intervenient.
     async fn receive(&mut self) -> Result<Pdu> {
         super::timeout(self.read_timeout, async {
-            super::read_pdu_from_wire_async(
+            super::read_pdu_from_wire_async_with_options(
                 &mut self.socket,
                 &mut self.read_buffer,
-                self.acceptor_max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.acceptor_max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await
         })
@@ -1942,11 +1973,11 @@ mod tests {
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let pdu = read_pdu_from_wire(
+            let pdu = read_pdu_from_wire_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )?;
             let (
                 pdu,
@@ -1978,6 +2009,7 @@ mod tests {
                 write_buffer,
                 read_buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 user_variables,
                 called_ae_title,
             })
@@ -1992,16 +2024,16 @@ mod tests {
         ) -> Result<AsyncServerAssociation<tokio::net::TcpStream>> {
             use tokio::io::AsyncWriteExt;
 
-            use crate::association::read_pdu_from_wire_async;
+            use crate::association::read_pdu_from_wire_async_with_options;
 
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let pdu = read_pdu_from_wire_async(
+            let pdu = read_pdu_from_wire_async_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await?;
             let (
@@ -2034,6 +2066,7 @@ mod tests {
                 client_ae_title: peer_ae_title,
                 write_buffer: buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 read_buffer: BytesMut::with_capacity(
                     (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
@@ -2052,11 +2085,11 @@ mod tests {
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let msg = read_pdu_from_wire(
+            let msg = read_pdu_from_wire_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )?;
             let (
                 pdu,
@@ -2083,6 +2116,7 @@ mod tests {
                 client_ae_title: peer_ae_title,
                 write_buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 read_buffer,
                 user_variables,
                 called_ae_title,
@@ -2097,16 +2131,16 @@ mod tests {
         ) -> Result<AsyncServerAssociation<tokio::net::TcpStream>> {
             use tokio::io::AsyncWriteExt;
 
-            use crate::association::read_pdu_from_wire_async;
+            use crate::association::read_pdu_from_wire_async_with_options;
 
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let msg = read_pdu_from_wire_async(
+            let msg = read_pdu_from_wire_async_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await?;
             let (
@@ -2137,6 +2171,7 @@ mod tests {
                 client_ae_title: peer_ae_title,
                 write_buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 read_buffer,
                 read_timeout: self.socket_options.read_timeout,
                 write_timeout: self.socket_options.write_timeout,

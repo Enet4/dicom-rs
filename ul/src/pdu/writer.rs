@@ -3,7 +3,7 @@ use crate::pdu::*;
 use byteordered::byteorder::{BigEndian, WriteBytesExt};
 use dicom_encoding::text::TextCodec;
 use snafu::{Backtrace, ResultExt, Snafu, ensure};
-use std::io::Write;
+use std::{convert::TryFrom, io::Write};
 
 pub type Error = crate::pdu::WriteError;
 
@@ -39,7 +39,15 @@ where
         .map_err(Box::from)
         .context(BuildChunkSnafu)?;
 
-    let length = data.len() as u32;
+    let length = u32::try_from(data.len())
+        .map_err(|_| {
+            Box::new(WriteError::EncodedLengthOverflow {
+                length: data.len(),
+                maximum_length: u32::MAX as usize,
+                length_field: "u32",
+            })
+        })
+        .context(BuildChunkSnafu)?;
     writer
         .write_u32::<BigEndian>(length)
         .context(WriteLengthSnafu)?;
@@ -58,7 +66,15 @@ where
         .map_err(Box::from)
         .context(BuildChunkSnafu)?;
 
-    let length = data.len() as u16;
+    let length = u16::try_from(data.len())
+        .map_err(|_| {
+            Box::new(WriteError::EncodedLengthOverflow {
+                length: data.len(),
+                maximum_length: u16::MAX as usize,
+                length_field: "u16",
+            })
+        })
+        .context(BuildChunkSnafu)?;
     writer
         .write_u16::<BigEndian>(length)
         .context(WriteLengthSnafu)?;

@@ -19,6 +19,7 @@ pub(crate) fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Wh
         verbose,
         calling_ae_title,
         strict,
+        reject_trailing_fixed_pdu_bytes,
         uncompressed_only,
         promiscuous,
         max_pdu_length,
@@ -36,6 +37,7 @@ pub(crate) fn run_store_sync(scu_stream: TcpStream, args: &App) -> Result<(), Wh
         .accept_any()
         .ae_title(calling_ae_title)
         .strict(*strict)
+        .allow_trailing_fixed_pdu_bytes(!*reject_trailing_fixed_pdu_bytes)
         .max_pdu_length(*max_pdu_length)
         .promiscuous(*promiscuous);
     if let Some(timeout) = connection.read_timeout {

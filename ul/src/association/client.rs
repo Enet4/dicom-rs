@@ -18,13 +18,13 @@ use crate::{
     AeAddr, IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME,
     association::{
         Association, NegotiatedOptions, SocketOptions, SyncAssociation, encode_pdu,
-        private::SyncAssociationSealed, read_pdu_from_wire,
+        private::SyncAssociationSealed, read_pdu_from_wire_with_options,
     },
     pdu::{
         AbortRQSource, AssociationAC, AssociationRQ, DEFAULT_MAX_PDU, LARGE_PDU_SIZE,
         MAXIMUM_PDU_SIZE, PDU_HEADER_SIZE, Pdu, PresentationContextNegotiated,
-        PresentationContextProposed, PresentationContextResultReason, RequestorRoles, UserIdentity,
-        UserIdentityType, UserVariableItem, write_pdu,
+        PresentationContextProposed, PresentationContextResultReason, ReadPduOptions,
+        RequestorRoles, UserIdentity, UserIdentityType, UserVariableItem, write_pdu,
     },
 };
 use snafu::{ResultExt, ensure};
@@ -264,6 +264,8 @@ pub struct ClientAssociationOptions<'a> {
     max_pdu_length: u32,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// User identity username
     username: Option<Cow<'a, str>>,
     /// User identity password
@@ -302,6 +304,7 @@ impl Default for ClientAssociationOptions<'_> {
             protocol_version: 1,
             max_pdu_length: DEFAULT_MAX_PDU,
             strict: true,
+            allow_trailing_fixed_pdu_bytes: true,
             username: None,
             password: None,
             kerberos_service_ticket: None,
@@ -403,6 +406,14 @@ impl<'a> ClientAssociationOptions<'a> {
     /// surpass the negotiated maximum PDU length.
     pub fn strict(mut self, strict: bool) -> Self {
         self.strict = strict;
+        self
+    }
+
+    /// Set whether trailing bytes in fixed-size PDU bodies are accepted.
+    ///
+    /// The default is `true` for compatibility with previous releases.
+    pub fn allow_trailing_fixed_pdu_bytes(mut self, allow: bool) -> Self {
+        self.allow_trailing_fixed_pdu_bytes = allow;
         self
     }
 
@@ -931,7 +942,12 @@ impl<'a> ClientAssociationOptions<'a> {
         let mut buf = BytesMut::with_capacity(
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
-        let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict);
+        let resp = read_pdu_from_wire_with_options(
+            &mut socket,
+            &mut buf,
+            ReadPduOptions::new(self.max_pdu_length, self.strict)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
+        );
         // If we're in non-TLS mode and `read_pdu_from_wire` fails, it
         // could be because the server expects TLS but we sent a
         // plaintext request.  In that case, we make a best effort to
@@ -996,6 +1012,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     socket,
                     write_buffer: buffer,
                     strict: self.strict,
+                    allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                     // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
                     read_buffer: buf,
                     read_timeout: self.socket_options.read_timeout,
@@ -1095,6 +1112,8 @@ pub struct ClientAssociation<S> {
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// Timeout for individual socket Reads
     read_timeout: Option<Duration>,
     /// Timeout for individual socket Writes.
@@ -1137,6 +1156,10 @@ where
     /// (the association acceptor) is expecting to receive.
     fn peer_max_pdu_length(&self) -> u32 {
         self.acceptor_max_pdu_length
+    }
+
+    fn allow_trailing_fixed_pdu_bytes(&self) -> bool {
+        self.allow_trailing_fixed_pdu_bytes
     }
 
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
@@ -1277,11 +1300,11 @@ where
 
     /// Read a PDU message from the other intervenient.
     fn receive(&mut self) -> Result<Pdu> {
-        read_pdu_from_wire(
+        read_pdu_from_wire_with_options(
             &mut self.socket,
             &mut self.read_buffer,
-            self.requestor_max_pdu_length,
-            self.strict,
+            ReadPduOptions::new(self.requestor_max_pdu_length, self.strict)
+                .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
         )
     }
 
@@ -1404,6 +1427,8 @@ pub struct AsyncClientAssociation<S> {
     write_buffer: Vec<u8>,
     /// whether to receive PDUs in strict mode
     strict: bool,
+    /// whether to accept trailing bytes in fixed-size PDU bodies
+    allow_trailing_fixed_pdu_bytes: bool,
     /// Timeout for individual socket Reads
     read_timeout: Option<Duration>,
     /// Timeout for individual socket Writes.
@@ -1449,11 +1474,11 @@ impl<'a> ClientAssociationOptions<'a> {
             (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
         );
         let resp = super::timeout(self.socket_options.read_timeout, async {
-            super::read_pdu_from_wire_async(
+            super::read_pdu_from_wire_async_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await
         })
@@ -1481,12 +1506,7 @@ impl<'a> ClientAssociationOptions<'a> {
                                 error!("Received TLS response to non-TLS request!");
                                 return super::TlsNotSupportedSnafu.fail();
                             }
-                            // if let rustls::Error::InappropriateMessage{..} = err {
-                            //     error!("Recieved TLS response to non-TLS request!");
-                            //     return super::TlsNotSupportedSnafu.fail()
-                            // }
-                            // Recieved a valid TLS message, means the server expects TLS
-                            return super::TlsNotSupportedSnafu.fail();
+                            return Err(e);
                         }
                     }
                 }
@@ -1524,6 +1544,7 @@ impl<'a> ClientAssociationOptions<'a> {
                     socket,
                     write_buffer,
                     strict: self.strict,
+                    allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                     // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
                     read_buffer,
                     read_timeout: self.socket_options.read_timeout,
@@ -1704,6 +1725,10 @@ impl<S> Association for AsyncClientAssociation<S> {
         self.acceptor_max_pdu_length
     }
 
+    fn allow_trailing_fixed_pdu_bytes(&self) -> bool {
+        self.allow_trailing_fixed_pdu_bytes
+    }
+
     fn presentation_contexts(&self) -> &[PresentationContextNegotiated] {
         &self.presentation_contexts
     }
@@ -1846,13 +1871,13 @@ where
     }
 
     async fn receive(&mut self) -> Result<Pdu> {
-        use crate::association::read_pdu_from_wire_async;
+        use crate::association::read_pdu_from_wire_async_with_options;
         super::timeout(self.read_timeout, async {
-            read_pdu_from_wire_async(
+            read_pdu_from_wire_async_with_options(
                 &mut self.socket,
                 &mut self.read_buffer,
-                self.requestor_max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.requestor_max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )
             .await
         })
@@ -1888,7 +1913,7 @@ where
 mod tests {
     use super::*;
     #[cfg(feature = "async")]
-    use crate::association::read_pdu_from_wire_async;
+    use crate::association::read_pdu_from_wire_async_with_options;
     use std::io::Write;
 
     impl<'a> ClientAssociationOptions<'a> {
@@ -1918,11 +1943,11 @@ mod tests {
             let mut read_buffer = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp = read_pdu_from_wire(
+            let resp = read_pdu_from_wire_with_options(
                 &mut socket,
                 &mut read_buffer,
-                self.max_pdu_length,
-                self.strict,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
             )?;
             let NegotiatedOptions {
                 presentation_contexts,
@@ -1939,6 +1964,7 @@ mod tests {
                 socket,
                 write_buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
                 read_buffer,
                 read_timeout: self.socket_options.read_timeout,
@@ -1978,9 +2004,13 @@ mod tests {
             let mut buf = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp =
-                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
-                    .await?;
+            let resp = read_pdu_from_wire_async_with_options(
+                &mut socket,
+                &mut buf,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
+            )
+            .await?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -1996,6 +2026,7 @@ mod tests {
                 socket,
                 write_buffer: buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 // Fixes #589, instead of creating a new buffer, we pass the existing buffer into the Association object.
                 read_buffer: buf,
                 read_timeout: self.socket_options.read_timeout,
@@ -2027,7 +2058,12 @@ mod tests {
             let mut buf = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp = read_pdu_from_wire(&mut socket, &mut buf, self.max_pdu_length, self.strict)?;
+            let resp = read_pdu_from_wire_with_options(
+                &mut socket,
+                &mut buf,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
+            )?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -2043,6 +2079,7 @@ mod tests {
                 socket,
                 write_buffer: buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 read_buffer: BytesMut::with_capacity(
                     (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
@@ -2079,9 +2116,13 @@ mod tests {
             let mut buf = BytesMut::with_capacity(
                 (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
             );
-            let resp =
-                read_pdu_from_wire_async(&mut socket, &mut buf, self.max_pdu_length, self.strict)
-                    .await?;
+            let resp = read_pdu_from_wire_async_with_options(
+                &mut socket,
+                &mut buf,
+                ReadPduOptions::new(self.max_pdu_length, self.strict)
+                    .allow_trailing_fixed_pdu_bytes(self.allow_trailing_fixed_pdu_bytes),
+            )
+            .await?;
             let NegotiatedOptions {
                 presentation_contexts,
                 peer_max_pdu_length,
@@ -2097,6 +2138,7 @@ mod tests {
                 socket,
                 write_buffer: buffer,
                 strict: self.strict,
+                allow_trailing_fixed_pdu_bytes: self.allow_trailing_fixed_pdu_bytes,
                 read_buffer: BytesMut::with_capacity(
                     (self.max_pdu_length.min(LARGE_PDU_SIZE) + PDU_HEADER_SIZE) as usize,
                 ),
