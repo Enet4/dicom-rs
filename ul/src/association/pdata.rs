@@ -138,6 +138,11 @@ where
         Ok(())
     }
 
+    /// Discard the writer without emitting the last P-Data fragment PDU.
+    pub fn abandon(mut self) {
+        self.buffer.clear();
+    }
+
     fn finish_impl(&mut self) -> std::io::Result<()> {
         if !self.buffer.is_empty() {
             // send last PDU
@@ -483,6 +488,11 @@ pub mod non_blocking {
         pub async fn finish(mut self) -> std::io::Result<()> {
             self.finish_impl().await?;
             Ok(())
+        }
+
+        /// Discard the writer without emitting the last P-Data fragment PDU.
+        pub fn abandon(mut self) {
+            self.buffer.clear();
         }
 
         async fn finish_impl(&mut self) -> std::io::Result<()> {
@@ -996,6 +1006,48 @@ mod tests {
         }
 
         assert_eq!(cursor.len(), 0);
+    }
+
+    fn read_all_pdata_values(mut bytes: &[u8]) -> Vec<PDataValue> {
+        let mut values = Vec::new();
+        while !bytes.is_empty() {
+            match read_pdu(&mut bytes, MINIMUM_PDU_SIZE, true).unwrap() {
+                Some(Pdu::PData { data }) => values.extend(data),
+                pdu => panic!("Expected PData, got {:?}", pdu),
+            }
+        }
+        values
+    }
+
+    #[test]
+    fn test_abandon_pdata_writer_does_not_send_last_fragment() {
+        let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
+
+        let mut buf = Vec::new();
+        let mut writer = PDataWriter::new(&mut buf, 32, MINIMUM_PDU_SIZE);
+        writer.write_all(&my_data).unwrap();
+        writer.abandon();
+
+        let values = read_all_pdata_values(&buf);
+        assert_eq!(values.len(), 2);
+        assert!(values.iter().all(|v| !v.is_last));
+        let sent: Vec<u8> = values.into_iter().flat_map(|v| v.data).collect();
+        assert_eq!(sent, my_data[..sent.len()]);
+    }
+
+    #[cfg(feature = "async")]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_async_abandon_pdata_writer_does_not_send_last_fragment() {
+        let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
+
+        let mut buf = Vec::new();
+        let mut writer = AsyncPDataWriter::new(&mut buf, 32, MINIMUM_PDU_SIZE);
+        writer.write_all(&my_data).await.unwrap();
+        writer.abandon();
+
+        let values = read_all_pdata_values(&buf);
+        assert_eq!(values.len(), 2);
+        assert!(values.iter().all(|v| !v.is_last));
     }
 
     #[test]
