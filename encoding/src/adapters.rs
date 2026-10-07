@@ -210,8 +210,13 @@ pub trait PixelDataObject {
 
     /// Return the pixel data of a specific frame as a byte slice/vector,
     /// in its encoded form.
+    /// The number of the first frame is 0,
+    /// which is also used to retrieve the entire pixel data
+    /// if the image does not have multipla frames.
     ///
-    /// Returns `None` if there is no such frame or there is no pixel data at all.
+    /// Returns `None` if the object has no pixel data,
+    /// there is no such frame with the given number,
+    /// or if the pixel data is not recoverable for other reasons.
     ///
     /// _Note:_ If pixel data is uncompressed and Bits Allocated is 1,
     /// the slice may include leading or trailing bits
@@ -273,7 +278,7 @@ pub trait PixelDataObject {
                     self.samples_per_pixel()?,
                     bits_allocated,
                     self.photometric_interpretation()?,
-                );
+                )?;
                 let pixel_data = self.fragment(0)?;
 
                 // special case of 1 bit per sample:
@@ -281,11 +286,13 @@ pub trait PixelDataObject {
                 // and include next byte if it ends outside frame boundary
                 let (start, end) = if bits_allocated == 1 {
                     let samples_per_frame = rows as usize * columns as usize;
-                    let start = frame as usize * samples_per_frame / 8;
-                    let end = ((frame as usize + 1) * samples_per_frame).div_ceil(8);
+                    let start = (frame as usize).checked_mul(samples_per_frame)? / 8;
+                    let end = (frame as usize + 1)
+                        .checked_mul(samples_per_frame)?
+                        .div_ceil(8);
                     (start, end)
                 } else {
-                    let start = frame as usize * frame_size;
+                    let start = (frame as usize).checked_mul(frame_size)?;
                     let end = start + frame_size;
                     (start, end)
                 };
@@ -592,7 +599,8 @@ impl PixelDataWriter for crate::transfer_syntax::NeverAdapter {
 /// Use the information in a pixel data object
 /// to determine the number of bytes needed to encode one frame.
 ///
-/// Only makes sense if the object contains native pixel data.
+/// Only makes sense if the object contains native pixel data,
+/// and does not account for padding to the nearest even.
 #[inline]
 fn determine_bytes_per_native_frame(
     rows: u16,
@@ -600,10 +608,12 @@ fn determine_bytes_per_native_frame(
     samples_per_pixel: u16,
     bits_allocated: u16,
     photometric_interpretation: &str,
-) -> usize {
+) -> Option<usize> {
     // handle special case of 1 bit per sample
     if bits_allocated == 1 {
-        return (rows as usize * columns as usize).div_ceil(8);
+        // calculation considerd safe for supported platforms:
+        // multiplication of two u16's fit in a usize >= 32 bits
+        return Some((rows as usize * columns as usize).div_ceil(8));
     }
 
     let real_samples_per_pixel =
@@ -612,10 +622,11 @@ fn determine_bytes_per_native_frame(
         } else {
             samples_per_pixel
         };
-    rows as usize
-        * columns as usize
-        * real_samples_per_pixel as usize
-        * (bits_allocated as usize).div_ceil(8)
+
+    (rows as usize)
+        .checked_mul(columns as usize)?
+        .checked_mul(real_samples_per_pixel as usize)?
+        .checked_mul((bits_allocated as usize).div_ceil(8))
 }
 
 #[cfg(test)]
@@ -801,5 +812,26 @@ mod tests {
 
         assert_eq!(obj.frame_pixel_data(1), Some(vec![0x77; 24].into()));
         assert_eq!(obj.frame_pixel_data(2), Some(vec![0x99; 36].into()));
+    }
+
+    #[test]
+    fn overflow_on_large_frame_index() {
+        let obj = TestDataObject {
+            ts_uid: "1.2.840.10008.1.2.1",
+            rows: 65535,
+            columns: 65535,
+            samples_per_pixel: 3,
+            bits_allocated: 16,
+            bits_stored: 16,
+            photometric_interpretation: "RGB",
+            number_of_frames: u32::MAX,
+            flat_pixel_data: Some(vec![0u8; 1024]),
+            pixel_data_sequence: None,
+        };
+        // should fail without panicking
+        assert!(
+            obj.frame_pixel_data(obj.number_of_frames().unwrap() - 1)
+                .is_none(),
+        );
     }
 }
