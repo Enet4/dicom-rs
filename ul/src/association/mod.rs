@@ -231,7 +231,13 @@ pub trait CloseSocket {
 
 impl CloseSocket for std::net::TcpStream {
     fn close(&mut self) -> std::io::Result<()> {
-        self.shutdown(std::net::Shutdown::Both)
+        // The peer may have already disconnected. On linux, calling `shutdown` once the peer
+        // disconnects is fine, but on Mac it returns a `NotConnected` error, ignore that
+        match self.shutdown(std::net::Shutdown::Both) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotConnected => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }
 

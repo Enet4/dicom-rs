@@ -787,3 +787,49 @@ mod successive_pdus_during_server_association {
         server_handle.await.unwrap();
     }
 }
+
+mod close_socket {
+    use std::io::Read;
+    use std::net::{TcpListener, TcpStream};
+
+    use crate::association::CloseSocket;
+
+    /// Create a connected pair of TCP streams over the loopback interface,
+    /// returned as `(client, server)`.
+    fn tcp_pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        (client, server)
+    }
+
+    /// Drop `peer` and wait until `stream` observes the disconnect,
+    /// so that the socket is fully torn down before `close` is called.
+    fn disconnect_peer(stream: &mut TcpStream, peer: TcpStream) {
+        drop(peer);
+        let mut buf = [0u8; 1];
+        assert_eq!(stream.read(&mut buf).unwrap(), 0);
+    }
+
+    #[test]
+    fn close_tcp_stream() {
+        let (mut client, _server) = tcp_pair();
+        client.close().unwrap();
+    }
+
+    #[test]
+    fn close_tcp_stream_twice() {
+        let (mut client, _server) = tcp_pair();
+        client.close().unwrap();
+        // on macOS, shutting down an already shut down socket yields `NotConnected`
+        client.close().unwrap();
+    }
+
+    #[test]
+    fn close_tcp_stream_after_peer_disconnected() {
+        let (mut client, server) = tcp_pair();
+        disconnect_peer(&mut client, server);
+        // on macOS, shutting down a socket after the peer disconnected yields `NotConnected`
+        client.close().unwrap();
+    }
+}

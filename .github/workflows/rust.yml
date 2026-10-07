@@ -88,4 +88,6 @@ jobs:
           toolchain: stable
           cache: true
       - run: cargo check
+      # socket shutdown behaves differently on macOS (e.g. `NotConnected` errors)
+      - run: cargo test -p dicom-ul --lib close_socket
     
