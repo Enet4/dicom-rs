@@ -749,31 +749,22 @@ pub mod non_blocking {
 #[cfg(test)]
 mod tests {
     use std::io::{Read, Write};
+    #[cfg(feature = "async")]
     use std::{
         collections::VecDeque,
         pin::Pin,
         task::{Context, Poll},
     };
 
-    use crate::association::pdata::PDataWriter;
-    use crate::pdu::{DEFAULT_MAX_PDU, MINIMUM_PDU_SIZE, PDV_HEADER_SIZE, Pdu, read_pdu};
+    use crate::pdu::{MINIMUM_PDU_SIZE, PDV_HEADER_SIZE, Pdu, read_pdu};
     use crate::pdu::{PDataValue, PDataValueType};
-    use crate::{ClientAssociationOptions, ServerAssociationOptions, write_pdu};
+    use crate::{association::pdata::PDataWriter, write_pdu};
 
     use super::PDataReader;
 
     use bytes::BytesMut;
-    use rstest::rstest;
     #[cfg(feature = "async")]
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    #[cfg(feature = "async")]
-    use crate::association::pdata::non_blocking::AsyncPDataWriter;
-
-    static IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";
-    static MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
-    type Result<T, E = Box<dyn std::error::Error + Send + Sync + 'static>> =
-        std::result::Result<T, E>;
 
     #[test]
     fn test_write_pdata_and_finish() {
@@ -814,8 +805,11 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut writer =
-                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            let mut writer = crate::association::AsyncPDataWriter::new(
+                &mut buf,
+                presentation_context_id,
+                MINIMUM_PDU_SIZE,
+            );
             writer
                 .write_all(&(0..64).collect::<Vec<u8>>())
                 .await
@@ -934,8 +928,11 @@ mod tests {
 
         let mut buf = Vec::new();
         {
-            let mut writer =
-                AsyncPDataWriter::new(&mut buf, presentation_context_id, MINIMUM_PDU_SIZE);
+            let mut writer = crate::association::AsyncPDataWriter::new(
+                &mut buf,
+                presentation_context_id,
+                MINIMUM_PDU_SIZE,
+            );
             writer.write_all(&my_data).await.unwrap();
             writer.finish().await.unwrap();
         }
@@ -1175,12 +1172,13 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "async")]
     fn collect_pdata_bytes(bytes: &[u8]) -> Vec<u8> {
         let mut cursor = bytes;
         let mut out = Vec::new();
         let mut i = 0;
         loop {
-            match read_pdu(&mut cursor, DEFAULT_MAX_PDU, true).unwrap() {
+            match read_pdu(&mut cursor, crate::pdu::DEFAULT_MAX_PDU, true).unwrap() {
                 Some(Pdu::PData { data }) => {
                     let outlen = out.len();
                     for v in data {
@@ -1200,9 +1198,11 @@ mod tests {
     #[cfg(feature = "async")]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_async_pdata_writer() -> Result<(), Box<dyn std::error::Error>> {
+        static IMPLICIT_VR_LE: &str = "1.2.840.10008.1.2";
+        static MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let server_addr = listener.local_addr().unwrap();
-        let server_options = ServerAssociationOptions::new()
+        let server_options = crate::ServerAssociationOptions::new()
             .accept_called_ae_title()
             .ae_title("TEST_SCP")
             .with_abstract_syntax(MR_IMAGE_STORAGE);
@@ -1215,7 +1215,7 @@ mod tests {
             assert_eq!(buf.len(), 10 * 1024 * 1024);
             println!("Server received {} bytes", buf.len());
         });
-        let mut scu = ClientAssociationOptions::new()
+        let mut scu = crate::ClientAssociationOptions::new()
             .calling_ae_title("TEST_SCU")
             .called_ae_title("TEST_SCP")
             .with_presentation_context(MR_IMAGE_STORAGE, vec![IMPLICIT_VR_LE])
@@ -1237,7 +1237,7 @@ mod tests {
     }
 
     #[cfg(feature = "async")]
-    #[rstest]
+    #[rstest::rstest]
     #[case(vec![Some(200), Some(100), None, Some(100)])]
     #[case(vec![Some(2000), Some(1000), None, Some(1000)])]
     #[case(vec![Some(2000), Some(1000), None, None, None, Some(1000)])]
@@ -1254,7 +1254,11 @@ mod tests {
             .take(1048576)
             .collect();
         {
-            let mut pdata_writer = AsyncPDataWriter::new(&mut writer, 1, DEFAULT_MAX_PDU);
+            let mut pdata_writer = crate::association::AsyncPDataWriter::new(
+                &mut writer,
+                1,
+                crate::pdu::DEFAULT_MAX_PDU,
+            );
             pdata_writer
                 .write_all(&test_buffer)
                 .await
