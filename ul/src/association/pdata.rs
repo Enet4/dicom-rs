@@ -1038,7 +1038,7 @@ mod tests {
         let my_data: Vec<_> = (0..2500).map(|x: u32| x as u8).collect();
 
         let mut buf = Vec::new();
-        let mut writer = AsyncPDataWriter::new(&mut buf, 32, MINIMUM_PDU_SIZE);
+        let mut writer = crate::association::AsyncPDataWriter::new(&mut buf, 32, MINIMUM_PDU_SIZE);
         writer.write_all(&my_data).await.unwrap();
         writer.abandon();
 
