@@ -11,6 +11,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+bytes = "1.11.1"
 
 [dependencies.dicom-ul]
 path = ".."
@@ -22,6 +23,18 @@ members = ["."]
 [[bin]]
 name = "pdu_roundtrip"
 path = "fuzz_targets/pdu_roundtrip.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pdata_reader"
+path = "fuzz_targets/pdata_reader.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pdata_writer"
+path = "fuzz_targets/pdata_writer.rs"
 test = false
 doc = false
 

@@ -24,6 +24,11 @@ path = "../../object"
 
 [dependencies.dicom-pixeldata]
 path = ".."
+features = ["openjp2", "jpegxl"]
+
+[features]
+gdcm = ["dicom-pixeldata/gdcm"]
+charls = ["dicom-pixeldata/charls"]
 
 # Prevent this from interfering with workspaces
 [workspace]
