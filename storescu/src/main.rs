@@ -198,7 +198,7 @@ pub(crate) fn get_scu_options<'a>(
     saml_assertion: Option<String>,
     jwt: Option<String>,
     presentation_contexts: &'a HashSet<(String, String)>,
-    #[cfg(feature = "tls")] tls_options: rustls::ClientConfig,
+    #[cfg(feature = "tls")] tls_options: Option<rustls::ClientConfig>,
 ) -> ClientAssociationOptions<'a> {
     let mut scu_init = ClientAssociationOptions::new()
         .calling_ae_title(calling_ae_title)
@@ -206,7 +206,9 @@ pub(crate) fn get_scu_options<'a>(
 
     #[cfg(feature = "tls")]
     {
-        scu_init = scu_init.server_name("localhost").tls_config(tls_options);
+        if let Some(tls_options) = tls_options {
+            scu_init = scu_init.server_name("localhost").tls_config(tls_options);
+        }
     }
 
     for (storage_sop_class_uid, transfer_syntax) in presentation_contexts {
@@ -394,7 +396,11 @@ fn run(app: App) -> Result<(), Error> {
     }
 
     #[cfg(feature = "tls")]
-    let config = tls.client_config().context(TlsSnafu)?;
+    let config = if tls.enabled {
+        Some(tls.client_config().context(TlsSnafu)?)
+    } else {
+        None
+    };
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
@@ -508,7 +514,11 @@ async fn run_async() -> Result<(), Error> {
     }
 
     #[cfg(feature = "tls")]
-    let config = tls.client_config().context(TlsSnafu)?;
+    let config = if tls_enabled {
+        Some(tls.client_config().context(TlsSnafu)?)
+    } else {
+        None
+    };
 
     if verbose {
         info!("Establishing association with '{}'...", &addr);
