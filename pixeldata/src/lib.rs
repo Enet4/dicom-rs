@@ -2900,6 +2900,28 @@ mod tests {
             assert_eq!(values[49 * columns * 3 + 16 * 3 + 2], 255);
         }
 
+        /// The same 8-bit MONOCHROME2 image,
+        /// in RLE Lossless and native uncompressed,
+        /// should decode to the exact same pixel data sample values.
+        #[cfg(feature = "rle")]
+        #[test]
+        fn test_native_decoding_pixel_data_rle_8bit_monochrome() {
+            use crate::PixelDecoder as _;
+
+            let rle = dicom_test_files::path("pydicom/OBXXXX1A_rle.dcm").unwrap();
+            let native = dicom_test_files::path("pydicom/OBXXXX1A.dcm").unwrap();
+            let rle = dicom_object::open_file(&rle).unwrap();
+            let native = dicom_object::open_file(&native).unwrap();
+
+            let rle_pixeldata = rle.decode_pixel_data().unwrap();
+            let native_pixeldata = native.decode_pixel_data().unwrap();
+            assert!(rle_pixeldata.data() == native_pixeldata.data(), "RLE samples differ from native");
+
+            let rle_pixeldata = rle.decode_pixel_data_frame(0).unwrap();
+            let native_pixeldata = native.decode_pixel_data_frame(0).unwrap();
+            assert!(rle_pixeldata.data() == native_pixeldata.data(), "RLE samples differ from native");
+        }
+
         #[cfg(feature = "ndarray")]
         #[test]
         fn test_native_decoding_pixel_data_rle_8bit_1frame_ndarray() {
