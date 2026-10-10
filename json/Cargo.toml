@@ -9,6 +9,10 @@ description = "DICOM data serialization to/from JSON"
 keywords = ["dicom", "attributes", "json", "serialization"]
 readme = "README.md"
 
+[features]
+default = []
+float_roundtrip = [ "serde_json/float_roundtrip" ]
+
 [dependencies]
 base64 = "0.22"
 dicom-core = { path = "../core", version = "0.10" }
