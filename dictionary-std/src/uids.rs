@@ -742,6 +742,15 @@ pub const ENHANCED_CT_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.2.1";
 /// SOP Class: Legacy Converted Enhanced CT Image Storage
 #[rustfmt::skip]
 pub const LEGACY_CONVERTED_ENHANCED_CT_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.2.2";
+/// SOP Class: CT Image Storage - For Processing
+#[rustfmt::skip]
+pub const CT_IMAGE_STORAGE_FOR_PROCESSING: &str = "1.2.840.10008.5.1.4.1.1.2.3";
+/// SOP Class: Enhanced CT Image Storage - For Processing
+#[rustfmt::skip]
+pub const ENHANCED_CT_IMAGE_STORAGE_FOR_PROCESSING: &str = "1.2.840.10008.5.1.4.1.1.2.4";
+/// SOP Class: Legacy Converted Enhanced CT Image Storage - For Processing
+#[rustfmt::skip]
+pub const LEGACY_CONVERTED_ENHANCED_CT_IMAGE_STORAGE_FOR_PROCESSING: &str = "1.2.840.10008.5.1.4.1.1.2.5";
 /// SOP Class: Nuclear Medicine Image Storage
 #[rustfmt::skip]
 pub const NUCLEAR_MEDICINE_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.20";
@@ -1560,6 +1569,9 @@ pub(crate) const SOP_CLASSES: &[E] = &[
     E::new("1.2.840.10008.5.1.4.1.1.2", "CT Image Storage", "CTImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.2.1", "Enhanced CT Image Storage", "EnhancedCTImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.2.2", "Legacy Converted Enhanced CT Image Storage", "LegacyConvertedEnhancedCTImageStorage", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.2.3", "CT Image Storage - For Processing", "CTImageStorageForProcessing", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.2.4", "Enhanced CT Image Storage - For Processing", "EnhancedCTImageStorageForProcessing", SopClass, false),
+    E::new("1.2.840.10008.5.1.4.1.1.2.5", "Legacy Converted Enhanced CT Image Storage - For Processing", "LegacyConvertedEnhancedCTImageStorageForProcessing", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.20", "Nuclear Medicine Image Storage", "NuclearMedicineImageStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.200.1", "CT Defined Procedure Protocol Storage", "CTDefinedProcedureProtocolStorage", SopClass, false),
     E::new("1.2.840.10008.5.1.4.1.1.200.2", "CT Performed Procedure Protocol Storage", "CTPerformedProcedureProtocolStorage", SopClass, false),
