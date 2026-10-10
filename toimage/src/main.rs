@@ -2,7 +2,7 @@
 //! into a general purpose image file (e.g. PNG).
 use std::{path::PathBuf, str::FromStr};
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use dicom_dictionary_std::uids;
 use dicom_encoding::adapters::PixelDataObject;
 use dicom_object::{FileDicomObject, InMemDicomObject, open_file};
@@ -67,11 +67,21 @@ struct ImageOptions {
     #[arg(long = "16bit", conflicts_with = "force_8bit")]
     force_16bit: bool,
 
+    /// Skip the modality LUT transformation (implies --no-voi-lut)
+    #[arg(long = "no-modality-lut", action = ArgAction::SetFalse)]
+    modality_lut: bool,
+
+    /// Skip the VOI LUT transformation
+    #[arg(long = "no-voi-lut", action = ArgAction::SetFalse)]
+    voi_lut: bool,
+
     /// Output the raw pixel data instead of decoding it
     #[arg(
         long = "unwrap",
         conflicts_with = "force_8bit",
-        conflicts_with = "force_16bit"
+        conflicts_with = "force_16bit",
+        conflicts_with = "modality_lut",
+        conflicts_with = "voi_lut",
     )]
     unwrap: bool,
     /// Decode all pixel data frames instead of just the one intended
@@ -359,6 +369,8 @@ fn convert_single_file(
     let ImageOptions {
         force_8bit,
         force_16bit,
+        modality_lut,
+        voi_lut,
         unwrap,
         decode_all,
         overlays,
@@ -422,6 +434,13 @@ fn convert_single_file(
             options = options.force_16bit();
         } else if force_8bit {
             options = options.force_8bit();
+        }
+
+        if !modality_lut {
+            options = options.with_modality_lut(dicom_pixeldata::ModalityLutOption::None);
+        }
+        if !modality_lut || !voi_lut {
+            options = options.with_voi_lut(dicom_pixeldata::VoiLutOption::Identity);
         }
 
         // the effective frame number
