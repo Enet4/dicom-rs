@@ -6,7 +6,7 @@ use rustls::{
     server::WebPkiClientVerifier,
 };
 use snafu::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[cfg(feature = "tls")]
 use std::sync::Arc;
 use std::time::Duration;
@@ -223,6 +223,43 @@ pub struct ConnectionOptions {
 pub fn parse_duration_sec(arg: &str) -> Result<Duration, std::num::ParseIntError> {
     let seconds = arg.parse()?;
     Ok(Duration::from_secs(seconds))
+}
+
+/// Check a UID for empty names and path syntax, ignoring trailing NUL padding.
+pub fn is_safe_uid_for_filename(uid: &str) -> bool {
+    let uid = uid.trim_end_matches('\0');
+    !uid.is_empty()
+        && !Path::new(uid).is_absolute()
+        && !uid.contains('/')
+        && !uid.contains('\\')
+        && !uid.contains("..")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_uid_for_filename;
+
+    #[test]
+    fn uid_filename_validation() {
+        for (uid, expected) in [
+            ("", false),
+            ("\0", false),
+            ("/1.2.3", false),
+            ("1/2.3", false),
+            (r"1\2.3", false),
+            (r"C:\1.2.3", false),
+            ("..", false),
+            ("1..2.3", false),
+            ("../1.2.3", false),
+            ("1.2.3", true),
+            ("1.2.3\0", true),
+            ("study-1", true),
+            (".", true),
+            (" ", true),
+        ] {
+            assert_eq!(is_safe_uid_for_filename(uid), expected, "UID: {uid:?}");
+        }
+    }
 }
 
 #[cfg(feature = "tls")]

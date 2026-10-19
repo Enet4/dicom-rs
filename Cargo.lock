@@ -751,6 +751,7 @@ name = "dicom-movescu"
 version = "0.10.0"
 dependencies = [
  "clap",
+ "dicom-app-common",
  "dicom-core",
  "dicom-dictionary-std",
  "dicom-dump",
