@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use dicom_app_common::is_safe_uid_for_filename;
+use dicom_app_common::{CSTORE_STATUS_UNACCEPTABLE_SOP_INSTANCE_UID, uid_for_filename};
 use dicom_dictionary_std::tags;
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
@@ -237,10 +237,8 @@ where
                             {
                                 instance_buffer.append(&mut data_value.data);
 
-                                let status = if !is_safe_uid_for_filename(&sop_instance_uid) {
-                                    warn!("Rejecting unsafe SOP Instance UID for storage");
-                                    0xC000 // Cannot understand
-                                } else {
+                                let status = if let Some(uid) = uid_for_filename(&sop_instance_uid)
+                                {
                                     let presentation_context = association
                                         .presentation_contexts()
                                         .iter()
@@ -277,15 +275,15 @@ where
 
                                     // write the files to the current directory with their SOPInstanceUID as filenames
                                     let mut file_path = out_dir.to_path_buf();
-                                    file_path.push(
-                                        sop_instance_uid.trim_end_matches('\0').to_string()
-                                            + ".dcm",
-                                    );
+                                    file_path.push(uid.to_string() + ".dcm");
                                     file_obj
                                         .write_to_file(&file_path)
                                         .whatever_context("could not save DICOM object to file")?;
                                     info!("Stored {}", file_path.display());
                                     0x0000
+                                } else {
+                                    warn!("Rejecting unacceptable SOP Instance UID for storage");
+                                    CSTORE_STATUS_UNACCEPTABLE_SOP_INSTANCE_UID
                                 };
 
                                 // send C-STORE-RSP object
