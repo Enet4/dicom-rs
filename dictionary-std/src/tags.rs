@@ -7835,6 +7835,9 @@ pub const RETRIEVE_URI: Tag = Tag(0x0040, 0xE010);
 /// RetrieveLocationUID (0040,E011) UI 1 DICOM
 #[rustfmt::skip]
 pub const RETRIEVE_LOCATION_UID: Tag = Tag(0x0040, 0xE011);
+/// DisplayURI (0040,E012) UR 1 DICOM
+#[rustfmt::skip]
+pub const DISPLAY_URI: Tag = Tag(0x0040, 0xE012);
 /// TypeOfInstances (0040,E020) CS 1 DICOM
 #[rustfmt::skip]
 pub const TYPE_OF_INSTANCES: Tag = Tag(0x0040, 0xE020);
@@ -11303,6 +11306,9 @@ pub const DVH_MAXIMUM_DOSE: Tag = Tag(0x3004, 0x0072);
 /// DVHMeanDose (3004,0074) DS 1 DICOM
 #[rustfmt::skip]
 pub const DVH_MEAN_DOSE: Tag = Tag(0x3004, 0x0074);
+/// DoseCalculationModelName (3004,007F) LO 1 DICOM
+#[rustfmt::skip]
+pub const DOSE_CALCULATION_MODEL_NAME: Tag = Tag(0x3004, 0x007F);
 /// DoseCalculationModelSequence (3004,0080) SQ 1 DICOM
 #[rustfmt::skip]
 pub const DOSE_CALCULATION_MODEL_SEQUENCE: Tag = Tag(0x3004, 0x0080);
@@ -19145,6 +19151,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DOCUMENT_CLASS_CODE_SEQUENCE), alias: "DocumentClassCodeSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(RETRIEVE_URI), alias: "RetrieveURI", vr: Exact(UR) }, // DICOM
     E { tag: Single(RETRIEVE_LOCATION_UID), alias: "RetrieveLocationUID", vr: Exact(UI) }, // DICOM
+    E { tag: Single(DISPLAY_URI), alias: "DisplayURI", vr: Exact(UR) }, // DICOM
     E { tag: Single(TYPE_OF_INSTANCES), alias: "TypeOfInstances", vr: Exact(CS) }, // DICOM
     E { tag: Single(DICOM_RETRIEVAL_SEQUENCE), alias: "DICOMRetrievalSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DICOM_MEDIA_RETRIEVAL_SEQUENCE), alias: "DICOMMediaRetrievalSequence", vr: Exact(SQ) }, // DICOM
@@ -20301,6 +20308,7 @@ pub(crate) const ENTRIES: &[E] = &[
     E { tag: Single(DVH_MINIMUM_DOSE), alias: "DVHMinimumDose", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_MAXIMUM_DOSE), alias: "DVHMaximumDose", vr: Exact(DS) }, // DICOM
     E { tag: Single(DVH_MEAN_DOSE), alias: "DVHMeanDose", vr: Exact(DS) }, // DICOM
+    E { tag: Single(DOSE_CALCULATION_MODEL_NAME), alias: "DoseCalculationModelName", vr: Exact(LO) }, // DICOM
     E { tag: Single(DOSE_CALCULATION_MODEL_SEQUENCE), alias: "DoseCalculationModelSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(DOSE_CALCULATION_ALGORITHM_SEQUENCE), alias: "DoseCalculationAlgorithmSequence", vr: Exact(SQ) }, // DICOM
     E { tag: Single(COMMISSIONING_STATUS), alias: "CommissioningStatus", vr: Exact(CS) }, // DICOM
