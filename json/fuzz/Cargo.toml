@@ -1,0 +1,31 @@
+[package]
+name = "dicom-json-fuzz"
+version = "0.0.0"
+description = "Fuzz testing for the dicom-json crate"
+authors = []
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.dicom-json]
+path = ".."
+
+[dependencies.dicom-object]
+path = "../../object"
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "json_roundtrip"
+path = "fuzz_targets/json_roundtrip.rs"
+test = false
+doc = false
+
+[profile.release]
+debug = true
