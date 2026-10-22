@@ -8,7 +8,7 @@ use dicom_object::{StandardDataDictionary, mem::InMemDicomObject, open_file};
 use dicom_transfer_syntax_registry::{TransferSyntaxRegistry, entries};
 use dicom_ul::pdu::Pdu;
 use dicom_ul::{
-    association::ClientAssociationOptions,
+    association::{ClientAssociationOptions, SyncAssociation},
     pdu::{PDataValue, PDataValueType},
 };
 use indicatif::ProgressBar;
