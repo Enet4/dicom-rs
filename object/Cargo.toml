@@ -21,7 +21,7 @@ dicom-encoding = { path = "../encoding", version = "0.10" }
 dicom-parser = { path = "../parser", version = "0.10" }
 dicom-dictionary-std = { path = "../dictionary-std", version = "0.10" }
 dicom-transfer-syntax-registry = { path = "../transfer-syntax-registry", version = "0.10", default-features=false }
-itertools = "0.14"
+itertools = "0.15"
 byteordered = "0.6"
 smallvec = "1.6.1"
 snafu = "0.9"
