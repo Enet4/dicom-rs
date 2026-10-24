@@ -1,3 +1,4 @@
+use dicom_app_common::{CSTORE_STATUS_UNACCEPTABLE_SOP_INSTANCE_UID, uid_for_filename};
 use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::{tags, uids::*};
 use dicom_encoding::transfer_syntax::TransferSyntaxIndex;
@@ -58,6 +59,7 @@ fn create_cstore_response(
     message_id: u16,
     sop_class_uid: &str,
     sop_instance_uid: &str,
+    status: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
     InMemDicomObject::command_from_element_iter([
         DataElement::new(
@@ -76,7 +78,7 @@ fn create_cstore_response(
             VR::US,
             dicom_value!(U16, [0x0101]),
         ),
-        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
+        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [status])),
         DataElement::new(
             tags::AFFECTED_SOP_INSTANCE_UID,
             VR::UI,
@@ -244,47 +246,54 @@ pub(crate) async fn run_store_async(
                             {
                                 instance_buffer.append(&mut data_value.data);
 
-                                let presentation_context = association
-                                    .presentation_contexts()
-                                    .iter()
-                                    .find(|pc| pc.id == data_value.presentation_context_id)
-                                    .whatever_context("missing presentation context")?;
-                                let ts = &presentation_context.transfer_syntax;
+                                let status = if let Some(uid) = uid_for_filename(&sop_instance_uid)
+                                {
+                                    let presentation_context = association
+                                        .presentation_contexts()
+                                        .iter()
+                                        .find(|pc| pc.id == data_value.presentation_context_id)
+                                        .whatever_context("missing presentation context")?;
+                                    let ts = &presentation_context.transfer_syntax;
 
-                                let obj = InMemDicomObject::read_dataset_with_ts(
-                                    instance_buffer.as_slice(),
-                                    TransferSyntaxRegistry.get(ts).unwrap(),
-                                )
-                                .whatever_context("failed to read DICOM data object")?;
-                                let file_meta = FileMetaTableBuilder::new()
-                                    .media_storage_sop_class_uid(
-                                        obj.element(tags::SOP_CLASS_UID)
-                                            .whatever_context("missing SOP Class UID")?
-                                            .to_str()
-                                            .whatever_context("could not retrieve SOP Class UID")?,
+                                    let obj = InMemDicomObject::read_dataset_with_ts(
+                                        instance_buffer.as_slice(),
+                                        TransferSyntaxRegistry.get(ts).unwrap(),
                                     )
-                                    .media_storage_sop_instance_uid(
-                                        obj.element(tags::SOP_INSTANCE_UID)
-                                            .whatever_context("missing SOP Instance UID")?
-                                            .to_str()
-                                            .whatever_context("missing SOP Instance UID")?,
-                                    )
-                                    .transfer_syntax(ts)
-                                    .build()
-                                    .whatever_context(
-                                        "failed to build DICOM meta file information",
-                                    )?;
-                                let file_obj = obj.with_exact_meta(file_meta);
+                                    .whatever_context("failed to read DICOM data object")?;
+                                    let file_meta = FileMetaTableBuilder::new()
+                                        .media_storage_sop_class_uid(
+                                            obj.element(tags::SOP_CLASS_UID)
+                                                .whatever_context("missing SOP Class UID")?
+                                                .to_str()
+                                                .whatever_context(
+                                                    "could not retrieve SOP Class UID",
+                                                )?,
+                                        )
+                                        .media_storage_sop_instance_uid(
+                                            obj.element(tags::SOP_INSTANCE_UID)
+                                                .whatever_context("missing SOP Instance UID")?
+                                                .to_str()
+                                                .whatever_context("missing SOP Instance UID")?,
+                                        )
+                                        .transfer_syntax(ts)
+                                        .build()
+                                        .whatever_context(
+                                            "failed to build DICOM meta file information",
+                                        )?;
+                                    let file_obj = obj.with_exact_meta(file_meta);
 
-                                // write the files to the current directory with their SOPInstanceUID as filenames
-                                let mut file_path = out_dir.clone();
-                                file_path.push(
-                                    sop_instance_uid.trim_end_matches('\0').to_string() + ".dcm",
-                                );
-                                file_obj
-                                    .write_to_file(&file_path)
-                                    .whatever_context("could not save DICOM object to file")?;
-                                info!("Stored {}", file_path.display());
+                                    // write the files to the current directory with their SOPInstanceUID as filenames
+                                    let mut file_path = out_dir.clone();
+                                    file_path.push(uid.to_string() + ".dcm");
+                                    file_obj
+                                        .write_to_file(&file_path)
+                                        .whatever_context("could not save DICOM object to file")?;
+                                    info!("Stored {}", file_path.display());
+                                    0x0000
+                                } else {
+                                    warn!("Rejecting unacceptable SOP Instance UID for storage");
+                                    CSTORE_STATUS_UNACCEPTABLE_SOP_INSTANCE_UID
+                                };
 
                                 // send C-STORE-RSP object
                                 // commands are always in implicit VR LE
@@ -296,6 +305,7 @@ pub(crate) async fn run_store_async(
                                     msgid,
                                     &sop_class_uid,
                                     &sop_instance_uid,
+                                    status,
                                 );
 
                                 let mut obj_data = Vec::new();

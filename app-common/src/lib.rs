@@ -225,6 +225,73 @@ pub fn parse_duration_sec(arg: &str) -> Result<Duration, std::num::ParseIntError
     Ok(Duration::from_secs(seconds))
 }
 
+/// Implementation-specific C-STORE failure status for unacceptable SOP Instance UIDs.
+///
+/// This value is used by the DICOM-rs tools, rather than a standardized status
+/// specifically assigned to this condition.
+pub const CSTORE_STATUS_UNACCEPTABLE_SOP_INSTANCE_UID: u16 = 0xC000;
+
+/// Return the UID to use in a filename after removing trailing padding.
+///
+/// Trailing NUL and ASCII whitespace characters are treated as padding. The
+/// remaining value must be nonempty, contain only ASCII digits and periods,
+/// and contain no adjacent periods. Padding within the value is rejected.
+/// Callers should use the returned value when constructing the filename so
+/// that validation and storage apply to the same value.
+///
+/// This is a filename policy, not a full DICOM UID conformance check. It does
+/// not check component lengths, leading zeroes, or the total UID length.
+pub fn uid_for_filename(uid: &str) -> Option<&str> {
+    let uid = uid.trim_end_matches(|c: char| c == '\0' || c.is_ascii_whitespace());
+    if !uid.is_empty() && uid.chars().all(|c| c == '.' || c.is_ascii_digit()) && !uid.contains("..")
+    {
+        Some(uid)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::uid_for_filename;
+
+    #[test]
+    fn uid_filename_accepts_numeric_uids() {
+        for uid in ["1", "1.2.3", "1.2.840.10008.1.2"] {
+            assert_eq!(uid_for_filename(uid), Some(uid));
+        }
+    }
+
+    #[test]
+    fn uid_filename_trims_trailing_padding() {
+        for padding in ["\0", " ", "\t", "\n", "\r", "\u{c}", "\0 \t"] {
+            let uid = format!("1.2.3{padding}");
+            assert_eq!(uid_for_filename(&uid), Some("1.2.3"));
+        }
+    }
+
+    #[test]
+    fn uid_filename_rejects_non_uid_characters() {
+        for uid in [
+            "study-1", "1.2a", "１.2.3", " 1.2", "1. 2", "1.\t2", "1.\0 2",
+        ] {
+            assert_eq!(uid_for_filename(uid), None, "UID: {uid:?}");
+        }
+    }
+
+    #[test]
+    fn uid_filename_rejects_empty_values() {
+        for uid in ["", "\0", " \0\t\n"] {
+            assert_eq!(uid_for_filename(uid), None, "UID: {uid:?}");
+        }
+    }
+
+    #[test]
+    fn uid_filename_rejects_adjacent_periods() {
+        assert_eq!(uid_for_filename("1..2.3"), None);
+    }
+}
+
 #[cfg(feature = "tls")]
 impl TlsOptions {
     /// Build a root cert store from system roots and any additional certs

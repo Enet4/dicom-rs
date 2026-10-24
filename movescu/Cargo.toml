@@ -11,6 +11,7 @@ keywords = ["dicom", "query", "retrieval", "move"]
 readme = "README.md"
 
 [dependencies]
+dicom-app-common = { path = "../app-common", version = "0.10", default-features = false }
 dicom-core = { path = '../core', version = "0.10" }
 dicom-ul = { path = "../ul", version = "0.10", features = ["async"] }
 dicom-object = { path = "../object", version = "0.10" }
