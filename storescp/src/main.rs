@@ -67,6 +67,7 @@ fn create_cstore_response(
     message_id: u16,
     sop_class_uid: &str,
     sop_instance_uid: &str,
+    status: u16,
 ) -> InMemDicomObject<StandardDataDictionary> {
     InMemDicomObject::command_from_element_iter([
         DataElement::new(
@@ -85,7 +86,7 @@ fn create_cstore_response(
             VR::US,
             dicom_value!(U16, [0x0101]),
         ),
-        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [0x0000])),
+        DataElement::new(tags::STATUS, VR::US, dicom_value!(U16, [status])),
         DataElement::new(
             tags::AFFECTED_SOP_INSTANCE_UID,
             VR::UI,
