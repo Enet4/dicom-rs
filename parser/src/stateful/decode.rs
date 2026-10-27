@@ -72,12 +72,6 @@ pub enum Error {
         source: dicom_encoding::text::DecodeTextError,
     },
 
-    #[snafu(display("Could not reserve memory for data value ({len} bytes)"))]
-    AllocateValueData {
-        /// the byte length of the attempted allocation
-        len: u32,
-    },
-
     #[snafu(display("Could not read value from source at position {}", position))]
     ReadValueData {
         position: u64,
@@ -134,6 +128,12 @@ pub enum Error {
         position: u64,
         string: String,
         backtrace: Backtrace,
+    },
+
+    #[snafu(display("Could not reserve memory for data value ({len} bytes)"))]
+    AllocateValueData {
+        /// the byte length of the attempted allocation
+        len: u32,
     },
 }
 
