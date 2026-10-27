@@ -284,7 +284,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "dicom-core"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "chrono",
  "either",
@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "once_cell",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-encoding"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -316,7 +316,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-object"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-parser"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-pixeldata"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteorder",
  "dicom-core",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",

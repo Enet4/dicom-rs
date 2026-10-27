@@ -601,7 +601,7 @@ checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
 
 [[package]]
 name = "dicom"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -616,7 +616,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-app-common"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "rustls",
@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-core"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "chrono",
  "either",
@@ -640,7 +640,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-builder"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "eyre",
@@ -654,7 +654,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "once_cell",
@@ -662,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dump"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-echoscu"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -696,7 +696,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-encoding"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-findscu"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-fromimage"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-json"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "base64 0.23.1",
  "dicom-core",
@@ -756,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-movescu"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-object"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-parser"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -806,7 +806,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-pixeldata"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteorder",
  "clap",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-scpproxy"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "bytes",
  "clap",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-storescp"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-storescu"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-app-common",
@@ -895,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-toimage"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "clap",
  "dicom-core",
@@ -910,7 +910,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "charls",
@@ -931,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-ul"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "bytes",

@@ -87,7 +87,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "dicom-core"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "chrono",
  "either",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-dictionary-std"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "dicom-core",
  "once_cell",
@@ -108,7 +108,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-encoding"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-transfer-syntax-registry"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "dicom-core",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "dicom-ul"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "byteordered",
  "bytes",
