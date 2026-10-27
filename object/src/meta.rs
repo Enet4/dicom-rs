@@ -78,10 +78,6 @@ pub enum Error {
     #[snafu(display("Invalid DICOM file (magic code check failed)"))]
     NotDicom { backtrace: Backtrace },
 
-    /// Found an invalid UID in the file meta information group.
-    #[snafu(display("Invalid UID in file meta information group"))]
-    InvalidUid { backtrace: Backtrace },
-
     /// An issue occurred while decoding the next data element
     /// in the file meta data set.
     #[snafu(display("Could not decode data element"))]
@@ -123,6 +119,10 @@ pub enum Error {
         #[snafu(backtrace)]
         source: dicom_parser::dataset::write::Error,
     },
+
+    /// Found an invalid UID in the file meta information group.
+    #[snafu(display("Invalid UID in file meta information group"))]
+    InvalidUid { backtrace: Backtrace },
 }
 
 type Result<T, E = Error> = std::result::Result<T, E>;
