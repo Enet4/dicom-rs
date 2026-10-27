@@ -2915,11 +2915,17 @@ mod tests {
 
             let rle_pixeldata = rle.decode_pixel_data().unwrap();
             let native_pixeldata = native.decode_pixel_data().unwrap();
-            assert!(rle_pixeldata.data() == native_pixeldata.data(), "RLE samples differ from native");
+            assert!(
+                rle_pixeldata.data() == native_pixeldata.data(),
+                "RLE samples differ from native"
+            );
 
             let rle_pixeldata = rle.decode_pixel_data_frame(0).unwrap();
             let native_pixeldata = native.decode_pixel_data_frame(0).unwrap();
-            assert!(rle_pixeldata.data() == native_pixeldata.data(), "RLE samples differ from native");
+            assert!(
+                rle_pixeldata.data() == native_pixeldata.data(),
+                "RLE samples differ from native"
+            );
         }
 
         #[cfg(feature = "ndarray")]

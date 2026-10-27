@@ -374,12 +374,17 @@ fn guarded_resize(
     additional_capacity: usize,
     encapsulated_size: usize,
 ) -> DecodeResult<()> {
-    crate::alloc::guarded_resize(out, additional_capacity, encapsulated_size, COMPRESSION_RATIO_THRESHOLD)
-        .ok()
-        .context(decode_error::AllocateSnafu {
-            name: "frame",
-            size: additional_capacity,
-        })
+    crate::alloc::guarded_resize(
+        out,
+        additional_capacity,
+        encapsulated_size,
+        COMPRESSION_RATIO_THRESHOLD,
+    )
+    .ok()
+    .context(decode_error::AllocateSnafu {
+        name: "frame",
+        size: additional_capacity,
+    })
 }
 
 /// reduce data precision to 8 bits if necessary.

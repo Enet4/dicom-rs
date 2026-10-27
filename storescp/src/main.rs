@@ -3,8 +3,8 @@ use std::{
     path::PathBuf,
 };
 
-use dicom_app_common::{ConnectionOptions, TlsOptions, TlsAcceptorOptions};
 use clap::Parser;
+use dicom_app_common::{ConnectionOptions, TlsAcceptorOptions, TlsOptions};
 use dicom_core::{DataElement, VR, dicom_value};
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, StandardDataDictionary};

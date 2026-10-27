@@ -1161,7 +1161,9 @@ impl PrimitiveValue {
 #[cfg(test)]
 mod tests {
     use crate::dicom_value;
-    use crate::value::{ConvertValueError, DicomValueType, InvalidValueReadError, PrimitiveValue, ValueType};
+    use crate::value::{
+        ConvertValueError, DicomValueType, InvalidValueReadError, PrimitiveValue, ValueType,
+    };
 
     #[test]
     fn primitive_value_to_float() {
@@ -1180,8 +1182,14 @@ mod tests {
         // this method accepts non-finite numbers
         assert!(dicom_value!(Str, "NaN").to_float32().unwrap().is_nan());
         assert!(dicom_value!(Str, "NaN").to_float64().unwrap().is_nan());
-        assert_eq!(dicom_value!(Str, "Infinity").to_float32().ok(), Some(f32::INFINITY));
-        assert_eq!(dicom_value!(Str, "Infinity").to_float64().ok(), Some(f64::INFINITY));
+        assert_eq!(
+            dicom_value!(Str, "Infinity").to_float32().ok(),
+            Some(f32::INFINITY)
+        );
+        assert_eq!(
+            dicom_value!(Str, "Infinity").to_float64().ok(),
+            Some(f64::INFINITY)
+        );
     }
 
     #[test]
@@ -1222,26 +1230,62 @@ mod tests {
     #[test]
     fn primitive_value_to_finite_float() {
         // DS conversion to f32 and f64
-        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float32().ok(), Some(-73.4));
-        assert_eq!(dicom_value!(Str, "-73.4 ").to_finite_float64().ok(), Some(-73.4));
+        assert_eq!(
+            dicom_value!(Str, "-73.4 ").to_finite_float32().ok(),
+            Some(-73.4)
+        );
+        assert_eq!(
+            dicom_value!(Str, "-73.4 ").to_finite_float64().ok(),
+            Some(-73.4)
+        );
 
         // DS conversion with leading whitespaces
-        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
-        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+        assert_eq!(
+            dicom_value!(Str, " -73.4 ").to_finite_float32().ok(),
+            Some(-73.4)
+        );
+        assert_eq!(
+            dicom_value!(Str, " -73.4 ").to_finite_float64().ok(),
+            Some(-73.4)
+        );
 
         // DS conversion with leading whitespaces
-        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float32().ok(), Some(-73.4));
-        assert_eq!(dicom_value!(Str, " -73.4 ").to_finite_float64().ok(), Some(-73.4));
+        assert_eq!(
+            dicom_value!(Str, " -73.4 ").to_finite_float32().ok(),
+            Some(-73.4)
+        );
+        assert_eq!(
+            dicom_value!(Str, " -73.4 ").to_finite_float64().ok(),
+            Some(-73.4)
+        );
 
         // DS conversion with exponential
-        assert_eq!(dicom_value!(Str, "1e1").to_finite_float32().ok(), Some(10.0));
-        assert_eq!(dicom_value!(Str, "12e12").to_finite_float64().ok(), Some(12e12));
+        assert_eq!(
+            dicom_value!(Str, "1e1").to_finite_float32().ok(),
+            Some(10.0)
+        );
+        assert_eq!(
+            dicom_value!(Str, "12e12").to_finite_float64().ok(),
+            Some(12e12)
+        );
 
         // DS does not accept NaNs or Infinity
-        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float32(), Err(_)));
-        assert!(matches!(dicom_value!(Str, "NaN").to_finite_float64(), Err(_)));
-        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float32(), Err(_)));
-        assert!(matches!(dicom_value!(Str, "Infinity").to_finite_float64(), Err(_)));
+        assert!(matches!(
+            dicom_value!(Str, "NaN").to_finite_float32(),
+            Err(_)
+        ));
+        assert!(matches!(
+            dicom_value!(Str, "NaN").to_finite_float64(),
+            Err(_)
+        ));
+        assert!(matches!(
+            dicom_value!(Str, "Infinity").to_finite_float32(),
+            Err(_)
+        ));
+        assert!(matches!(
+            dicom_value!(Str, "Infinity").to_finite_float64(),
+            Err(_)
+        ));
     }
 
     #[test]

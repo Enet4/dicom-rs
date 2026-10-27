@@ -1342,9 +1342,15 @@ impl PrimitiveValue {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        dicom_value,
+        value::{
+            ConvertValueError, DateRange, DateTimeRange, DicomDate, DicomDateTime, DicomTime,
+            TimeRange, ValueType, primitive::PrimitiveValue,
+        },
+    };
     use chrono::{FixedOffset, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone as _};
     use smallvec::smallvec;
-    use crate::{dicom_value, value::{ConvertValueError, DateRange, DateTimeRange, DicomDate, DicomDateTime, DicomTime, TimeRange, ValueType, primitive::PrimitiveValue}};
 
     #[test]
     fn primitive_value_to_naive_date() {

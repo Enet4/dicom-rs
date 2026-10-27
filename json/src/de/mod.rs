@@ -367,12 +367,14 @@ where
                 PrimitiveValue::from(data).into()
             }
             (None, vr, Some(_inline_binary)) => {
-                return Err(A::Error::custom(format!("value of VR {vr} should not be encoded in InlineBinary")));
+                return Err(A::Error::custom(format!(
+                    "value of VR {vr} should not be encoded in InlineBinary"
+                )));
             }
             (Some(values), _, None) => values,
             (Some(_), _, Some(_)) => unreachable!(
                 "conflict between InlineBinary and Value should have already been checked"
-            )
+            ),
         };
 
         Ok(JsonDataElement {

@@ -81,7 +81,7 @@ struct ImageOptions {
         conflicts_with = "force_8bit",
         conflicts_with = "force_16bit",
         conflicts_with = "modality_lut",
-        conflicts_with = "voi_lut",
+        conflicts_with = "voi_lut"
     )]
     unwrap: bool,
     /// Decode all pixel data frames instead of just the one intended

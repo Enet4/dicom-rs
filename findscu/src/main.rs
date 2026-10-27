@@ -69,7 +69,11 @@ struct App {
     )]
     mwl: bool,
     /// timeout for TCP connection establishment in seconds
-    #[arg(long = "connect-timeout", value_name = "SECS", value_parser(parse_duration_sec))]
+    #[arg(
+        long = "connect-timeout",
+        value_name = "SECS",
+        value_parser(parse_duration_sec)
+    )]
     connect_timeout: Option<Duration>,
     #[command(flatten, next_help_heading = "Connection Options")]
     connection: ConnectionOptions,
