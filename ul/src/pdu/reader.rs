@@ -9,8 +9,78 @@ pub type Error = crate::pdu::ReadError;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Options controlling PDU parsing.
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub struct ReadPduOptions {
+    /// The maximum accepted PDU length.
+    pub max_pdu_length: u32,
+
+    /// Whether to enforce the maximum PDU length.
+    pub strict: bool,
+
+    /// Whether fixed-length PDUs may contain bytes after their defined body.
+    ///
+    /// This defaults to `true` for compatibility with the historical behavior
+    /// of [`read_pdu`].
+    pub allow_trailing_fixed_pdu_bytes: bool,
+}
+
+impl Default for ReadPduOptions {
+    fn default() -> Self {
+        Self {
+            max_pdu_length: super::DEFAULT_MAX_PDU,
+            strict: true,
+            allow_trailing_fixed_pdu_bytes: true,
+        }
+    }
+}
+
+impl ReadPduOptions {
+    /// Create a new set of PDU reader options.
+    pub fn new(max_pdu_length: u32, strict: bool) -> Self {
+        Self {
+            max_pdu_length,
+            strict,
+            allow_trailing_fixed_pdu_bytes: true,
+        }
+    }
+
+    /// Set the maximum accepted PDU length.
+    pub fn max_pdu_length(mut self, max_pdu_length: u32) -> Self {
+        self.max_pdu_length = max_pdu_length;
+        self
+    }
+
+    /// Set whether to enforce the maximum PDU length.
+    pub fn strict(mut self, strict: bool) -> Self {
+        self.strict = strict;
+        self
+    }
+
+    /// Set whether fixed-length PDUs may contain trailing bytes.
+    pub fn allow_trailing_fixed_pdu_bytes(mut self, allow_trailing_fixed_pdu_bytes: bool) -> Self {
+        self.allow_trailing_fixed_pdu_bytes = allow_trailing_fixed_pdu_bytes;
+        self
+    }
+}
+
 /// Read a PDU from the given byte buffer.
-pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<Option<Pdu>> {
+///
+/// This retains the historical behavior of accepting trailing bytes in
+/// fixed-length PDUs. Use [`read_pdu_with_options`] to reject those bytes.
+pub fn read_pdu(buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<Option<Pdu>> {
+    read_pdu_with_options(buf, ReadPduOptions::new(max_pdu_length, strict))
+}
+
+/// Read a PDU from the given byte buffer with the supplied options.
+pub fn read_pdu_with_options(mut buf: impl Buf, options: ReadPduOptions) -> Result<Option<Pdu>> {
+    let ReadPduOptions {
+        max_pdu_length,
+        strict,
+        allow_trailing_fixed_pdu_bytes,
+    } = options;
+
     ensure!(
         (super::MINIMUM_PDU_SIZE..=super::MAXIMUM_PDU_SIZE).contains(&max_pdu_length),
         InvalidMaxPduSnafu { max_pdu_length },
@@ -40,10 +110,40 @@ pub fn read_pdu(mut buf: impl Buf, max_pdu_length: u32, strict: bool) -> Result<
         }
     );
 
+    let fixed_pdu_length = matches!(pdu_type, 0x03 | 0x05 | 0x06 | 0x07).then_some(4_u32);
+    if let Some(expected_length) = fixed_pdu_length {
+        ensure!(
+            pdu_length >= expected_length,
+            InvalidFixedPduLengthSnafu {
+                pdu_type,
+                pdu_length,
+                expected_length,
+            }
+        );
+        ensure!(
+            pdu_length == expected_length || allow_trailing_fixed_pdu_bytes,
+            InvalidFixedPduLengthSnafu {
+                pdu_type,
+                pdu_length,
+                expected_length,
+            }
+        );
+    }
+
     if buf.remaining() < pdu_length as usize {
         return Ok(None);
     }
     let mut bytes = buf.copy_to_bytes(pdu_length as usize);
+
+    if let Some(expected_length) = fixed_pdu_length {
+        if pdu_length > expected_length {
+            warn!(
+                pdu_type,
+                pdu_length, expected_length, "Ignoring trailing bytes in fixed-length PDU"
+            );
+        }
+    }
+
     let codec = DefaultCharacterSetCodec;
 
     match pdu_type {

@@ -31,6 +31,9 @@ struct App {
     /// Enforce max pdu length
     #[arg(short = 's', long = "strict")]
     strict: bool,
+    /// Reject trailing bytes in fixed-length PDUs
+    #[arg(long)]
+    reject_trailing_fixed_pdu_bytes: bool,
     /// Only accept native/uncompressed transfer syntaxes
     #[arg(long)]
     uncompressed_only: bool,

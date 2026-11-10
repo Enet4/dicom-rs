@@ -9,7 +9,7 @@ pub mod writer;
 
 use std::fmt::Display;
 
-pub use reader::read_pdu;
+pub use reader::{ReadPduOptions, read_pdu, read_pdu_with_options};
 use snafu::{Backtrace, Snafu};
 pub use writer::{WriteChunkError, write_pdu};
 
@@ -85,6 +85,18 @@ pub enum WriteError {
         reason: &'static str,
         backtrace: Backtrace,
     },
+
+    #[snafu(display(
+        "Encoded length {} exceeds maximum {} for {} length field",
+        length,
+        maximum_length,
+        length_field
+    ))]
+    EncodedLengthOverflow {
+        length: usize,
+        maximum_length: usize,
+        length_field: &'static str,
+    },
 }
 
 #[derive(Debug, Snafu)]
@@ -127,6 +139,18 @@ pub enum ReadError {
     ShortSopClassExtendedNegotiationItemLength {
         length: u32,
         sop_class_uid_length: u16,
+    },
+
+    #[snafu(display(
+        "Invalid fixed PDU length {} for PDU type {} (expected {})",
+        pdu_length,
+        pdu_type,
+        expected_length
+    ))]
+    InvalidFixedPduLength {
+        pdu_type: u8,
+        pdu_length: u32,
+        expected_length: u32,
     },
 
     #[snafu(display("Could not read {} reserved bytes", bytes))]
