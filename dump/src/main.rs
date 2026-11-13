@@ -22,7 +22,7 @@ struct App {
     #[clap(required = true)]
     files: Vec<PathBuf>,
     /// Read the file up to this tag
-    #[clap(long = "until", value_parser = parse_tag)]
+    #[clap(long = "until", alias = "stop", alias = "stop-at", value_parser = parse_tag)]
     read_until: Option<Tag>,
     /// Strategy for handling odd-length text values
     ///
