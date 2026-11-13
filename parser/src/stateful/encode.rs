@@ -176,7 +176,7 @@ where
             position: self.bytes_written,
         })?;
         self.bytes_written += bytes.len() as u64;
-        if bytes.len() % 2 != 0 {
+        if !bytes.len().is_multiple_of(2) {
             self.to.write_all(&[0]).context(WriteValueDataSnafu {
                 position: self.bytes_written,
             })?;
@@ -246,7 +246,7 @@ where
                 )?;
 
                 self.bytes_written += bytes as u64;
-                if bytes % 2 != 0 {
+                if !bytes.is_multiple_of(2) {
                     let padding = match de.vr {
                         VR::DA | VR::DT | VR::TM => b' ',
                         _ => 0,
