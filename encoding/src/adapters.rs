@@ -257,11 +257,11 @@ pub trait PixelDataObject {
                         frame_data.extend_from_slice(&fragment);
                     }
                     offset += fragment.len() + 8;
-                    if let Some(&next_offset) = next_offset {
-                        if offset >= next_offset as usize {
-                            // next fragment is for the next frame
-                            break;
-                        }
+                    if let Some(&next_offset) = next_offset
+                        && offset >= next_offset as usize
+                    {
+                        // next fragment is for the next frame
+                        break;
                     }
                 }
 
