@@ -215,12 +215,12 @@ impl std::cmp::PartialEq for FileMetaTable {
 /// Given two byte slices check whether they are equal
 /// but without considering the padding to even length.
 fn bytes_eq_without_trailing_byte(v1: &[u8], v2: &[u8]) -> bool {
-    let v1 = if v1.len() % 2 == 0 && v1.last().copied() == Some(0) {
+    let v1 = if v1.len().is_multiple_of(2) && v1.last().copied() == Some(0) {
         &v1[..v1.len() - 1]
     } else {
         v1
     };
-    let v2 = if v2.len() % 2 == 0 && v2.last().copied() == Some(0) {
+    let v2 = if v2.len().is_multiple_of(2) && v2.last().copied() == Some(0) {
         &v2[..v2.len() - 1]
     } else {
         v2

@@ -47,7 +47,7 @@ impl Fragments {
             fragment_size
         };
 
-        let fragment_size = if fragment_size % 2 == 0 {
+        let fragment_size = if fragment_size.is_multiple_of(2) {
             fragment_size
         } else {
             fragment_size + 1

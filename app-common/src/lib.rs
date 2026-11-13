@@ -13,6 +13,9 @@ use std::time::Duration;
 #[cfg(feature = "tls")]
 use tracing::debug;
 
+/// re-export of tracing
+pub use tracing;
+
 /// A required PEM object is missing from the provided data.
 ///
 /// Indicates that a PEM file is expected to contain both an X.509 certificate
