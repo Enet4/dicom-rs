@@ -645,25 +645,25 @@ where
             };
 
             // if Media Storage SOP Class UID is empty attempt to infer from SOP Class UID
-            if meta.media_storage_sop_class_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_CLASS_UID) {
-                    meta.media_storage_sop_class_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
+            if meta.media_storage_sop_class_uid().is_empty()
+                && let Some(elem) = obj.get(tags::SOP_CLASS_UID)
+            {
+                meta.media_storage_sop_class_uid = elem
+                    .value()
+                    .to_str()
+                    .context(ParseSopAttributeSnafu)?
+                    .to_string();
             }
 
             // if Media Storage SOP Instance UID is empty attempt to infer from SOP Instance UID
-            if meta.media_storage_sop_instance_uid().is_empty() {
-                if let Some(elem) = obj.get(tags::SOP_INSTANCE_UID) {
-                    meta.media_storage_sop_instance_uid = elem
-                        .value()
-                        .to_str()
-                        .context(ParseSopAttributeSnafu)?
-                        .to_string();
-                }
+            if meta.media_storage_sop_instance_uid().is_empty()
+                && let Some(elem) = obj.get(tags::SOP_INSTANCE_UID)
+            {
+                meta.media_storage_sop_instance_uid = elem
+                    .value()
+                    .to_str()
+                    .context(ParseSopAttributeSnafu)?
+                    .to_string();
             }
 
             Ok(FileDicomObject { meta, obj })

@@ -335,10 +335,10 @@ where
 
         // if element is Specific Character Set,
         // update the text codec
-        if de.tag == Tag(0x0008, 0x0005) {
-            if let Some(charset_name) = texts.first() {
-                self.try_new_codec(charset_name.as_ref());
-            }
+        if de.tag == Tag(0x0008, 0x0005)
+            && let Some(charset_name) = texts.first()
+        {
+            self.try_new_codec(charset_name.as_ref());
         }
 
         Ok(())

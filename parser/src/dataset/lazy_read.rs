@@ -261,35 +261,35 @@ where
     S: StatefulDecode,
 {
     fn update_seq_delimiters<'b>(&mut self) -> Result<Option<LazyDataToken<&'b mut S>>> {
-        if let Some(sd) = self.seq_delimiters.last() {
-            if let Some(len) = sd.len.get() {
-                let end_of_sequence = sd.base_offset + len as u64;
-                let bytes_read = self.parser.position();
-                match end_of_sequence.cmp(&bytes_read) {
-                    Ordering::Equal => {
-                        // end of delimiter, as indicated by the element's length
-                        let token = match sd.typ {
-                            SeqTokenType::Sequence => {
-                                self.in_sequence = false;
-                                LazyDataToken::SequenceEnd
-                            }
-                            SeqTokenType::Item => {
-                                self.in_sequence = true;
-                                LazyDataToken::ItemEnd
-                            }
-                        };
-                        self.seq_delimiters.pop();
-                        return Ok(Some(token));
-                    }
-                    Ordering::Less => {
-                        return InconsistentSequenceEndSnafu {
-                            end_of_sequence,
-                            bytes_read,
+        if let Some(sd) = self.seq_delimiters.last()
+            && let Some(len) = sd.len.get()
+        {
+            let end_of_sequence = sd.base_offset + len as u64;
+            let bytes_read = self.parser.position();
+            match end_of_sequence.cmp(&bytes_read) {
+                Ordering::Equal => {
+                    // end of delimiter, as indicated by the element's length
+                    let token = match sd.typ {
+                        SeqTokenType::Sequence => {
+                            self.in_sequence = false;
+                            LazyDataToken::SequenceEnd
                         }
-                        .fail();
-                    }
-                    Ordering::Greater => {} // continue normally
+                        SeqTokenType::Item => {
+                            self.in_sequence = true;
+                            LazyDataToken::ItemEnd
+                        }
+                    };
+                    self.seq_delimiters.pop();
+                    return Ok(Some(token));
                 }
+                Ordering::Less => {
+                    return InconsistentSequenceEndSnafu {
+                        end_of_sequence,
+                        bytes_read,
+                    }
+                    .fail();
+                }
+                Ordering::Greater => {} // continue normally
             }
         }
         self.delimiter_check_pending = false;
@@ -1080,7 +1080,7 @@ mod tests {
         #[rustfmt::skip]
         static DATA: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
-            b'O', b'B', // VR 
+            b'O', b'B', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // length: undefined
             // -- 12 -- Basic offset table
@@ -1129,7 +1129,7 @@ mod tests {
         #[rustfmt::skip]
         static DATA: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
-            b'O', b'B', // VR 
+            b'O', b'B', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // length: undefined
             // -- 12 -- Basic offset table

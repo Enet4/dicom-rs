@@ -140,13 +140,13 @@ fn run() -> Result<(), Whatever> {
             Ok(mut obj) => {
                 if options.format == DumpFormat::Json {
                     // JSON output doesn't currently support encapsulated pixel data
-                    if let Ok(elem) = obj.element(tags::PIXEL_DATA) {
-                        if let dicom_core::value::Value::PixelSequence(_) = elem.value() {
-                            eprintln!(
-                                "[WARN] Encapsulated pixel data not supported in JSON output, skipping"
-                            );
-                            obj.remove_element(tags::PIXEL_DATA);
-                        }
+                    if let Ok(elem) = obj.element(tags::PIXEL_DATA)
+                        && let dicom_core::value::Value::PixelSequence(_) = elem.value()
+                    {
+                        eprintln!(
+                            "[WARN] Encapsulated pixel data not supported in JSON output, skipping"
+                        );
+                        obj.remove_element(tags::PIXEL_DATA);
                     }
                 }
                 if let Err(ref e) = options.dump_file(&obj) {
