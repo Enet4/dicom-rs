@@ -709,4 +709,93 @@ mod tests {
 
         assert_eq!(rw2, "使其与原始仓库保持一致");
     }
+
+    /// ISO-8859-1 maps every byte to the code point of the same value
+    /// and reproduces the byte value upon a round trip of decoding then encoding.
+    #[test]
+    fn latin1_full_byte_range_round_trips() {
+        let bytes: Vec<u8> = (0..=255).collect();
+        let expected: String = (0..=255u8).map(char::from).collect();
+        for codec in [
+            SpecificCharacterSet::ISO_IR_6,
+            SpecificCharacterSet::ISO_IR_100,
+        ] {
+            let decoded = codec.decode(&bytes).expect("decoding");
+            assert_eq!(decoded, expected);
+            assert_eq!(codec.encode(&decoded).expect("encoding"), bytes);
+        }
+    }
+
+    /// Bytes 0x80–0x9F are where ISO-8859-1 and windows-1252 differ.
+    #[test]
+    fn latin1_is_not_windows_1252() {
+        let codec = SpecificCharacterSet::ISO_IR_100;
+        // windows-1252 would decode 0x80 as '€'
+        assert_eq!(codec.decode(b"\x80").expect("decoding"), "\u{80}");
+        // one of the five bytes in 0x80–0x9F that both charsets map the same way
+        assert_eq!(codec.decode(b"\x81").expect("decoding"), "\u{81}");
+        // windows-1252 would encode '€' as 0x80
+        assert!(codec.encode("€").is_err());
+    }
+
+    #[test]
+    fn latin1_encode_error_names_the_charset() {
+        let err = SpecificCharacterSet::ISO_IR_100
+            .encode("€")
+            .expect_err("€ is not in ISO-8859-1");
+        assert!(err.to_string().contains("ISO_IR 100"), "{err}");
+
+        let err = SpecificCharacterSet::ISO_IR_6
+            .encode("€")
+            .expect_err("€ is not in ISO-8859-1");
+        assert!(err.to_string().contains("ISO_IR 6"), "{err}");
+    }
+
+    #[test]
+    fn encode_unrepresentable_is_error() {
+        let codec = SpecificCharacterSet(CharsetImpl::IsoIr13);
+        let err = codec.encode("😀").expect_err("emoji is not in Shift_JIS");
+        assert!(err.to_string().contains("ISO_IR 13"), "{err}");
+    }
+
+    #[test]
+    fn decode_invalid_sequence_is_replaced() {
+        let shift_jis = SpecificCharacterSet(CharsetImpl::IsoIr13);
+        // lone Shift_JIS lead byte at end of input
+        assert_eq!(shift_jis.decode(b"A\x81").expect("decoding"), "A\u{FFFD}");
+        // invalid trail byte mid-input; decoding continues afterwards
+        assert_eq!(
+            shift_jis.decode(b"A\x81 B").expect("decoding"),
+            "A\u{FFFD} B"
+        );
+
+        let utf8 = SpecificCharacterSet::ISO_IR_192;
+        // truncated multi-byte sequence at end of input
+        assert_eq!(utf8.decode(b"caf\xe9").expect("decoding"), "caf\u{FFFD}");
+        // byte that is never valid in UTF-8, mid-input
+        assert_eq!(utf8.decode(b"a\xffb").expect("decoding"), "a\u{FFFD}b");
+    }
+
+    /// Text that was damaged on decode is not silently written back:
+    /// U+FFFD is unrepresentable in most charsets, so encoding fails.
+    #[test]
+    fn replaced_text_does_not_re_encode() {
+        let shift_jis = SpecificCharacterSet(CharsetImpl::IsoIr13);
+        let decoded = shift_jis.decode(b"A\x81").expect("decoding");
+        assert!(shift_jis.encode(&decoded).is_err());
+
+        // UTF-8 can represent U+FFFD, so the replacement is written out as is
+        let utf8 = SpecificCharacterSet::ISO_IR_192;
+        let decoded = utf8.decode(b"caf\xe9").expect("decoding");
+        assert_eq!(
+            utf8.encode(&decoded).expect("encoding"),
+            "caf\u{FFFD}".as_bytes()
+        );
+    }
+
+    #[test]
+    fn validate_iso_8859_accepts_all_bytes() {
+        let bytes: Vec<u8> = (0..=255).collect();
+        assert_eq!(validate_iso_8859(&bytes), TextValidationOutcome::Ok);
+    }
 }
