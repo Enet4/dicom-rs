@@ -578,8 +578,15 @@ mod tests {
     #[test]
     fn iso_ir_87_baseline() {
         let codec = SpecificCharacterSet(CharsetImpl::IsoIr87);
-        test_codec(&codec, "山田^太郎", b"\x1b$B;3ED\x1b(B^\x1b$BB@O:");
-        test_codec(&codec, "やまだ^たろう", b"\x1b$B$d$^$@\x1b(B^\x1b$B$?$m$&");
+        // PS3.5 6.1.2.5.3: the initial character set (ASCII) must be active
+        // again before each '^' / '=' delimiter and before the end of the value,
+        // hence the trailing "ESC ( B".
+        test_codec(&codec, "山田^太郎", b"\x1b$B;3ED\x1b(B^\x1b$BB@O:\x1b(B");
+        test_codec(
+            &codec,
+            "やまだ^たろう",
+            b"\x1b$B$d$^$@\x1b(B^\x1b$B$?$m$&\x1b(B",
+        );
     }
 
     #[test]
