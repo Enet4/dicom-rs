@@ -382,7 +382,7 @@ macro_rules! decl_character_set {
 /// Data type representing the default character set (ISO_IR 6).
 ///
 /// **NOTE** This decodes and encodes as ISO-8859-1, whose repertoire is a superset of the
-/// default character repertoire (IRO_IR 6). This is lenient on purpose because
+/// default character repertoire (ISO_IR 6). This is lenient on purpose because
 /// many files contain non-ASCII text without declaring a Specific Character Set,
 /// so non-ASCII bytes are accepted rather than rejected.
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
