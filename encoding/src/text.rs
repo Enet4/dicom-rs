@@ -6,8 +6,8 @@
 //! | Character Set                 | decoding support | encoding support |
 //! |-------------------------------|------------------|------------------|
 //! | ISO-IR 6 (default)            | ✓ | ✓ |
-//! | ISO-IR 13 (WINDOWS_31J): The JIS X 0201-1976 character set (Japanese single-byte) | ✓ | ✓ |
-//! | ISO-IR 87 (ISO_2022_JP): The JIS X 0208-1990 character set (Japanese multi-byte) | ✓ | ✓ |
+//! | ISO-IR 13 (Shift_JIS): The JIS X 0201-1976 character set (Japanese single-byte) | ✓ | ✓ |
+//! | ISO-IR 87 (ISO-2022-JP): The JIS X 0208-1990 character set (Japanese multi-byte) | ✓ | ✓ |
 //! | ISO-IR 100 (ISO-8859-1): Right-hand part of the Latin alphabet no. 1, the Western Europe character set | ✓ | ✓ |
 //! | ISO-IR 101 (ISO-8859-2): Right-hand part of the Latin alphabet no. 2, the Central/Eastern Europe character set | ✓ | ✓ |
 //! | ISO-IR 109 (ISO-8859-3): Right-hand part of the Latin alphabet no. 3, the South Europe character set | ✓ | ✓ |
@@ -17,20 +17,25 @@
 //! | ISO-IR 138 (ISO-8859-8): The Latin/Hebrew character set | ✓ | ✓ |
 //! | ISO-IR 144 (ISO-8859-5): The Latin/Cyrillic character set | ✓ | ✓ |
 //! | ISO-IR 148 (ISO-8859-9): Latin no. 5, the Turkish character set  | x | x |
-//! | ISO-IR 149 (WINDOWS_949): The KS X 1001 character set (Korean) | ✓ | ✓ |
+//! | ISO-IR 149 (EUC-KR): The KS X 1001 character set (Korean) | ✓ | ✓ |
 //! | ISO-IR 159: The JIS X 0212-1990 character set (supplementary Japanese characters) | x | x |
-//! | ISO-IR 166 (WINDOWS_874): The TIS 620-2533 character set (Thai) | ✓ | ✓ |
+//! | ISO-IR 166 (windows-874): The TIS 620-2533 character set (Thai) | ✓ | ✓ |
 //! | ISO-IR 192: The Unicode character set based on the UTF-8 encoding | ✓ | ✓ |
 //! | GB18030: The Simplified Chinese character set | ✓ | ✓ |
 //! | GB2312: Simplified Chinese character set | ✓ | ✓ |
 //! | GBK: Simplified Chinese character set | ✓ | ✓ |
+//!
 //! These capabilities are available through [`SpecificCharacterSet`].
-
-use encoding::all::{
-    GB18030, GBK, ISO_2022_JP, ISO_8859_1, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5,
-    ISO_8859_6, ISO_8859_7, ISO_8859_8, UTF_8, WINDOWS_31J, WINDOWS_874, WINDOWS_949,
+//!
+//! The codecs are backed by [`encoding_rs`], except ISO-IR 6 and ISO-IR 100,
+//! which use true ISO-8859-1 (see [`IsoIr100CharacterSetCodec`] for why).
+//! Decoding never fails: invalid byte sequences are replaced with U+FFFD (`�`).
+//! Encoding fails if the text contains characters the charset cannot represent.
+use encoding_rs::mem::{decode_latin1, encode_latin1_lossy, is_str_latin1};
+use encoding_rs::{
+    EUC_KR, GB18030, GBK, ISO_2022_JP, ISO_8859_2, ISO_8859_3, ISO_8859_4, ISO_8859_5, ISO_8859_6,
+    ISO_8859_7, ISO_8859_8, SHIFT_JIS, UTF_8, WINDOWS_874,
 };
-use encoding::{DecoderTrap, EncoderTrap, Encoding, RawDecoder, StringWriter};
 use snafu::{Backtrace, Snafu};
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -326,23 +331,18 @@ impl TextCodec for CharsetImpl {
     }
 }
 
-fn decode_text_trap(
-    _decoder: &mut dyn RawDecoder,
-    input: &[u8],
-    output: &mut dyn StringWriter,
-) -> bool {
-    let c = input[0];
-    let o0 = c & 7;
-    let o1 = (c & 56) >> 3;
-    let o2 = (c & 192) >> 6;
-    output.write_char('\\');
-    output.write_char((o2 + b'0') as char);
-    output.write_char((o1 + b'0') as char);
-    output.write_char((o0 + b'0') as char);
-    true
-}
-
-/// Create and implement a character set type using the `encoding` crate.
+/// Create and implement a character set type supported by an [`encoding_rs::Encoding`].
+///
+/// Decoding never fails: each malformed byte sequence is replaced with
+/// U+FFFD (`�`). Previous versions wrote invalid bytes as octal escapes
+/// (e.g. `\201`), which were indistinguishable from the `\` value separator
+/// and could silently corrupt values when the data was written back.
+///
+/// Most charsets other than UTF-8 cannot represent U+FFFD,
+/// so text decoded with replacements fails to encode again.
+/// This is safer than writing it out with changes as the octal escape method did
+///
+/// Encoding fails if the text contains characters the charset cannot represent.
 macro_rules! decl_character_set {
     ($typ: ident, $term: literal, $val: expr) => {
         #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
@@ -357,19 +357,34 @@ macro_rules! decl_character_set {
             }
 
             fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-                $val.decode(text, DecoderTrap::Call(decode_text_trap))
-                    .map_err(|message| DecodeCustomSnafu { message }.build())
+                let (decoded, _any_replacements) = $val.decode_without_bom_handling(text);
+                Ok(decoded.into_owned())
             }
 
             fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-                $val.encode(text, EncoderTrap::Strict)
-                    .map_err(|message| EncodeCustomSnafu { message }.build())
+                let (bytes, _encoding, any_unmappable) = $val.encode(text);
+                if any_unmappable {
+                    Err(EncodeCustomSnafu {
+                        message: format!(
+                            "Text contains characters not representable in {}",
+                            self.name()
+                        ),
+                    }
+                    .build())
+                } else {
+                    Ok(bytes.into_owned())
+                }
             }
         }
     };
 }
 
-/// Data type representing the default character set.
+/// Data type representing the default character set (ISO_IR 6).
+///
+/// **NOTE** This decodes and encodes as ISO-8859-1, whose repertoire is a superset of the
+/// default character repertoire (IRO_IR 6). This is lenient on purpose because
+/// many files contain non-ASCII text without declaring a Specific Character Set,
+/// so non-ASCII bytes are accepted rather than rejected.
 #[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
 pub struct DefaultCharacterSetCodec;
 
@@ -379,23 +394,81 @@ impl TextCodec for DefaultCharacterSetCodec {
     }
 
     fn decode(&self, text: &[u8]) -> DecodeResult<String> {
-        // Using 8859-1 because it is a superset. Reiterations of this impl
-        // should check for invalid character codes (#40).
-        ISO_8859_1
-            .decode(text, DecoderTrap::Call(decode_text_trap))
-            .map_err(|message| DecodeCustomSnafu { message }.build())
+        // Lenient on purpose, as before: bytes outside the default
+        // repertoire are accepted. See the default-encoding edge cases in #40.
+        Ok(latin1_decode(text))
     }
 
     fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
-        ISO_8859_1
-            .encode(text, EncoderTrap::Strict)
-            .map_err(|message| EncodeCustomSnafu { message }.build())
+        latin1_encode(text, &self.name())
     }
 }
 
-decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR 13", WINDOWS_31J);
+/// Data type for the ISO_IR 100 (ISO-8859-1) character set encoding.
+///
+/// Not implemented with an [`encoding_rs::Encoding`]: `encoding_rs` follows
+/// the WHATWG Encoding Standard, which treats the "ISO-8859-1" label as
+/// windows-1252. The two only differ in bytes 0x80–0x9F: ISO-8859-1
+/// (as registered by IANA, with the C1 control codes) maps them to
+/// U+0080–U+009F, while windows-1252 maps them to symbols
+/// (0x80 is `€`, 0x93 is `“`). Using [`encoding_rs::WINDOWS_1252`] would:
+///
+/// - decode those bytes to different text than ISO-8859-1 does;
+/// - accept symbols like `€` that are not in ISO-8859-1 when encoding,
+///   and reject the control characters U+0080–U+009F that are in ISO-8859-1.
+///
+/// DICOM's ISO_IR 100 is ISO-8859-1, and the previous `encoding`-based codec
+/// was true ISO-8859-1 too, so it is implemented with [`encoding_rs::mem`]
+/// to keep that behaviour.
+#[derive(Debug, Default, Copy, Clone, Eq, Hash, PartialEq)]
+pub struct IsoIr100CharacterSetCodec;
+
+impl TextCodec for IsoIr100CharacterSetCodec {
+    fn name(&self) -> Cow<'static, str> {
+        Cow::Borrowed("ISO_IR 100")
+    }
+
+    fn decode(&self, text: &[u8]) -> DecodeResult<String> {
+        Ok(latin1_decode(text))
+    }
+
+    fn encode(&self, text: &str) -> EncodeResult<Vec<u8>> {
+        latin1_encode(text, &self.name())
+    }
+}
+
+/// Decode ISO-8859-1. Cannot fail, since every byte value is defined.
+///
+/// The first 256 Unicode code points were taken from ISO-8859-1 so byte N is code point U+00NN.
+/// The decoded text still has to be re-encoded as UTF-8 for a `String`.
+/// It is equivalent to
+/// `text.iter().map(|&b| char::from(b)).collect()`.
+fn latin1_decode(text: &[u8]) -> String {
+    decode_latin1(text).into_owned()
+}
+
+/// Encode as ISO-8859-1, failing on any character above U+00FF.
+///
+/// The reverse of [`latin1_decode`]: each character in U+0000–U+00FF is
+/// written as the single byte of the same value. Characters above U+00FF
+/// (e.g. `€`, U+20AC) have no ISO-8859-1 byte, so they are an error.
+///
+/// [`encode_latin1_lossy`] is only correct for input in U+0000–U+00FF:
+/// otherwise it panics in debug builds and produces unspecified bytes in
+/// release builds. The [`is_str_latin1`] check guarantees that precondition.
+fn latin1_encode(text: &str, charset_name: &str) -> EncodeResult<Vec<u8>> {
+    if is_str_latin1(text) {
+        Ok(encode_latin1_lossy(text).into_owned())
+    } else {
+        Err(EncodeCustomSnafu {
+            message: format!("Text contains characters not representable in {charset_name}"),
+        }
+        .build())
+    }
+}
+
+decl_character_set!(IsoIr13CharacterSetCodec, "ISO_IR 13", SHIFT_JIS);
 decl_character_set!(IsoIr87CharacterSetCodec, "ISO_IR 87", ISO_2022_JP);
-decl_character_set!(IsoIr100CharacterSetCodec, "ISO_IR 100", ISO_8859_1);
 decl_character_set!(IsoIr101CharacterSetCodec, "ISO_IR 101", ISO_8859_2);
 decl_character_set!(IsoIr109CharacterSetCodec, "ISO_IR 109", ISO_8859_3);
 decl_character_set!(IsoIr110CharacterSetCodec, "ISO_IR 110", ISO_8859_4);
@@ -403,7 +476,7 @@ decl_character_set!(IsoIr126CharacterSetCodec, "ISO_IR 126", ISO_8859_7);
 decl_character_set!(IsoIr127CharacterSetCodec, "ISO_IR 127", ISO_8859_6);
 decl_character_set!(IsoIr138CharacterSetCodec, "ISO_IR 138", ISO_8859_8);
 decl_character_set!(IsoIr144CharacterSetCodec, "ISO_IR 144", ISO_8859_5);
-decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", WINDOWS_949);
+decl_character_set!(IsoIr149CharacterSetCodec, "ISO_IR 149", EUC_KR);
 decl_character_set!(IsoIr166CharacterSetCodec, "ISO_IR 166", WINDOWS_874);
 decl_character_set!(Utf8CharacterSetCodec, "ISO_IR 192", UTF_8);
 decl_character_set!(Gb18030CharacterSetCodec, "GB18030", GB18030);
@@ -420,16 +493,13 @@ pub enum TextValidationOutcome {
     NotOk,
 }
 
-/// Check whether the given byte slice contains valid text from the default character repertoire.
-pub fn validate_iso_8859(text: &[u8]) -> TextValidationOutcome {
-    if ISO_8859_1.decode(text, DecoderTrap::Strict).is_err() {
-        match ISO_8859_1.decode(text, DecoderTrap::Call(decode_text_trap)) {
-            Ok(_) => TextValidationOutcome::BadCharacters,
-            Err(_) => TextValidationOutcome::NotOk,
-        }
-    } else {
-        TextValidationOutcome::Ok
-    }
+/// Check whether the given byte slice is valid ISO-8859-1 text.
+///
+/// Always returns [`TextValidationOutcome::Ok`]: every byte value maps to a
+/// character in ISO-8859-1, so there is nothing to reject.
+/// This does not check against the stricter ISO-IR 6 (ASCII) repertoire.
+pub fn validate_iso_8859(_text: &[u8]) -> TextValidationOutcome {
+    TextValidationOutcome::Ok
 }
 
 /// Check whether the given byte slice contains only valid characters for a
