@@ -1982,7 +1982,7 @@ impl DecodedPixelData<'_> {
 }
 
 fn bytes_to_vec_u16(data: &[u8]) -> Vec<u16> {
-    debug_assert!(data.len() % 2 == 0);
+    debug_assert!(data.len().is_multiple_of(2));
     let mut pixel_array: Vec<u16> = vec![0; data.len() / 2];
     NativeEndian::read_u16_into(data, &mut pixel_array);
     pixel_array

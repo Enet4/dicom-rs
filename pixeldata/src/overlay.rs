@@ -266,7 +266,7 @@ pub(crate) fn decode_overlay_group<D>(
 where
     D: DataDictionary + Clone,
 {
-    if !(0x6000..=0x601E).contains(&group) || group % 2 != 0 {
+    if !(0x6000..=0x601E).contains(&group) || !group.is_multiple_of(2) {
         return Ok(None);
     }
 

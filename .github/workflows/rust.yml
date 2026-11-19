@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         rust:
-          - 1.85.0
+          - 1.91.1
           - stable
           - beta
     steps:
@@ -43,7 +43,7 @@ jobs:
       - if: matrix.rust == 'stable' || matrix.rust == 'beta'
         run: cargo test -p dicom-ul --features async-tls
       # test library projects with minimum rust version
-      - if: matrix.rust == '1.85.0'
+      - if: matrix.rust == '1.91.1'
         run: |
           cargo test \
             -p dicom-core \
@@ -90,4 +90,3 @@ jobs:
       - run: cargo check
       # socket shutdown behaves differently on macOS (e.g. `NotConnected` errors)
       - run: cargo test -p dicom-ul --lib close_socket
-    

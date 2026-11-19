@@ -332,19 +332,19 @@ where
             }
             DataToken::ItemEnd => {
                 // only write if it's an unknown length item
-                if let Some(seq_start) = self.seq_tokens.pop() {
-                    if seq_start.typ == SeqTokenType::Item && seq_start.len.is_undefined() {
-                        self.write_impl(&token)?;
-                    }
+                if let Some(seq_start) = self.seq_tokens.pop()
+                    && seq_start.typ == SeqTokenType::Item && seq_start.len.is_undefined()
+                {
+                    self.write_impl(&token)?;
                 }
                 Ok(())
             }
             DataToken::SequenceEnd => {
                 // only write if it's an unknown length sequence
-                if let Some(seq_start) = self.seq_tokens.pop() {
-                    if seq_start.typ == SeqTokenType::Sequence && seq_start.len.is_undefined() {
-                        self.write_impl(&token)?;
-                    }
+                if let Some(seq_start) = self.seq_tokens.pop()
+                    && seq_start.typ == SeqTokenType::Sequence && seq_start.len.is_undefined()
+                {
+                    self.write_impl(&token)?;
                 }
                 Ok(())
             }
@@ -506,7 +506,7 @@ mod tests {
         #[rustfmt::skip]
         static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
-            b'S', b'Q', // VR 
+            b'S', b'Q', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // seq length: UNDEFINED
             // -- 12 --
@@ -525,14 +525,14 @@ mod tests {
             // -- 58 --
             0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
             0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
         #[rustfmt::skip]
         static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
-            b'S', b'Q', // VR 
+            b'S', b'Q', // VR
             0x00, 0x00, // reserved
             0x2e, 0x00, 0x00, 0x00, // length: 28 + 18 = 46 (#= 2)
             // -- 12 --
@@ -548,7 +548,7 @@ mod tests {
             // -- 48 --
             0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
             // -- 58 --
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
@@ -645,7 +645,7 @@ mod tests {
         #[rustfmt::skip]
         static GROUND_TRUTH: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
-            b'S', b'Q', // VR 
+            b'S', b'Q', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // length: undefined
             // -- 12 --
@@ -667,7 +667,7 @@ mod tests {
             // -- 74 --
             0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
             // -- 82 --
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
@@ -723,7 +723,7 @@ mod tests {
         #[rustfmt::skip]
         static GROUND_TRUTH_LENGTH_UNDEFINED: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
-            b'S', b'Q', // VR 
+            b'S', b'Q', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // length: UNDEFINED
             0xfe, 0xff, 0x00, 0xe0, // item start tag
@@ -736,14 +736,14 @@ mod tests {
             0x18, 0x00, 0x12, 0x60, b'U', b'S', 0x02, 0x00, 0x04, 0x00, // (0018, 6012) RegionSpatialformat, len = 2, value = 4
             0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
             0xfe, 0xff, 0xdd, 0xe0, 0x00, 0x00, 0x00, 0x00, // sequence end
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
 
         #[rustfmt::skip]
         static GROUND_TRUTH_NO_CHANGE: &[u8] = &[
             0x18, 0x00, 0x11, 0x60, // sequence tag: (0018,6011) SequenceOfUltrasoundRegions
-            b'S', b'Q', // VR 
+            b'S', b'Q', // VR
             0x00, 0x00, // reserved
             0x3c, 0x00, 0x00, 0x00, // length: 60
             // -- 12 --
@@ -763,7 +763,7 @@ mod tests {
             // -- 66 --
             0xfe, 0xff, 0x0d, 0xe0, 0x00, 0x00, 0x00, 0x00, // item end
             // -- 74 --
-            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4  
+            0x20, 0x00, 0x00, 0x40, b'L', b'T', 0x04, 0x00, // (0020,4000) ImageComments, len = 4
             b'T', b'E', b'S', b'T', // value = "TEST"
         ];
         let no_change = DataSetWriterOptions {
@@ -802,7 +802,7 @@ mod tests {
         #[rustfmt::skip]
         static GROUND_TRUTH: &[u8] = &[
             0xe0, 0x7f, 0x10, 0x00, // (7FE0, 0010) PixelData
-            b'O', b'B', // VR 
+            b'O', b'B', // VR
             0x00, 0x00, // reserved
             0xff, 0xff, 0xff, 0xff, // length: undefined
             // -- 12 -- Basic offset table
